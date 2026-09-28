@@ -38,6 +38,8 @@ export function setPhoneVerification(on: boolean) {
 }
 
 export async function invoke(
+  // Route handlers have differently typed ctx params; any keeps them all assignable.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handler: (req: Request, ctx?: any) => any,
   opts: {
     method?: string;

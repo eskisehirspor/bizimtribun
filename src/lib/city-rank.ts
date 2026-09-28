@@ -11,7 +11,7 @@ export function integerPercents(votes: number[]) {
     const floor = Math.floor(exact);
     return { index, floor, frac: exact - floor };
   });
-  let leftover = 100 - parts.reduce((sum, p) => sum + p.floor, 0);
+  const leftover = 100 - parts.reduce((sum, p) => sum + p.floor, 0);
   parts.sort((a, b) => b.frac - a.frac || a.index - b.index);
   const extra = new Set<number>();
   for (let i = 0; i < leftover; i++) extra.add(parts[i]!.index);
