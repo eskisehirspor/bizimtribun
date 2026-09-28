@@ -72,7 +72,7 @@ export default function AdminTeamRequestsPage() {
   }, [page, status, q, city]);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   async function openDetail(id: number) {

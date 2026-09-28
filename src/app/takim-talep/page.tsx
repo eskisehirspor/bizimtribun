@@ -97,7 +97,7 @@ export default function TakimTalepPage() {
       <ForumShell>
         <h1 className="font-anton text-[36px] leading-[0.85]">TALEP ALINDI</h1>
         <p className="font-mono text-[13px] mt-3 max-w-[480px]">
-          Talebin alındı. Takımın Tribün'e eklenmesi için değerlendirilecek.
+          Talebin alındı. Takımın Tribün&apos;e eklenmesi için değerlendirilecek.
         </p>
         <Link
           href="/takimlar"

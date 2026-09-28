@@ -47,7 +47,7 @@ export default function AdminBansPage() {
   }, [state, page]);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   return (

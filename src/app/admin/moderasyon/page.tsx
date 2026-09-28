@@ -92,11 +92,11 @@ export default function AdminModerationPage() {
   }, [action, moderator, user, from, to, page]);
 
   useEffect(() => {
-    void loadHeld();
+    void Promise.resolve().then(loadHeld);
   }, [loadHeld]);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   async function runHeld(

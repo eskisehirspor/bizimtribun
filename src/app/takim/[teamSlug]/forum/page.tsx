@@ -76,7 +76,7 @@ export default function TeamForumPage() {
   }, [teamSlug, page, category, sort]);
 
   useEffect(() => {
-    if (active) void load();
+    if (active) void Promise.resolve().then(load);
   }, [active, load]);
 
   useEffect(() => {

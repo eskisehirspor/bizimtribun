@@ -65,7 +65,7 @@ export default function AdminUserDetailPage() {
   }, [params.userId]);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   if (error) return <AdminNotice kind="error">{error}</AdminNotice>;
