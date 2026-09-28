@@ -80,7 +80,7 @@ export default function AdminForumPage() {
   }, [tab, q, team, deleted, page]);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   function banAuthor(userId: number, username: string) {

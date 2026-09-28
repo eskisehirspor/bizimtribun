@@ -85,7 +85,7 @@ export default function KonuPage() {
   }, [topicId, page]);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   const team = topic ? getTeam(topic.teamId) : undefined;

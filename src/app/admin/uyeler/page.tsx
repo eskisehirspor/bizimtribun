@@ -58,7 +58,7 @@ export default function AdminUsersPage() {
   }, [q, role, banned, team, page]);
 
   useEffect(() => {
-    void load();
+    void Promise.resolve().then(load);
   }, [load]);
 
   return (

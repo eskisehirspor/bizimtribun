@@ -41,7 +41,7 @@ export default function YeniKonuPage() {
 
   useEffect(() => {
     const raw = new URLSearchParams(window.location.search).get("category");
-    if (isForumCategory(raw)) setCategory(raw);
+    if (isForumCategory(raw)) void Promise.resolve(raw).then(setCategory);
   }, []);
 
   useEffect(() => {

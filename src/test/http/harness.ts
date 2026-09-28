@@ -38,9 +38,7 @@ export function setPhoneVerification(on: boolean) {
 }
 
 export async function invoke(
-  // Route handlers have differently typed ctx params; any keeps them all assignable.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handler: (req: Request, ctx?: any) => any,
+  handler: (req: Request, ctx: never) => unknown,
   opts: {
     method?: string;
     path: string;
@@ -66,7 +64,7 @@ export async function invoke(
     ? { params: Promise.resolve(opts.params) }
     : undefined;
   const res = (await runWithTestHeaders(headers, () =>
-    Promise.resolve(handler(req, ctx) as Promise<Response> | Response),
+    Promise.resolve(handler(req, ctx as never) as Promise<Response> | Response),
   )) as Response;
   const text = await res.text();
   let json: unknown = null;
