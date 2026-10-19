@@ -14,7 +14,8 @@ test("production CSP has no unsafe-eval, frames locked, object-src none", () => 
   assert.ok(csp.includes("object-src 'none'"));
   assert.ok(csp.includes("base-uri 'self'"));
   assert.ok(csp.includes("form-action 'self'"));
-  assert.ok(csp.includes("script-src 'self' 'unsafe-inline'"));
+  assert.ok(csp.includes("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com"));
+  assert.ok(csp.includes("frame-src https://challenges.cloudflare.com"));
   assert.equal(csp.includes("ws:"), false);
 });
 

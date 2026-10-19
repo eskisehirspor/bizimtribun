@@ -24,26 +24,6 @@ export function identityPhoneHash(phoneNorm: string) {
   return hmac(`id-phone:${phoneNorm}`);
 }
 
-export function otpCodeHash(participantId: number, code: string) {
-  return hmac(`otp:${participantId}:${code}`);
-}
-
-export function makeVoteGrant(participantId: number) {
-  return `${participantId}.${hmac(`vote-grant:${participantId}`)}`;
-}
-
-export function readVoteGrant(raw: unknown): number | null {
-  if (typeof raw !== "string") return null;
-  const dot = raw.indexOf(".");
-  if (dot < 1) return null;
-  const id = Number(raw.slice(0, dot));
-  const sig = raw.slice(dot + 1);
-  if (!Number.isInteger(id) || id < 1 || !/^[a-f0-9]{64}$/.test(sig)) return null;
-  const expected = hmac(`vote-grant:${id}`);
-  if (!safeEqual(expected, sig)) return null;
-  return id;
-}
-
 export function sha256(value: string) {
   return createHash("sha256").update(value).digest("hex");
 }

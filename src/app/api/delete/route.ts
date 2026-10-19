@@ -6,8 +6,6 @@ import { sendDeleteEmail } from "@/lib/mail";
 import { clientIp } from "@/lib/request";
 import { DELETE_PER_HOUR, TOKEN_TTL_MS } from "@/lib/policy";
 import { isVerifyToken, noStoreJson, readJsonBody } from "@/lib/http";
-import { revokeParticipantVotes } from "@/lib/votes";
-import { voidParticipantOtps } from "@/lib/otp";
 
 const Body = z.object({
   email: z.string().email().max(120),
@@ -101,12 +99,22 @@ export async function PUT(req: Request) {
       .prepare(
         `UPDATE participants
          SET deleted_at = ?, email = '', email_norm = ?, first_name = '', last_name = '',
-             phone = '', phone_norm = '', verified_at = NULL, phone_verified_at = NULL
+             phone = '', phone_norm = '', verified_at = NULL, phone_verified_at = NULL,
+             email_hash = NULL, phone_hash = NULL, ip_hash = '', fingerprint_hash = ''
          WHERE id = ?`,
       )
       .run(now, `deleted:${row.participant_id}`, row.participant_id);
-    revokeParticipantVotes(getDb(), row.participant_id, now);
-    voidParticipantOtps(row.participant_id, now);
+    getDb()
+      .prepare(
+        `UPDATE votes SET revoked_at = ? WHERE participant_id = ? AND revoked_at IS NULL`,
+      )
+      .run(now, row.participant_id);
+    getDb()
+      .prepare(
+        `UPDATE phone_otps SET voided_at = ?
+         WHERE participant_id = ? AND consumed_at IS NULL AND voided_at IS NULL`,
+      )
+      .run(now, row.participant_id);
   });
   tx();
   return noStoreJson({ ok: true });

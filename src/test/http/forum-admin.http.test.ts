@@ -1,7 +1,6 @@
 import "./env-init";
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { POST as register } from "../../app/api/auth/register/route";
 import { POST as login } from "../../app/api/auth/login/route";
 import { GET as listTopics, POST as createTopic } from "../../app/api/forum/teams/[teamSlug]/topics/route";
 import { GET as getTopic, PUT as putTopic, DELETE as deleteTopic } from "../../app/api/forum/topics/[topicId]/route";
@@ -26,9 +25,10 @@ import {
   TEST_PASSWORD,
   assertNoSensitiveLeak,
   authRegisterBody,
+  legacyPasswordUser,
   freshDb,
   invoke,
-  markEmailVerified,
+  markPhoneVerified,
   sessionCookie,
   trPhone,
   uniq,
@@ -55,19 +55,14 @@ let n = 0;
 async function user(ip: string) {
   n += 1;
   const username = uniq("f").slice(0, 20);
-  const res = await invoke(register, {
-    method: "POST",
-    path: "/api/auth/register",
-    ip,
-    body: authRegisterBody({
+  const res = await legacyPasswordUser({ body: authRegisterBody({
       username,
       email: `${username}@example.com`,
       phone: trPhone(2000 + n),
-    }),
-  });
+    }), ip });
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const id = (res.json as { user: { id: number } }).user.id;
-  markEmailVerified(id);
+  markPhoneVerified(id);
   return {
     username,
     cookie: sessionCookie(res.res),

@@ -7,13 +7,16 @@ import { compactCityPreview } from "@/lib/city-rank";
 import { getTeam } from "@/lib/teams";
 import mapData from "@/lib/turkey-paths.json";
 
-type Leader = { teamId: string; votes: number };
+type Standing = { teamId: string; votes: number };
+type Leader = Standing & { tied?: boolean; coLeaderIds?: string[] };
 
 type Props = {
   leaders: Record<string, Leader>;
-  standings: Record<string, Leader[]>;
-  previewCity?: string;
+  standings: Record<string, Standing[]>;
 };
+
+/** Provinces with no votes. Deliberately not a brand or team color. */
+const NEUTRAL_FILL = "#E4E0D4";
 
 type MapFile = {
   viewBox: string;
@@ -22,9 +25,9 @@ type MapFile = {
 
 const data = mapData as MapFile;
 
-export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
+export default function TurkeyMap({ leaders, standings }: Props) {
   const [hover, setHover] = useState<string | null>(null);
-  const [picked, setPicked] = useState<string | null>(previewCity ?? null);
+  const [picked, setPicked] = useState<string | null>(null);
   const uid = useId().replace(/:/g, "");
   const router = useRouter();
   const shown = hover ?? picked;
@@ -45,9 +48,19 @@ export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
       >
         <title>Türkiye illeri</title>
         <defs>
+          <pattern
+            id={`${uid}-tie`}
+            width="6"
+            height="6"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <rect width="6" height="6" fill="#FFFEFA" />
+            <rect width="3" height="6" fill="#111" />
+          </pattern>
           {data.provinces.map((il, idx) => {
             const lead = leaders[il.name];
-            const t = lead ? getTeam(lead.teamId) : undefined;
+            const t = lead && !lead.tied ? getTeam(lead.teamId) : undefined;
             if (!t) return null;
             return (
               <linearGradient
@@ -81,8 +94,12 @@ export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
         ))}
         {data.provinces.map((il, idx) => {
           const lead = leaders[il.name];
-          const t = lead ? getTeam(lead.teamId) : undefined;
-          const fill = t ? `url(#${uid}-il-${idx})` : "#FFEA00";
+          const t = lead && !lead.tied ? getTeam(lead.teamId) : undefined;
+          const fill = lead?.tied
+            ? `url(#${uid}-tie)`
+            : t
+              ? `url(#${uid}-il-${idx})`
+              : NEUTRAL_FILL;
           const active = shown === il.name;
           return (
             <g
@@ -132,7 +149,8 @@ export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
       {shown && preview ? (
         <div className="mt-3 border-[3px] border-black bg-black text-[#FFEA00] p-3 font-mono text-[12px] shadow-[4px_4px_0_#FFEA00]">
           <p className="font-anton text-[18px] text-[#FFEA00]">{shown}</p>
-          <p>Toplam: {preview.total.toLocaleString("tr-TR")}</p>
+          <p>Toplam geçerli oy: {preview.total.toLocaleString("tr-TR")}</p>
+          {leaders[shown]?.tied ? <p>Liderlik eşit: ortak lider var</p> : null}
           {preview.first ? (
             <p>
               1. Takım: %{preview.first.percent} {preview.first.name}
@@ -148,7 +166,8 @@ export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
         </div>
       ) : (
         <div className="mt-3 min-h-[48px] font-ultras text-[22px] md:text-[26px] leading-tight tracking-wide border-[3px] border-black p-3 bg-[#FFEA00] -rotate-[0.4deg] shadow-[4px_4px_0_black]">
-          İle tıkla, il sayfasına git. Hover ile özet gör.
+          İle tıkla, il sayfasına git. Üzerine gel ya da klavyeyle seç, özeti gör. Gri: henüz oy
+          yok. Çizgili: liderlik eşit.
         </div>
       )}
     </div>

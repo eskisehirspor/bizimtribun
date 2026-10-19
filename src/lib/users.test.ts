@@ -36,6 +36,10 @@ function row(over: Partial<UserRow> = {}): UserRow {
     totp_enabled: 0,
     totp_secret_enc: null,
     email_verified_at: null,
+    phone_verified_at: null,
+    deleted_at: null,
+    terms_version: null,
+    terms_accepted_at: null,
     ...over,
   };
 }

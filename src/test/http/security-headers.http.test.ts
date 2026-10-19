@@ -2,7 +2,7 @@ import "./env-init";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { GET as statsGet } from "../../app/api/stats/route";
-import { GET as voteGet } from "../../app/api/vote/route";
+import { GET as voteGet } from "../../app/api/fan-vote/route";
 import { POST as verifyEmail } from "../../app/api/verify/route";
 import { GET as adminDashboard } from "../../app/api/admin/dashboard/route";
 import { HSTS_VALUE } from "../../lib/security-headers";
@@ -29,8 +29,8 @@ test("production-like API responses carry HSTS, CSP, nosniff, no-referrer", asyn
     const csp = stats.headers.get("content-security-policy") ?? "";
     assert.equal(csp.includes("unsafe-eval"), false);
 
-    const vote = await invoke(voteGet, { path: "/api/vote" });
-    assert.equal(vote.status, 200);
+    const vote = await invoke(voteGet, { path: "/api/fan-vote" });
+    assert.equal(vote.status, 401);
     assertCommonSecurity(vote.headers);
     assert.equal(vote.headers.get("referrer-policy"), "no-referrer");
 

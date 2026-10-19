@@ -42,7 +42,7 @@ export function isAdminTotpEnabled(user: {
   role?: string;
   totp_enabled?: number | null;
 }) {
-  return user.role === "admin" && Number(user.totp_enabled) === 1;
+  return (user.role === "admin" || user.role === "super_admin") && Number(user.totp_enabled) === 1;
 }
 
 export function passwordLoginNextStep(user: {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { requireActiveUser, requireForumWriter } from "./auth";
-import { FORUM_EMAIL_UNVERIFIED_ERROR } from "./policy";
+import { FORUM_PHONE_UNVERIFIED_ERROR } from "./policy";
 import type { UserRow } from "./users";
 
 function row(over: Partial<UserRow> = {}): UserRow {
@@ -32,6 +32,10 @@ function row(over: Partial<UserRow> = {}): UserRow {
     totp_enabled: 0,
     totp_secret_enc: null,
     email_verified_at: null,
+    phone_verified_at: null,
+    deleted_at: null,
+    terms_version: null,
+    terms_accepted_at: null,
     ...over,
   };
 }
@@ -45,7 +49,7 @@ test("requireForumWriter: unverified 403, verified ok, banned first", () => {
   assert.equal(unverified.ok, false);
   if (!unverified.ok) {
     assert.equal(unverified.status, 403);
-    assert.equal(unverified.error, FORUM_EMAIL_UNVERIFIED_ERROR);
+    assert.equal(unverified.error, FORUM_PHONE_UNVERIFIED_ERROR);
   }
 
   const banned = requireForumWriter(
@@ -61,7 +65,7 @@ test("requireForumWriter: unverified 403, verified ok, banned first", () => {
     row({
       status: "banned",
       banned_at: "2026-01-02T00:00:00.000Z",
-      email_verified_at: null,
+      phone_verified_at: null,
     }),
   );
   assert.equal(bannedUnverified.ok, false);
@@ -74,7 +78,7 @@ test("requireForumWriter: unverified 403, verified ok, banned first", () => {
       status: "banned",
       banned_at: "2026-01-01T00:00:00.000Z",
       ban_expires_at: "2026-01-02T00:00:00.000Z",
-      email_verified_at: "2026-01-03T00:00:00.000Z",
+      phone_verified_at: "2026-01-03T00:00:00.000Z",
     }),
   );
   assert.equal(expiredBan.ok, true);
@@ -82,11 +86,11 @@ test("requireForumWriter: unverified 403, verified ok, banned first", () => {
   const adminUnverified = requireForumWriter(row({ role: "admin" }));
   assert.equal(adminUnverified.ok, false);
   if (!adminUnverified.ok) {
-    assert.equal(adminUnverified.error, FORUM_EMAIL_UNVERIFIED_ERROR);
+    assert.equal(adminUnverified.error, FORUM_PHONE_UNVERIFIED_ERROR);
   }
 
   const verified = requireForumWriter(
-    row({ email_verified_at: "2026-01-03T00:00:00.000Z" }),
+    row({ phone_verified_at: "2026-01-03T00:00:00.000Z" }),
   );
   assert.equal(verified.ok, true);
 

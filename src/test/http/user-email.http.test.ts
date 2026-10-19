@@ -1,7 +1,6 @@
 import "./env-init";
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { POST as register } from "../../app/api/auth/register/route";
 import { POST as login } from "../../app/api/auth/login/route";
 import { GET as me } from "../../app/api/auth/me/route";
 import { POST as verifyEmail } from "../../app/api/auth/verify-email/route";
@@ -12,16 +11,18 @@ import { POST as createPost } from "../../app/api/forum/topics/[topicId]/posts/r
 import { POST as adminBan } from "../../app/api/admin/users/[id]/ban/route";
 import { getDb } from "@/lib/db";
 import {
-  FORUM_EMAIL_UNVERIFIED_ERROR,
+  FORUM_PHONE_UNVERIFIED_ERROR,
   USER_EMAIL_RESEND_PER_USER_HOUR,
 } from "../../lib/policy";
 import { USER_VERIFY_ALREADY, issueUserEmailToken } from "../../lib/user-email";
 import {
   TEST_PASSWORD,
   authRegisterBody,
+  legacyPasswordUser,
   freshDb,
   invoke,
   markEmailVerified,
+  markPhoneVerified,
   sessionCookie,
   trPhone,
   uniq,
@@ -41,16 +42,11 @@ async function registerUnverified(ip: string) {
   n += 1;
   const username = uniq("ev").slice(0, 20);
   const email = `${username}@example.com`;
-  const res = await invoke(register, {
-    method: "POST",
-    path: "/api/auth/register",
-    ip,
-    body: authRegisterBody({
+  const res = await legacyPasswordUser({ body: authRegisterBody({
       username,
       email,
       phone: trPhone(8000 + n),
-    }),
-  });
+    }), ip });
   assert.equal(res.status, 200, JSON.stringify(res.json));
   return {
     username,
@@ -68,11 +64,9 @@ function ageResendAttempts() {
     .run(new Date(Date.now() - 2 * 60 * 1000).toISOString());
 }
 
-test("register → email unverified; token not in response or DB plaintext", async () => {
+test("legacy account: email unverified; token only stored hashed", async () => {
   const u = await registerUnverified("203.0.113.201");
-  const body = u.json as { user: { emailVerified?: boolean; email?: string } };
-  assert.equal(body.user.emailVerified, false);
-  assert.equal(body.user.email, undefined);
+  const raw = issueUserEmailToken(u.id);
 
   const mine = await invoke(me, { path: "/api/auth/me", cookie: u.cookie });
   assert.equal(mine.status, 200);
@@ -88,6 +82,7 @@ test("register → email unverified; token not in response or DB plaintext", asy
   assert.equal(dumped.includes("token_hash"), false);
   for (const row of stored) {
     assert.equal(dumped.includes(row.token_hash), false);
+    assert.notEqual(row.token_hash, raw);
   }
 });
 
@@ -151,7 +146,7 @@ test("unverified user forum GET ok, POST topic/post 403; verified mutation ok", 
     body: ALLOW,
   });
   assert.equal(topic.status, 403);
-  assert.equal((topic.json as { error: string }).error, FORUM_EMAIL_UNVERIFIED_ERROR);
+  assert.equal((topic.json as { error: string }).error, FORUM_PHONE_UNVERIFIED_ERROR);
 
   const reply = await invoke(createPost, {
     method: "POST",
@@ -161,7 +156,7 @@ test("unverified user forum GET ok, POST topic/post 403; verified mutation ok", 
     body: { content: ALLOW.content },
   });
   assert.equal(reply.status, 403);
-  assert.equal((reply.json as { error: string }).error, FORUM_EMAIL_UNVERIFIED_ERROR);
+  assert.equal((reply.json as { error: string }).error, FORUM_PHONE_UNVERIFIED_ERROR);
 
   const got = await invoke(getTopic, {
     path: `/api/forum/topics/${seedId}`,
@@ -169,7 +164,7 @@ test("unverified user forum GET ok, POST topic/post 403; verified mutation ok", 
   });
   assert.equal(got.status, 200);
 
-  markEmailVerified(u.id);
+  markPhoneVerified(u.id);
   const created = await invoke(createTopic, {
     method: "POST",
     path: "/api/forum/teams/galatasaray/topics",
@@ -280,7 +275,7 @@ test("banned + unverified forum error is ban, not email", async () => {
   if (topic.status === 403) {
     assert.notEqual(
       (topic.json as { error: string }).error,
-      FORUM_EMAIL_UNVERIFIED_ERROR,
+      FORUM_PHONE_UNVERIFIED_ERROR,
     );
   }
 });

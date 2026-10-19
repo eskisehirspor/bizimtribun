@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
+import PhoneOtpStep from "@/components/auth/PhoneOtpStep";
 import { forumApiError, safeNextPath } from "@/lib/forum-ui";
 
 function Form() {
@@ -15,7 +16,10 @@ function Form() {
   const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [totp, setTotp] = useState("");
-  const [need2fa, setNeed2fa] = useState(false);
+  const [need2fa, setNeed2fa] = useState(params.get("adim") === "2fa");
+  const [method, setMethod] = useState<"sms" | "password">(
+    params.get("yontem") === "sifre" ? "password" : "sms",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +80,34 @@ function Form() {
           <br />
           <span className="bg-[#FFEA00] px-2 inline-block rotate-1">YAP</span>
         </h1>
+        {method === "sms" && !need2fa && (
+          <div className="mt-5">
+            <PhoneOtpStep
+              requestUrl="/api/auth/otp/request"
+              verifyUrl="/api/auth/otp/verify"
+              submitLabel="GİRİŞ YAP"
+              onVerified={(data) => {
+                if (data.next === "signup") {
+                  router.push(`/uye-ol?next=${encodeURIComponent(next)}`);
+                  return;
+                }
+                if (data.next === "2fa") {
+                  setNeed2fa(true);
+                  return;
+                }
+                void finishLogin();
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setMethod("password")}
+              className="mt-4 font-mono text-[11px] underline"
+            >
+              Şifreyle giriş (eski hesaplar ve yöneticiler)
+            </button>
+          </div>
+        )}
+        {(method === "password" || need2fa) && (
         <form onSubmit={(e) => void submit(e)} className="mt-5 space-y-3">
           {!need2fa && (
             <>
@@ -126,9 +158,20 @@ function Form() {
           >
             {busy ? "…" : need2fa ? "DOĞRULA" : "GİRİŞ YAP"}
           </button>
+          {!need2fa && (
+            <button
+              type="button"
+              onClick={() => setMethod("sms")}
+              className="font-mono text-[11px] underline"
+            >
+              SMS koduyla giriş yap
+            </button>
+          )}
         </form>
+        )}
         <p className="font-mono text-[12px] mt-4">
-          Hesabın yok mu?{" "}
+          Şifreyle açılmış eski hesaplar oy vermek ve forumda yazmak için telefonunu bir kez
+          doğrulamalı. Hesabın yok mu?{" "}
           <Link className="underline" href={`/uye-ol?next=${encodeURIComponent(next)}`}>
             Üye ol
           </Link>

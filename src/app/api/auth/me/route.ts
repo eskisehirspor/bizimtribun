@@ -7,6 +7,8 @@ import {
   revokeSessionByToken,
 } from "@/lib/auth";
 import { isUserBanned } from "@/lib/users";
+import { getDb } from "@/lib/db";
+import { findFanVote } from "@/lib/fan-votes";
 
 export async function GET(req: Request) {
   const user = await getSessionUser(req);
@@ -25,5 +27,9 @@ export async function GET(req: Request) {
   if (!active.ok) {
     return noStoreJson({ ok: false, user: null, error: active.error }, active.status);
   }
-  return noStoreJson({ ok: true, user: active.publicUser });
+  const vote = findFanVote(getDb(), active.user.id);
+  return noStoreJson({
+    ok: true,
+    user: { ...active.publicUser, voteTeamId: vote?.team_id ?? null },
+  });
 }

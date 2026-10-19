@@ -1,13 +1,10 @@
 import Database from "better-sqlite3";
 import { identityEmailHash, identityPhoneHash } from "./crypto";
 import { CURRENT_POLL_ID } from "./policy";
-import { applyDemoVotes } from "./seed-votes";
+import { stripDemoVotes } from "./seed-votes";
 import { seedPinnedStarterTopics } from "./forum-seed";
 import { FORUM_ACTIVE_TEAM_IDS, TEAMS } from "./teams";
-import {
-  backfillVotesFromParticipants,
-  revokeVotesMissingPhoneVerification,
-} from "./votes";
+import { runMigrations } from "./migrations";
 import {
   ensureSqliteParentDir,
   isProductionDbRuntime,
@@ -510,6 +507,8 @@ CREATE INDEX IF NOT EXISTS idx_security_events_action_created
   ON security_events(action, created_at);
 `);
 
+runMigrations(db);
+
 const upsertTeam = db.prepare(
   `INSERT INTO teams (id, name, league, is_forum_active) VALUES (?, ?, ?, 0)
    ON CONFLICT(id) DO UPDATE SET name = excluded.name, league = excluded.league`,
@@ -525,9 +524,9 @@ const syncTeams = db.transaction(() => {
 syncTeams();
 seedPinnedStarterTopics(db);
 
-revokeVotesMissingPhoneVerification(db);
-backfillVotesFromParticipants(db);
-applyDemoVotes(db);
+// Older builds generated fake demo ballots in development. They are never
+// shown as real data: remove any that are left in a database.
+stripDemoVotes(db);
 }
 
 export function resetDbForTests() {

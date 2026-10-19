@@ -394,7 +394,7 @@ export function banHeldAuthor(
       .prepare(
         `UPDATE users
          SET status = 'banned', banned_at = ?, ban_reason = ?, ban_expires_at = NULL, updated_at = ?
-         WHERE id = ? AND role != 'admin'`,
+         WHERE id = ? AND role NOT IN ('admin', 'super_admin')`,
       )
       .run(now, trimmed.slice(0, 200), now, loaded.target.userId);
     if (banned.changes !== 1) {

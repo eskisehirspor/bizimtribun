@@ -15,7 +15,6 @@ import {
   rejectHeldContent,
   type HeldKind,
 } from "./moderation/held";
-import { liveVotesWhere } from "./votes";
 import {
   banUser,
   findUserById,
@@ -36,12 +35,14 @@ function bannedClause(alias: string) {
 export function getDashboardStats() {
   const db = getDb();
   const now = nowIso();
-  const totalMembers = (db.prepare(`SELECT COUNT(*) as c FROM users`).get() as { c: number }).c;
+  const totalMembers = (
+    db.prepare(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL`).get() as { c: number }
+  ).c;
   const activeMembers = (
     db
       .prepare(
         `SELECT COUNT(*) as c FROM users u
-         WHERE NOT (${bannedClause("u")})`,
+         WHERE u.deleted_at IS NULL AND NOT (${bannedClause("u")})`,
       )
       .get(now) as { c: number }
   ).c;
@@ -72,16 +73,21 @@ export function getDashboardStats() {
       .get() as { c: number }
   ).c;
 
-  const live = liveVotesWhere();
   const validVotes = (
+    db.prepare(`SELECT COUNT(*) as c FROM fan_votes WHERE status = 'active'`).get() as {
+      c: number;
+    }
+  ).c;
+  const phoneVerifiedMembers = (
     db
       .prepare(
-        `SELECT COUNT(*) as c
-         FROM votes v
-         JOIN participants p ON p.id = v.participant_id
-         WHERE ${live.sql}`,
+        `SELECT COUNT(*) as c FROM users WHERE phone_verified_at IS NOT NULL AND deleted_at IS NULL`,
       )
-      .get(...live.params) as { c: number }
+      .get() as { c: number }
+  ).c;
+  /** Old e-mail census ballots: kept for the record, not part of any public count. */
+  const legacyCensusVotes = (
+    db.prepare(`SELECT COUNT(*) as c FROM votes WHERE revoked_at IS NULL`).get() as { c: number }
   ).c;
 
   const recent = db
@@ -116,6 +122,8 @@ export function getDashboardStats() {
     activeBans,
     activeForumTeams,
     validVotes,
+    phoneVerifiedMembers,
+    legacyCensusVotes,
     recent: recent.map((row) => ({
       id: row.id,
       action: row.action,

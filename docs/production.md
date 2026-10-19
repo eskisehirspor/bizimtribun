@@ -24,7 +24,8 @@ Copy `.env.example` and set at least:
 | `TRUST_PROXY_HOPS` | Hop count when `TRUST_PROXY=forwarded` (usually `1`) |
 | `RESEND_API_KEY` | Required to send mail |
 | `MAIL_FROM` | From address Resend accepts |
-| `PHONE_VERIFICATION_ENABLED` | `true` / `false` — vote OTP gate (SMS vendor still unset in prod) |
+| `SMS_PROVIDER` | `netgsm` or `twilio` (plus that provider's credentials). Unset = SMS sign-up/login closed (503) |
+| `TURNSTILE_SECRET_KEY` / `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Bot check before every SMS send. Required in production (fails closed) |
 | `DB_BACKUP_DIR` | Optional backup directory (default: `<db-dir>/backups`) |
 | `DB_BACKUP_RETENTION` | Optional; default `7` daily files |
 
@@ -76,13 +77,17 @@ Restore snapshots the current live file into `<db-dir>/restore-safety/` first, c
 
 ## Boot / migrations
 
-On first connection the process applies idempotent `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN` / index creation, team catalog sync, pinned starter topics (skip if title exists), vote revoke/backfill, and **production demo-seed strip**. Failed boot closes the connection and does not keep a half-open singleton. Production also refuses to serve if `PRAGMA quick_check` is not `ok`.
+On first connection the process applies the idempotent baseline (`CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN`), then the ordered run-once migrations in `src/lib/migrations.ts` (recorded in `schema_migrations`), team catalog sync, pinned starter topics (skip if title exists), and removal of leftover demo ballots from old dev builds. **Take a backup (`npm run db:backup`) before deploying a build that adds a migration.** See [data-policy.md](data-policy.md). Failed boot closes the connection and does not keep a half-open singleton. Production also refuses to serve if `PRAGMA quick_check` is not `ok`.
 
 Team `is_forum_active` is reset from code on each boot (the 25 active tribunes). That is idempotent; it does not delete forum posts.
 
 ## SMS
 
-`PHONE_VERIFICATION_ENABLED=true` enforces phone OTP for votes. Production has no SMS vendor wired: OTP send fails closed until a provider is configured. Do not use the dev `data/last-otp.txt` inbox in production.
+Sign-up and sign-in are by SMS code. Set `SMS_PROVIDER` and that provider's credentials (see `.env.example`). Without them production answers 503 to code requests and creates no codes. `SMS_PROVIDER=dev` is refused in production. The Netgsm and Twilio adapters are written against their public APIs but **have not been tested with a live account**; send one real code to your own phone before opening sign-ups.
+
+## First super admin
+
+There is no admin sign-up and no default admin. See [admin-bootstrap.md](admin-bootstrap.md).
 
 ## Trusted proxy
 

@@ -9,7 +9,7 @@ import {
   AUTH_REGISTER_PER_HOUR,
 } from "./policy";
 
-export const USER_ROLES = ["user", "admin"] as const;
+export const USER_ROLES = ["user", "moderator", "admin", "super_admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export type UserRow = {
@@ -17,9 +17,9 @@ export type UserRow = {
   username: string;
   username_norm: string;
   display_name: string;
-  email: string;
-  email_norm: string;
-  password_hash: string;
+  email: string | null;
+  email_norm: string | null;
+  password_hash: string | null;
   team_id: string | null;
   status: string;
   role: UserRole;
@@ -39,6 +39,10 @@ export type UserRow = {
   totp_enabled: number;
   totp_secret_enc: string | null;
   email_verified_at: string | null;
+  phone_verified_at: string | null;
+  deleted_at: string | null;
+  terms_version: string | null;
+  terms_accepted_at: string | null;
 };
 
 export type PublicUser = {
@@ -49,6 +53,7 @@ export type PublicUser = {
   role: UserRole;
   status: string;
   emailVerified: boolean;
+  phoneVerified: boolean;
 };
 
 export function normalizeUsername(raw: string) {
@@ -125,14 +130,16 @@ export function toPublicUser(row: UserRow): PublicUser {
     username: row.username,
     displayName: row.display_name,
     teamId: row.team_id,
-    role: row.role === "admin" ? "admin" : "user",
+    role: (USER_ROLES as readonly string[]).includes(row.role) ? row.role : "user",
     status: effectiveUserStatus(row),
     emailVerified: Boolean(row.email_verified_at),
+    phoneVerified: Boolean(row.phone_verified_at),
   };
 }
 
+/** Admin panel access. Moderator rights are a separate, narrower check. */
 export function isAdmin(user: Pick<UserRow, "role"> | null | undefined): boolean {
-  return user?.role === "admin";
+  return user?.role === "admin" || user?.role === "super_admin";
 }
 
 export function findUserById(id: number) {
@@ -205,7 +212,7 @@ export function banUser(
     .prepare(
       `UPDATE users
        SET status = 'banned', banned_at = ?, ban_reason = ?, ban_expires_at = ?, updated_at = ?
-       WHERE id = ? AND role != 'admin'`,
+       WHERE id = ? AND role NOT IN ('admin', 'super_admin')`,
     )
     .run(now, reason.slice(0, 200), expiresAt, now, userId);
 
@@ -262,7 +269,9 @@ export function unbanUser(
 export function countAdmins() {
   return (
     getDb()
-      .prepare(`SELECT COUNT(*) as c FROM users WHERE role = 'admin'`)
+      .prepare(
+        `SELECT COUNT(*) as c FROM users WHERE role IN ('admin', 'super_admin') AND deleted_at IS NULL`,
+      )
       .get() as { c: number }
   ).c;
 }

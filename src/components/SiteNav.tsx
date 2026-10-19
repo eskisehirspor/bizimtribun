@@ -43,7 +43,7 @@ export default function SiteNav() {
             >
               TRİBÜN
             </Link>
-            {user?.role === "admin" && (
+            {(user?.role === "admin" || user?.role === "super_admin") && (
               <Link
                 href="/admin"
                 className={
@@ -58,7 +58,7 @@ export default function SiteNav() {
           </div>
         </div>
         <div className="flex items-center gap-2 font-mono text-[11px] sm:text-[12px]">
-          {user?.role === "admin" && (
+          {(user?.role === "admin" || user?.role === "super_admin") && (
             <Link href="/admin" className="sm:hidden opacity-80">
               ADMIN
             </Link>
@@ -67,10 +67,11 @@ export default function SiteNav() {
             <span className="opacity-50">…</span>
           ) : user ? (
             <div className="relative flex items-center gap-2">
-              {!user.emailVerified && (
+              {(!user.phoneVerified || !user.voteTeamId) && (
                 <Link
-                  href="/uye-dogrula"
-                  title="E-postanı doğrula"
+                  href="/takim-sec"
+                  title={user.phoneVerified ? "Takımını seç" : "Telefonunu doğrula"}
+                  aria-label={user.phoneVerified ? "Takımını seç" : "Telefonunu doğrula"}
                   className="relative shrink-0"
                 >
                   <span className="flex h-7 w-7 items-center justify-center rounded-full border-[2px] border-[#FFEA00] bg-[#C8102E] font-anton text-[13px] text-white">
@@ -81,6 +82,8 @@ export default function SiteNav() {
               <button
                 type="button"
                 onClick={() => setOpen((v) => !v)}
+                aria-expanded={open}
+                aria-haspopup="menu"
                 className="border-[2px] border-[#FFEA00] px-2 py-1 font-anton text-[12px] max-w-[140px] truncate"
               >
                 {user.username}
@@ -90,13 +93,20 @@ export default function SiteNav() {
                   <p className="font-mono text-[10px] opacity-60 truncate">
                     {user.username}
                   </p>
-                  {!user.emailVerified && (
+                  <Link
+                    href="/hesap"
+                    onClick={() => setOpen(false)}
+                    className="mt-2 block font-mono text-[11px] border-[2px] border-black px-2 py-1 bg-white"
+                  >
+                    Hesabım
+                  </Link>
+                  {!user.phoneVerified && (
                     <Link
-                      href="/uye-dogrula"
+                      href="/takim-sec"
                       onClick={() => setOpen(false)}
                       className="mt-2 block font-mono text-[11px] border-[2px] border-black px-2 py-1 bg-[#FFEA00]"
                     >
-                      E-postanı doğrula
+                      Telefonunu doğrula
                     </Link>
                   )}
                   <button

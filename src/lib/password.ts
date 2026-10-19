@@ -62,7 +62,12 @@ export async function hashPassword(password: string) {
   return `scrypt$${salt.toString("hex")}$${key.toString("hex")}`;
 }
 
-export async function verifyPassword(password: string, stored: string) {
+export async function verifyPassword(password: string, stored: string | null) {
+  if (!stored) {
+    // Phone-only accounts have no password. Burn the same scrypt cost.
+    await scryptKey(password, Buffer.alloc(16));
+    return false;
+  }
   const parts = stored.split("$");
   if (parts.length !== 3 || parts[0] !== "scrypt") return false;
   const salt = Buffer.from(parts[1], "hex");

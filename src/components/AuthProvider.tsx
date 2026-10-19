@@ -17,6 +17,9 @@ export type AuthUser = {
   role: string;
   status: string;
   emailVerified: boolean;
+  phoneVerified: boolean;
+  /** Team of the account's permanent vote, null until it is cast. */
+  voteTeamId: string | null;
 };
 
 type AuthState = {
@@ -52,6 +55,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ? {
             ...data.user,
             emailVerified: Boolean(data.user.emailVerified),
+            phoneVerified: Boolean(data.user.phoneVerified),
+            voteTeamId: data.user.voteTeamId ?? null,
           }
         : null;
       setUser(nextUser);

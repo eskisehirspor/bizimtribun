@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { PROVINCES } from "@/lib/provinces";
+import { useAuth } from "@/components/AuthProvider";
+import type { RecentTopic } from "@/lib/home-feed";
 import {
   LEAGUE_LABEL,
   LEAGUE_ORDER,
@@ -11,13 +12,12 @@ import {
   type LeagueId,
   type Team,
 } from "@/lib/teams";
-import { deviceFingerprint } from "@/lib/fingerprint";
 import PitchDecor from "@/components/PitchDecor";
 import TurkeyMap from "@/components/TurkeyMap";
 import TeamColors from "@/components/TeamColors";
 
 type TeamStat = Team & { votes: number };
-type CityLeader = { teamId: string; votes: number };
+type CityLeader = { teamId: string; votes: number; tied: boolean; coLeaderIds: string[] };
 type CityStanding = { teamId: string; votes: number };
 
 type Props = {
@@ -25,82 +25,28 @@ type Props = {
   initialTotal: number;
   initialCities: Record<string, CityLeader>;
   initialStandings: Record<string, CityStanding[]>;
-  initialPhoneVerificationRequired: boolean;
+  recentTopics: RecentTopic[];
+  generatedAt: string;
 };
-
-function teamDative(name: string) {
-  const last = name.slice(-1).toLocaleLowerCase("tr");
-  const lastVowel = [...name.toLocaleLowerCase("tr")]
-    .reverse()
-    .find((c) => "aeıioöuü".includes(c));
-  const front = lastVowel ? "eiöü".includes(lastVowel) : false;
-  const vowelEnd = "aeıioöuü".includes(last);
-  const suffix = front ? (vowelEnd ? "ye" : "e") : vowelEnd ? "ya" : "a";
-  return `${name}'${suffix}`;
-}
-
-const FAKE_MOVES: { name: string; teamId: string }[] = [
-  { name: "Ahmet K.", teamId: "galatasaray" },
-  { name: "Elif S.", teamId: "fenerbahce" },
-  { name: "Mehmet Y.", teamId: "besiktas" },
-  { name: "Zeynep D.", teamId: "trabzonspor" },
-  { name: "Burak T.", teamId: "eskisehirspor" },
-  { name: "Ayşe M.", teamId: "goztepe" },
-  { name: "Caner A.", teamId: "bursaspor" },
-  { name: "Selin B.", teamId: "konyaspor" },
-  { name: "Emre Ç.", teamId: "amed-sfk" },
-  { name: "Fatma N.", teamId: "adana-demirspor" },
-];
 
 export default function HomeClient({
   initialTeams,
   initialTotal,
   initialCities,
   initialStandings,
-  initialPhoneVerificationRequired,
+  recentTopics,
+  generatedAt,
 }: Props) {
+  const { user } = useAuth();
   const [teams, setTeams] = useState(initialTeams);
   const [total, setTotal] = useState(initialTotal);
   const [cities, setCities] = useState(initialCities);
   const [standings, setStandings] = useState(initialStandings);
-  const [phoneVerificationRequired, setPhoneVerificationRequired] = useState(
-    initialPhoneVerificationRequired,
-  );
+  const [asOf, setAsOf] = useState(generatedAt);
   const [league, setLeague] = useState<"all" | LeagueId>("super");
   const [query, setQuery] = useState("");
-  const [modal, setModal] = useState<string | null>(null);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [city, setCity] = useState("İstanbul");
-  const [kvkk, setKvkk] = useState(false);
-  const [riza, setRiza] = useState(false);
-  const [website, setWebsite] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [devLink, setDevLink] = useState<string | null>(null);
-  const [confirmVote, setConfirmVote] = useState(false);
-
-  const preview = useMemo(() => {
-    if (process.env.NODE_ENV === "production" || cities.Eskişehir) {
-      return { teams, total, cities, standings };
-    }
-    return {
-      total: total + 1,
-      cities: {
-        ...cities,
-        Eskişehir: { teamId: "eskisehirspor", votes: 1 },
-      },
-      standings: {
-        ...standings,
-        Eskişehir: [{ teamId: "eskisehirspor", votes: 1 }],
-      },
-      teams: teams.map((t) =>
-        t.id === "eskisehirspor" ? { ...t, votes: t.votes + 1 } : t,
-      ),
-    };
-  }, [cities, standings, teams, total]);
+  const preview = { teams, total, cities, standings };
+  const myTeamId = user?.voteTeamId ?? null;
 
   const ranked = useMemo(
     () =>
@@ -129,85 +75,24 @@ export default function HomeClient({
   }, [ranked, league, query]);
 
   async function refresh() {
-    const res = await fetch("/api/stats", { cache: "no-store" });
-    const data = await res.json();
-    setTeams(data.teams);
-    setTotal(data.total);
-    setCities(data.cities);
-    if (data.standings) setStandings(data.standings);
-    if (typeof data.phoneVerificationRequired === "boolean") {
-      setPhoneVerificationRequired(data.phoneVerificationRequired);
+    try {
+      const res = await fetch("/api/stats", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      setTeams(data.teams);
+      setTotal(data.total);
+      setCities(data.cities);
+      setStandings(data.standings);
+      if (data.generatedAt) setAsOf(data.generatedAt);
+    } catch {
+      /* keep the last good numbers */
     }
   }
 
-  async function submit() {
-    if (!modal) return;
-    if (firstName.trim().length < 2 || lastName.trim().length < 2) {
-      setNotice("İsim ve soyisimi ayrı ayrı, eksiksiz yaz.");
-      return;
-    }
-    setBusy(true);
-    setNotice(null);
-    setDevLink(null);
-    try {
-      const fingerprint = await deviceFingerprint();
-      const res = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          firstName,
-          lastName,
-          phone,
-          teamId: modal,
-          city,
-          fingerprint,
-          kvkk,
-          riza,
-          website,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setNotice(data.error || "Olmadı.");
-        return;
-      }
-      setNotice(data.message);
-      if (data.devLink) setDevLink(data.devLink);
-      await refresh();
-    } catch {
-      setNotice("Bağlantı kopuk. Tekrar dene.");
-    } finally {
-      setBusy(false);
-      setConfirmVote(false);
-    }
-  }
-
-  async function castHomeVote() {
-    if (!email || !phone) {
-      setNotice("Oy vermek için e-posta ve telefonu yaz.");
-      return;
-    }
-    setBusy(true);
-    setNotice(null);
-    try {
-      const res = await fetch("/api/vote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, phone }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setNotice(data.error || "Oy verilemedi.");
-        return;
-      }
-      setNotice(data.message);
-      await refresh();
-    } catch {
-      setNotice("Bağlantı kopuk. Tekrar dene.");
-    } finally {
-      setBusy(false);
-    }
+  function teamAction(teamId: string) {
+    if (myTeamId) return null;
+    if (!user) return `/uye-ol?takim=${encodeURIComponent(teamId)}`;
+    return `/takim-sec?takim=${encodeURIComponent(teamId)}`;
   }
 
   return (
@@ -219,7 +104,14 @@ export default function HomeClient({
         <div className="absolute top-0 left-0 w-full h-[6px] bg-[repeating-linear-gradient(90deg,black_0_20px,#FFEA00_20px_40px)]" />
         <div className="max-w-[1320px] mx-auto px-4 sm:px-5 md:px-8 pt-8 pb-5 md:py-8">
           <div className="font-mono text-[9px] sm:text-[10px] tracking-[0.08em] sm:tracking-[0.16em] leading-tight mb-5 md:mb-4">
-            SAYI: 81 • 2026 • SÜPER LİG + 1. LİG + 2. LİG + 3. LİG
+            81 İL • {teams.length} TAKIM • VERİ:{" "}
+            {new Date(asOf).toLocaleString("tr-TR", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[auto_minmax(0,1fr)_auto] items-start md:items-end gap-x-3 gap-y-2 md:gap-x-6">
             <h1 className="font-anton text-[40px] sm:text-[48px] md:text-[68px] leading-[0.82] tracking-tighter">
@@ -277,11 +169,7 @@ export default function HomeClient({
               İL LİDERLERİ
             </span>
           </h2>
-          <TurkeyMap
-            leaders={preview.cities}
-            standings={preview.standings}
-            previewCity="Eskişehir"
-          />
+          <TurkeyMap leaders={preview.cities} standings={preview.standings} />
         </div>
 
         <section className="col-span-12 lg:col-span-8 space-y-6">
@@ -325,7 +213,10 @@ export default function HomeClient({
               className="mt-3 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] outline-none bg-white"
             />
             <div className="mt-2 font-mono text-[10px] opacity-70">
-              {filtered.length} takım • 2025-26 profesyonel ligler
+              {filtered.length} takım{" "}
+              <button type="button" onClick={() => void refresh()} className="underline ml-2">
+                sayıları yenile
+              </button>
             </div>
 
             <div className="mt-3 max-h-[420px] overflow-auto border-[3px] border-black divide-y-[2px] divide-black">
@@ -351,18 +242,18 @@ export default function HomeClient({
                         {team.votes.toLocaleString("tr-TR")}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModal(team.id);
-                        setNotice(null);
-                        setDevLink(null);
-                        setConfirmVote(false);
-                      }}
-                      className="font-anton text-[14px] px-3 py-2 border-[3px] border-black bg-black text-white shadow-[3px_3px_0_black] hover:translate-x-[1px] hover:translate-y-[1px]"
-                    >
-                      Takımım!
-                    </button>
+                    {myTeamId === team.id ? (
+                      <span className="font-anton text-[13px] px-3 py-2 border-[3px] border-black bg-[#FFEA00]">
+                        SENİN TAKIMIN
+                      </span>
+                    ) : teamAction(team.id) ? (
+                      <Link
+                        href={teamAction(team.id)!}
+                        className="font-anton text-[14px] px-3 py-2 border-[3px] border-black bg-black text-white shadow-[3px_3px_0_black] hover:translate-x-[1px] hover:translate-y-[1px]"
+                      >
+                        Takımım!
+                      </Link>
+                    ) : null}
                   </div>
                 );
               })}
@@ -377,14 +268,12 @@ export default function HomeClient({
             <div className="grid md:grid-cols-2 gap-4 mt-3">
               {[
                 {
-                  t: "DOĞRULAMA",
-                  d: phoneVerificationRequired
-                    ? "Mail ve telefonunu doğrula. Oy, sen Oyumu Ver deyince basılır."
-                    : "Mailini doğrula. Oy, sen Oyumu Ver deyince basılır.",
+                  t: "1. SMS İLE DOĞRULA",
+                  d: "Cep telefonuna gelen kodla hesabını aç. Her telefon numarası tek hesap açabilir.",
                 },
                 {
-                  t: "GERÇEK BİLGİLER",
-                  d: "İsim, soyisim, telefon ve e-posta bilgilerini doğrulama yapabilmek için doğru yaz.",
+                  t: "2. TAKIMINI BİR KEZ SEÇ",
+                  d: "Seçimin kalıcıdır, sonradan değiştirilemez. Sayaçlar yalnızca bu seçimlerden hesaplanır.",
                 },
               ].map((m) => (
                 <div key={m.t} className="border-[3px] border-black p-3 relative">
@@ -405,7 +294,8 @@ export default function HomeClient({
               </span>
             </div>
             <div className="mt-1 font-mono text-[10px] opacity-60">
-              {preview.total.toLocaleString("tr-TR")} doğrulanmış taraftar
+              {preview.total.toLocaleString("tr-TR")} doğrulanmış taraftar • eşit oyda
+              alfabetik
             </div>
             <div className="mt-3 max-h-[420px] overflow-auto space-y-1 pr-1">
               {ranked.map((m, i) => (
@@ -430,21 +320,25 @@ export default function HomeClient({
           </div>
 
           <div className="border-[4px] border-black bg-white p-4 shadow-[5px_5px_0_black]">
-            <h3 className="font-anton text-[22px]">SON HAREKETLER</h3>
+            <h3 className="font-anton text-[22px]">FORUMDA SON KONULAR</h3>
             <div className="mt-3 space-y-2">
-              {FAKE_MOVES.map((row) => {
+              {recentTopics.length === 0 && (
+                <p className="font-mono text-[11px]">
+                  Henüz konu açılmadı. İlk konuyu sen aç.
+                </p>
+              )}
+              {recentTopics.map((row) => {
                 const team = getTeam(row.teamId);
                 return (
-                  <div
-                    key={row.name}
-                    className="flex items-center gap-2 font-mono text-[11px] md:text-[12px] border-b border-dashed border-black/20 pb-1.5"
+                  <Link
+                    key={row.id}
+                    href={`/forum/konu/${row.id}`}
+                    className="flex items-center gap-2 font-mono text-[11px] md:text-[12px] border-b border-dashed border-black/20 pb-1.5 hover:bg-[#FFEA00]/40"
                   >
-                    <span className="shrink-0 w-[78px]">{row.name}</span>
                     {team && <TeamColors team={team} size={10} />}
-                    <span className="min-w-0 truncate">
-                      {team ? `${teamDative(team.name)} oy verdi` : "oy verdi"}
-                    </span>
-                  </div>
+                    <span className="min-w-0 flex-1 truncate">{row.title}</span>
+                    <span className="shrink-0 opacity-60">@{row.authorUsername}</span>
+                  </Link>
                 );
               })}
             </div>
@@ -478,212 +372,6 @@ export default function HomeClient({
         </div>
       </footer>
 
-      {modal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-black/70 backdrop-blur-[2px]"
-            onClick={() => {
-              setModal(null);
-              setConfirmVote(false);
-            }}
-          />
-          <div className="relative w-full max-w-[520px] bg-[#FFFEFA] border-[4px] border-black shadow-[12px_12px_0_black] p-6 md:p-7 rotate-[-0.5deg]">
-            <div className="flex justify-between items-start gap-4">
-              <h3 className="font-anton text-[36px] md:text-[44px] leading-[0.85] tracking-tighter">
-                KİMLİĞİNİ
-                <br />
-                <span className="bg-black text-[#FFEA00] px-2 inline-block rotate-1">
-                  GÖSTER
-                </span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setModal(null);
-                  setConfirmVote(false);
-                }}
-                className="w-8 h-8 border-[3px] border-black bg-white grid place-items-center font-anton"
-              >
-                X
-              </button>
-            </div>
-            <p className="font-marker text-[18px] mt-3 leading-tight">
-              {getTeam(modal)?.name} için kayıt.
-            </p>
-            <form
-              className="mt-4 space-y-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (firstName.trim().length < 2 || lastName.trim().length < 2) {
-                  setNotice("İsim ve soyisimi ayrı ayrı, eksiksiz yaz.");
-                  return;
-                }
-                if (!phone.trim() || !email.trim()) {
-                  setNotice("Telefon ve e-posta zorunlu.");
-                  return;
-                }
-                setNotice(null);
-                setConfirmVote(true);
-              }}
-            >
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="font-mono text-[10px]">İSİM</span>
-                  <input
-                    required
-                    minLength={2}
-                    maxLength={40}
-                    value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
-                    className="mt-1 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] outline-none"
-                    autoComplete="given-name"
-                  />
-                </label>
-                <label className="block">
-                  <span className="font-mono text-[10px]">SOYİSİM</span>
-                  <input
-                    required
-                    minLength={2}
-                    maxLength={40}
-                    value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
-                    className="mt-1 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] outline-none"
-                    autoComplete="family-name"
-                  />
-                </label>
-              </div>
-              <label className="block">
-                <span className="font-mono text-[10px]">TELEFON</span>
-                <input
-                  required
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="mt-1 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] outline-none"
-                  placeholder="5XX XXX XX XX"
-                  autoComplete="tel"
-                />
-              </label>
-              <label className="block">
-                <span className="font-mono text-[10px]">E-POSTA</span>
-                <input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] outline-none"
-                  placeholder="sen@ornek.com"
-                  autoComplete="email"
-                />
-              </label>
-              <p className="font-mono text-[10px] leading-[1.4] text-[#C8102E]">
-                Doğrulama için bilgileri doğru yaz. Yanlış veya sahte kayıt ban yer.
-              </p>
-              <label className="block">
-                <span className="font-mono text-[10px]">İLİN</span>
-                <select
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  className="mt-1 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] bg-white"
-                >
-                  {PROVINCES.map((p) => (
-                    <option key={p}>{p}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="hidden" aria-hidden="true">
-                <input
-                  tabIndex={-1}
-                  autoComplete="off"
-                  value={website}
-                  onChange={(e) => setWebsite(e.target.value)}
-                />
-              </div>
-              <label className="flex items-start gap-2 font-mono text-[11px] leading-[1.3]">
-                <input
-                  type="checkbox"
-                  checked={kvkk}
-                  onChange={(e) => setKvkk(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <span>
-                  <Link href="/kvkk" className="underline" target="_blank">
-                    Aydınlatma metnini
-                  </Link>{" "}
-                  okudum. Ad, soyad, telefon, e-posta, il ve takım tercihimın sayım
-                  amacıyla işlenmesine izin veriyorum.
-                </span>
-              </label>
-              <label className="flex items-start gap-2 font-mono text-[11px] leading-[1.3]">
-                <input
-                  type="checkbox"
-                  checked={riza}
-                  onChange={(e) => setRiza(e.target.checked)}
-                  className="mt-0.5"
-                />
-                <span>
-                  6698 sayılı KVKK md. 5/1 kapsamında açık rızam vardır.
-                </span>
-              </label>
-              <button
-                disabled={busy || !kvkk || !riza}
-                className="w-full font-anton text-[18px] py-3 border-[3px] border-black bg-black text-white disabled:bg-zinc-200 disabled:text-zinc-500 disabled:cursor-not-allowed"
-              >
-                {busy ? "GÖNDERİLİYOR…" : "DOĞRULAMA MAİLİ AT"}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void castHomeVote()}
-                className="w-full font-anton text-[18px] py-3 border-[3px] border-black bg-[#FFEA00] text-black disabled:bg-zinc-200 disabled:text-zinc-500"
-              >
-                {busy ? "…" : "OYUMU VER"}
-              </button>
-            </form>
-            {notice && (
-              <p className="mt-3 font-mono text-[12px] border-[2px] border-dashed border-black p-2 bg-[#FFEA00]/60">
-                {notice}
-              </p>
-            )}
-            {devLink && (
-              <p className="mt-2 font-mono text-[11px] break-all">
-                Geliştirme linki:{" "}
-                <a className="underline" href={devLink}>
-                  {devLink}
-                </a>
-              </p>
-            )}
-          </div>
-          {confirmVote && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60">
-              <div className="w-full max-w-[420px] bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black] p-5">
-                <h4 className="font-anton text-[28px] leading-[0.9]">BİLGİLERİN DOĞRU MU?</h4>
-                <p className="font-mono text-[13px] mt-3 leading-[1.4]">
-                  Bilgilerin doğru mu? Yoksa oy verme işlemin geçersiz olacaktır.
-                </p>
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void submit()}
-                    className="flex-1 font-anton text-[15px] py-2 border-[3px] border-black bg-black text-white"
-                  >
-                    {busy ? "…" : "EVET, DOĞRU"}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => setConfirmVote(false)}
-                    className="flex-1 font-anton text-[15px] py-2 border-[3px] border-black bg-white"
-                  >
-                    VAZGEÇ
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

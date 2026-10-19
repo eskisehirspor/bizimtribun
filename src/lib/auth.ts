@@ -20,7 +20,7 @@ import {
   type PublicUser,
   type UserRow,
 } from "./users";
-import { FORUM_EMAIL_UNVERIFIED_ERROR } from "./policy";
+import { FORUM_PHONE_UNVERIFIED_ERROR } from "./policy";
 
 type SessionRow = {
   id: number;
@@ -88,6 +88,16 @@ export function clearAdmin2faCookie(res: NextResponse) {
   return res;
 }
 
+export function signupTicketCookieOptions(maxAgeSec: number) {
+  return { ...sessionCookieOptions(maxAgeSec), sameSite: "strict" as const };
+}
+
+export async function readCookie(req: Request | undefined, name: string) {
+  if (req) return cookieFromHeader(req.headers.get("cookie"), name);
+  const jar = await cookies();
+  return jar.get(name)?.value ?? null;
+}
+
 export function createSession(userId: number) {
   const raw = newToken();
   const now = new Date();
@@ -147,7 +157,7 @@ export function userFromSessionToken(raw: string | null | undefined) {
   if (!row || row.revoked_at) return undefined;
   if (new Date(row.expires_at).getTime() < Date.now()) return undefined;
   const loaded = findUserById(row.user_id);
-  if (!loaded) return undefined;
+  if (!loaded || loaded.deleted_at) return undefined;
   const user = reconcileExpiredBan(loaded);
   if (isAdmin(user)) {
     const last = Date.parse(row.last_seen_at || row.created_at);
@@ -195,10 +205,10 @@ export function requireForumWriter(user: UserRow | undefined): {
 } | { ok: false; error: string; status: number } {
   const active = requireActiveUser(user);
   if (!active.ok) return active;
-  if (!active.user.email_verified_at) {
+  if (!active.user.phone_verified_at) {
     return {
       ok: false,
-      error: FORUM_EMAIL_UNVERIFIED_ERROR,
+      error: FORUM_PHONE_UNVERIFIED_ERROR,
       status: 403,
     };
   }

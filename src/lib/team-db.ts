@@ -7,9 +7,10 @@ export type MembershipTeam = {
   league: LeagueId;
 };
 
+/** Teams that can receive a new vote (inactive teams keep their history). */
 export function listMembershipTeams(): MembershipTeam[] {
   const rows = getDb()
-    .prepare(`SELECT id, name, league FROM teams`)
+    .prepare(`SELECT id, name, league FROM teams WHERE is_active = 1`)
     .all() as MembershipTeam[];
   const order = new Map(LEAGUE_ORDER.map((id, i) => [id, i]));
   return rows.sort((a, b) => {

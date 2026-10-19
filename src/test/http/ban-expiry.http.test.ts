@@ -1,7 +1,6 @@
 import "./env-init";
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { POST as register } from "../../app/api/auth/register/route";
 import { POST as login } from "../../app/api/auth/login/route";
 import { GET as me } from "../../app/api/auth/me/route";
 import { POST as createTopic } from "../../app/api/forum/teams/[teamSlug]/topics/route";
@@ -11,9 +10,10 @@ import { banUser } from "@/lib/users";
 import {
   TEST_PASSWORD,
   authRegisterBody,
+  legacyPasswordUser,
   freshDb,
   invoke,
-  markEmailVerified,
+  markPhoneVerified,
   sessionCookie,
   trPhone,
   uniq,
@@ -33,19 +33,14 @@ let n = 0;
 async function verifiedUser(ip: string) {
   n += 1;
   const username = uniq("ban").slice(0, 20);
-  const res = await invoke(register, {
-    method: "POST",
-    path: "/api/auth/register",
-    ip,
-    body: authRegisterBody({
+  const res = await legacyPasswordUser({ body: authRegisterBody({
       username,
       email: `${username}@example.com`,
       phone: trPhone(5000 + n),
-    }),
-  });
+    }), ip });
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const id = (res.json as { user: { id: number } }).user.id;
-  markEmailVerified(id);
+  markPhoneVerified(id);
   return {
     id,
     username,
