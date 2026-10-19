@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getSessionUser, requireForumWriter } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { setLike } from "@/lib/forum-social";
+import { refreshBadges } from "@/lib/profiles";
 import { noStoreJson, readJsonBody } from "@/lib/http";
 import { notifyLike } from "@/lib/notifications";
 
@@ -29,6 +30,7 @@ export async function POST(req: Request) {
       type: parsed.data.type,
       id: parsed.data.id,
     });
+    refreshBadges(db, result.authorId);
   }
   return noStoreJson({ ok: true, likeCount: result.likeCount, likedByMe: result.likedByMe });
 }

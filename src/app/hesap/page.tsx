@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
 import { errorText, inputClass, Notice, postJson, secondaryButton } from "@/components/auth/ui";
 import { useTeamCatalog } from "@/components/useTeamCatalog";
+import ProfileSettingsForm from "@/components/profile/ProfileSettingsForm";
 
 const CONFIRM = "HESABIMI SİL";
 
@@ -69,6 +70,11 @@ function Account() {
             {team.name} tribününe git
           </Link>
         )}
+      </section>
+
+      <section id="profil" className="border-[3px] border-black bg-white p-4 space-y-2">
+        <h2 className="font-anton text-[20px]">PROFİL VE BİLDİRİMLER</h2>
+        <ProfileSettingsForm username={user.username} />
       </section>
 
       <section className="border-[3px] border-black bg-white p-4 space-y-2">

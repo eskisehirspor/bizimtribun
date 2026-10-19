@@ -1,3 +1,4 @@
+import { refreshBadges } from "./profiles";
 import { can, canBanRole } from "./permissions";
 import { maskEmail, maskPhone } from "./privacy";
 import { notifyModeration } from "./notifications";
@@ -898,7 +899,14 @@ export function adminApproveHeld(
   moderator: UserRow,
   reason: string | null,
 ) {
-  return approveHeldContent(getDb(), kind, id, moderator.id, reason);
+  const result = approveHeldContent(getDb(), kind, id, moderator.id, reason);
+  if (result.ok) {
+    const author = getDb()
+      .prepare(kind === "topic" ? `SELECT user_id FROM forum_topics WHERE id = ?` : `SELECT user_id FROM forum_posts WHERE id = ?`)
+      .get(id) as { user_id: number } | undefined;
+    if (author) refreshBadges(getDb(), author.user_id);
+  }
+  return result;
 }
 
 export function adminRejectHeld(

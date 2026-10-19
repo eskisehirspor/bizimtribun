@@ -301,6 +301,7 @@ export function deleteAccount(
          email = NULL, email_norm = NULL, password_hash = NULL,
          first_name = NULL, last_name = NULL, birth_date = NULL,
          phone = NULL, phone_norm = NULL, city = NULL,
+         bio = NULL, avatar = NULL, show_city = 0, profile_visibility = 'members',
          totp_enabled = 0, totp_secret_enc = NULL,
          status = 'deleted', deleted_at = ?, updated_at = ?
        WHERE id = ?`,
@@ -310,6 +311,8 @@ export function deleteAccount(
       user.id,
     );
     db.prepare(`DELETE FROM auth_otps WHERE user_id = ?`).run(user.id);
+    db.prepare(`DELETE FROM user_badges WHERE user_id = ?`).run(user.id);
+    db.prepare(`DELETE FROM notifications WHERE user_id = ?`).run(user.id);
     db.prepare(`DELETE FROM user_email_tokens WHERE user_id = ?`).run(user.id);
     db.prepare(`DELETE FROM admin_recovery_codes WHERE user_id = ?`).run(user.id);
     db.prepare(`DELETE FROM admin_totp_setup WHERE user_id = ?`).run(user.id);

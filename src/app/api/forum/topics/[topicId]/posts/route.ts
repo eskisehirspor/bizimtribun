@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { notifyReply } from "@/lib/notifications";
 import { clientIp } from "@/lib/request";
+import { refreshBadges } from "@/lib/profiles";
 import { noStoreJson, readJsonBody } from "@/lib/http";
 import { getSessionUser, requireForumWriter } from "@/lib/auth";
 import { FORUM_POST_MAX } from "@/lib/policy";
@@ -109,5 +110,6 @@ export async function POST(
     return noStoreJson({ error: FORUM_CONTENT_REVIEW_ERROR }, 422);
   }
   notifyReply(getDb(), { actorId: active.user.id, topicId: topic.id, postId: post.id, content });
+  refreshBadges(getDb(), active.user.id);
   return noStoreJson({ ok: true, post: serializePost(post, active.user.id) }, 201);
 }

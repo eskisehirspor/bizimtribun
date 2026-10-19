@@ -96,7 +96,7 @@ test("likes: not your own, counted once, one notification per liker", async () =
 
   const inbox = await invoke(notifications, { path: "/api/notifications", cookie: author.cookie });
   const items = (inbox.json as { unread: number; items: { kind: string }[] }).items;
-  assert.deepEqual(items.map((i) => i.kind), ["like"]);
+  assert.deepEqual(items.map((i) => i.kind).filter((k) => k !== "badge"), ["like"]);
 });
 
 test("replies and @mentions notify; read marks clear the badge", async () => {
@@ -108,7 +108,10 @@ test("replies and @mentions notify; read marks clear the badge", async () => {
   assert.equal(res.status, 201, res.text);
 
   const a = await invoke(notifications, { path: "/api/notifications", cookie: author.cookie });
-  assert.equal((a.json as { unread: number }).unread, 1);
+  // The reply, plus the author's own "first topic" badge.
+  const inboxA = a.json as { unread: number; items: { kind: string }[] };
+  assert.deepEqual(inboxA.items.map((i) => i.kind).sort(), ["badge", "reply"]);
+  assert.equal(inboxA.unread, 2);
   const t = await invoke(notifications, { path: "/api/notifications", cookie: third.cookie });
   assert.deepEqual((t.json as { items: { kind: string }[] }).items.map((i) => i.kind), ["mention"]);
 

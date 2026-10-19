@@ -35,7 +35,10 @@ function openDb() {
       ban_reason TEXT,
       ban_expires_at TEXT,
       email_norm TEXT,
-      password_hash TEXT NOT NULL DEFAULT 'hash'
+      password_hash TEXT NOT NULL DEFAULT 'hash',
+      notify_replies INTEGER NOT NULL DEFAULT 1,
+      notify_mentions INTEGER NOT NULL DEFAULT 1,
+      notify_likes INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

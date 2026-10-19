@@ -29,6 +29,8 @@ import {
 } from "./moderation";
 import { FORUM_BODY_MAX, FORUM_TITLE_MAX, FORUM_TITLE_MIN } from "./policy";
 import { clientIp } from "./request";
+import { getDb } from "./db";
+import { refreshBadges } from "./profiles";
 
 /**
  * One topic list/create implementation for every board: team tribunes,
@@ -141,5 +143,6 @@ export async function boardTopicsPost(req: Request, board: ResolvedBoard | null)
     recordAutoModeration({ userId: active.user.id, result: verdict, targetTopicId: topic.id });
     return noStoreJson({ error: FORUM_CONTENT_REVIEW_ERROR }, 422);
   }
+  refreshBadges(getDb(), active.user.id);
   return noStoreJson({ ok: true, topic: serializeTopic(topic, active.user.id) }, 201);
 }

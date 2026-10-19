@@ -26,10 +26,10 @@ export function Notice({
   );
 }
 
-export async function postJson(url: string, body: unknown) {
+export async function postJson(url: string, body: unknown, method: "POST" | "PATCH" = "POST") {
   try {
     const res = await fetch(url, {
-      method: "POST",
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });

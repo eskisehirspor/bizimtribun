@@ -327,6 +327,7 @@ export default function KonuPage() {
               •{" "}
               {topic.author ? (
                 <ForumAuthorName
+                  link
                   username={topic.author.username}
                   isTribunLeader={topic.author.isTribunLeader}
                 />
@@ -394,6 +395,7 @@ export default function KonuPage() {
             <div key={p.id} id={`yorum-${p.id}`} className="p-3 sm:p-4">
               <p className="font-mono text-[11px] opacity-70">
                 <ForumAuthorName
+                  link
                   username={p.author.username}
                   isTribunLeader={p.author.isTribunLeader}
                 />{" "}

@@ -453,6 +453,30 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedupe
 `);
     },
   },
+  {
+    id: "005_profiles_badges",
+    up(db) {
+      // Profile fields and notification preferences. Profiles default to
+      // members-only and the province stays hidden until the member opts in.
+      db.exec(`
+ALTER TABLE users ADD COLUMN bio TEXT;
+ALTER TABLE users ADD COLUMN avatar TEXT;
+ALTER TABLE users ADD COLUMN profile_visibility TEXT NOT NULL DEFAULT 'members'
+  CHECK (profile_visibility IN ('members', 'public'));
+ALTER TABLE users ADD COLUMN show_city INTEGER NOT NULL DEFAULT 0 CHECK (show_city IN (0, 1));
+ALTER TABLE users ADD COLUMN notify_replies INTEGER NOT NULL DEFAULT 1 CHECK (notify_replies IN (0, 1));
+ALTER TABLE users ADD COLUMN notify_mentions INTEGER NOT NULL DEFAULT 1 CHECK (notify_mentions IN (0, 1));
+ALTER TABLE users ADD COLUMN notify_likes INTEGER NOT NULL DEFAULT 1 CHECK (notify_likes IN (0, 1));
+
+CREATE TABLE IF NOT EXISTS user_badges (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  badge TEXT NOT NULL,
+  awarded_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, badge)
+);
+`);
+    },
+  },
 ];
 
 export function appliedMigrationIds(db: Database.Database) {

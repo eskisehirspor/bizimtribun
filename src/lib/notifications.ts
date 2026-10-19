@@ -21,10 +21,24 @@ type Insert = {
   dedupeKey?: string | null;
 };
 
+/** Member-controlled kinds; moderation, badge and system notices always arrive. */
+const PREF_COLUMN: Partial<Record<NotificationKind, string>> = {
+  reply: "notify_replies",
+  mention: "notify_mentions",
+  like: "notify_likes",
+};
+
 export function notify(db: Database.Database, n: Insert) {
   if (n.actorId != null) {
     if (n.actorId === n.userId) return false;
     if (isBlockedBetween(db, n.actorId, n.userId)) return false;
+  }
+  const pref = PREF_COLUMN[n.kind];
+  if (pref) {
+    const row = db.prepare(`SELECT ${pref} as on_ FROM users WHERE id = ?`).get(n.userId) as
+      | { on_: number }
+      | undefined;
+    if (!row || !row.on_) return false;
   }
   const res = db
     .prepare(
