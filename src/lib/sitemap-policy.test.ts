@@ -20,11 +20,28 @@ function openDb() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL DEFAULT '',
       league TEXT NOT NULL DEFAULT 'super',
-      is_forum_active INTEGER NOT NULL DEFAULT 0
+      is_forum_active INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE TABLE fan_votes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      team_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active'
+    );
+    CREATE TABLE users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      profile_visibility TEXT NOT NULL DEFAULT 'members',
+      status TEXT NOT NULL DEFAULT 'active',
+      banned_at TEXT,
+      deleted_at TEXT,
+      updated_at TEXT NOT NULL DEFAULT '2026-09-01T00:00:00.000Z'
     );
     CREATE TABLE forum_topics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_id TEXT NOT NULL,
+      board TEXT NOT NULL DEFAULT 'team',
+      city TEXT,
+      team_id TEXT,
       title TEXT NOT NULL DEFAULT 't',
       content TEXT NOT NULL DEFAULT 'c',
       created_at TEXT NOT NULL,
@@ -193,4 +210,39 @@ test("topic query respects sitemap URL budget", () => {
   seedCatalog(db);
   const sliced = publicTopicSitemapEntries(db, BASE, 0);
   assert.equal(sliced.length, 0);
+});
+
+test("team pages, general and city topics, and only public profiles", () => {
+  const db = openDb();
+  seedCatalog(db);
+  db.prepare(`UPDATE teams SET is_active = 0 WHERE id IN ('bandirmaspor', 'sakaryaspor')`).run();
+  db.prepare(`INSERT INTO fan_votes (team_id) VALUES ('sakaryaspor')`).run();
+  const at = "2026-09-04T10:00:00.000Z";
+  const general = Number(
+    db
+      .prepare(`INSERT INTO forum_topics (board, team_id, created_at, updated_at) VALUES ('general', NULL, ?, ?)`)
+      .run(at, at).lastInsertRowid,
+  );
+  const city = Number(
+    db
+      .prepare(`INSERT INTO forum_topics (board, city, created_at, updated_at) VALUES ('city', 'Eskişehir', ?, ?)`)
+      .run(at, at).lastInsertRowid,
+  );
+  db.prepare(`INSERT INTO users (username, profile_visibility) VALUES ('acik', 'public'), ('kapali', 'members')`).run();
+  db.prepare(`INSERT INTO users (username, profile_visibility, deleted_at) VALUES ('silinen', 'public', ?)`).run(at);
+
+  const urls = buildPublicSitemap(db, BASE).map((e) => e.url);
+  assert.ok(urls.includes(`${BASE}/takim/galatasaray`));
+  assert.ok(urls.includes(`${BASE}/takim/sakaryaspor`), "inactive team with votes stays");
+  assert.equal(urls.includes(`${BASE}/takim/bandirmaspor`), false);
+  assert.ok(urls.includes(`${BASE}/forum/konu/${general}`));
+  assert.ok(urls.includes(`${BASE}/forum/konu/${city}`));
+  assert.ok(urls.includes(`${BASE}/u/acik`));
+  assert.equal(urls.some((u) => u.endsWith("/u/kapali") || u.endsWith("/u/silinen")), false);
+
+  const closed = buildPublicSitemap(db, BASE, new Date(), { generalBoardOpen: false, cityBoardsOpen: false }).map(
+    (e) => e.url,
+  );
+  assert.equal(closed.includes(`${BASE}/forum/konu/${general}`), false);
+  assert.equal(closed.includes(`${BASE}/forum/genel`), false);
 });

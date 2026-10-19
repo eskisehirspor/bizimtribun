@@ -90,9 +90,12 @@ export default function CityPageView({ city, total, rows, history, lastVoteAt, g
                       {row.votes === topVotes && isTie ? "=" : `${i + 1}.`}
                     </span>
                     {team ? <TeamColors team={team} size={12} /> : null}
-                    <span className="font-anton text-[16px] md:text-[18px] flex-1 leading-tight">
+                    <Link
+                      href={`/takim/${row.teamId}`}
+                      className="font-anton text-[16px] md:text-[18px] flex-1 leading-tight hover:underline"
+                    >
                       {row.name}
-                    </span>
+                    </Link>
                     <span className="font-mono text-[12px] tabular-nums">
                       {row.votes.toLocaleString("tr-TR")} · %{row.percent}
                     </span>

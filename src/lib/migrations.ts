@@ -492,6 +492,19 @@ CREATE TABLE IF NOT EXISTS site_settings (
 `);
     },
   },
+  {
+    id: "007_query_indexes",
+    up(db) {
+      // Province history reads every vote of one province (any status);
+      // dashboard and profile counts filter by creation time.
+      db.exec(`
+CREATE INDEX IF NOT EXISTS idx_fan_votes_city_cast ON fan_votes(city, cast_at);
+CREATE INDEX IF NOT EXISTS idx_forum_topics_created ON forum_topics(created_at);
+CREATE INDEX IF NOT EXISTS idx_forum_posts_created ON forum_posts(created_at);
+CREATE INDEX IF NOT EXISTS idx_users_public_profile ON users(updated_at) WHERE profile_visibility = 'public';
+`);
+    },
+  },
 ];
 
 export function appliedMigrationIds(db: Database.Database) {

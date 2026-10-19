@@ -9,7 +9,43 @@ import { hmac } from "./crypto";
  */
 const LIVE = `fv.status = 'active'`;
 
+/**
+ * Aggregates are recomputed only when the underlying rows change: the key is
+ * the active vote count, the newest vote id and the team catalog's last edit.
+ * Votes are append-only (a void lowers the active count), so the key moves
+ * on every change and the numbers are never stale.
+ */
+const memo = new WeakMap<object, Map<string, { key: string; value: unknown }>>();
+
+function dataVersion() {
+  const db = getDb();
+  const v = db
+    .prepare(
+      `SELECT (SELECT COUNT(*) FROM fan_votes WHERE status = 'active') as active,
+              (SELECT COALESCE(MAX(id), 0) FROM fan_votes) as maxId,
+              (SELECT COUNT(*) || ':' || COALESCE(MAX(admin_edited_at), '') FROM teams) as teams`,
+    )
+    .get() as { active: number; maxId: number; teams: string };
+  return `${v.active}:${v.maxId}:${v.teams}`;
+}
+
+function memoized<T>(name: string, compute: () => T): T {
+  const db = getDb();
+  let slot = memo.get(db);
+  if (!slot) memo.set(db, (slot = new Map()));
+  const key = dataVersion();
+  const hit = slot.get(name);
+  if (hit && hit.key === key) return hit.value as T;
+  const value = compute();
+  slot.set(name, { key, value });
+  return value;
+}
+
 export function teamCounts() {
+  return memoized("teamCounts", computeTeamCounts);
+}
+
+function computeTeamCounts() {
   const rows = getDb()
     .prepare(
       `SELECT fv.team_id as id, COUNT(*) as votes
@@ -33,6 +69,10 @@ export type CityLeader = CityStanding & {
 };
 
 export function cityStandings() {
+  return memoized("cityStandings", computeCityStandings);
+}
+
+function computeCityStandings(): Record<string, CityStanding[]> {
   const rows = getDb()
     .prepare(
       `SELECT fv.city, fv.team_id, COUNT(*) as c
@@ -98,4 +138,50 @@ export function registerAttemptCount(ipHash: string) {
 
 export function hashedIp(ip: string) {
   return hmac(`ip:${ip}`);
+}
+
+export type TeamSummary = {
+  votes: number;
+  total: number;
+  /** 1-based; teams with equal votes share a rank. Null with no votes yet. */
+  rank: number | null;
+  leagueRank: number | null;
+  tiedWith: number;
+  provincesLed: number;
+  provincesCoLed: number;
+  topProvinces: { province: string; votes: number }[];
+};
+
+/** One team's public numbers, from the same active fan_votes rows as every other count. */
+export function teamSummary(teamId: string): TeamSummary | null {
+  const teams = teamCounts();
+  const team = teams.find((t) => t.id === teamId);
+  if (!team) return null;
+  const total = teams.reduce((sum, t) => sum + t.votes, 0);
+  const rankIn = (list: typeof teams) =>
+    team.votes > 0 ? 1 + list.filter((t) => t.votes > team.votes).length : null;
+  let provincesLed = 0;
+  let provincesCoLed = 0;
+  for (const leader of Object.values(cityLeaders())) {
+    if (!leader.coLeaderIds.includes(teamId)) continue;
+    if (leader.tied) provincesCoLed += 1;
+    else provincesLed += 1;
+  }
+  const topProvinces = getDb()
+    .prepare(
+      `SELECT fv.city as province, COUNT(*) as votes FROM fan_votes fv
+       WHERE ${LIVE} AND fv.team_id = ? AND fv.city IS NOT NULL
+       GROUP BY fv.city ORDER BY votes DESC, fv.city LIMIT 5`,
+    )
+    .all(teamId) as { province: string; votes: number }[];
+  return {
+    votes: team.votes,
+    total,
+    rank: rankIn(teams),
+    leagueRank: rankIn(teams.filter((t) => t.league === team.league)),
+    tiedWith: team.votes > 0 ? teams.filter((t) => t.id !== teamId && t.votes === team.votes).length : 0,
+    provincesLed,
+    provincesCoLed,
+    topProvinces,
+  };
 }

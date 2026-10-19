@@ -36,6 +36,7 @@ const ultras = Bangers({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.APP_URL || "http://localhost:3000"),
   title: "Bizim Tribün — En büyük kim?",
   description:
     "Türkiye tribünlerinin gerçek sayımı: SMS ile doğrulanmış, hesap başına tek ve kalıcı takım oyu.",

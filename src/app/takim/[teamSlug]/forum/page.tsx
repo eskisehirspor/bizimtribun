@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import ForumBoardView from "@/components/forum/ForumBoardView";
@@ -56,7 +57,10 @@ export default function TeamForumPage() {
                   {tribunTitle(team.name)}
                 </h1>
                 <p className="font-mono text-[11px] opacity-60 mt-1">
-                  {catalog.leagueLabel(team.league)} • {total} konu
+                  {catalog.leagueLabel(team.league)} • {total} konu •{" "}
+                  <Link href={`/takim/${team.id}`} className="underline">
+                    taraftar sayımı
+                  </Link>
                 </p>
               </div>
             </div>
