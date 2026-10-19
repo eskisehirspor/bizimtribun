@@ -6,6 +6,7 @@ import {
   type CityRecord,
 } from "@/lib/cities";
 import type { CityTeamRow } from "@/lib/city-rank";
+import type { CityHistoryPoint } from "@/lib/city-stats";
 import CityShare from "@/components/CityShare";
 import TeamColors from "@/components/TeamColors";
 import { useTeamCatalog } from "@/components/useTeamCatalog";
@@ -14,19 +15,38 @@ type Props = {
   city: CityRecord;
   total: number;
   rows: CityTeamRow[];
+  history: CityHistoryPoint[];
+  lastVoteAt: string | null;
+  generatedAt: string;
 };
 
-export default function CityPageView({ city, total, rows }: Props) {
+function fmt(iso: string) {
+  return new Date(iso).toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export default function CityPageView({ city, total, rows, history, lastVoteAt, generatedAt }: Props) {
   const { getTeam } = useTeamCatalog();
   const locative = cityLocative(city.name);
-  const headline = `${locative} bu haftanın tribün dağılımı`;
+  const headline = `${locative} tribün dağılımı`;
+  const topVotes = rows[0]?.votes ?? 0;
+  const tiedTop = topVotes > 0 ? rows.filter((r) => r.votes === topVotes) : [];
+  const isTie = tiedTop.length > 1;
   const summary =
     total === 0
       ? `${city.name} ilinde henüz doğrulanmış oy yok.`
-      : rows
-          .slice(0, 3)
-          .map((row, i) => `${i + 1}. ${row.name} %${row.percent}`)
-          .join(" · ");
+      : isTie
+        ? `Berabere: ${tiedTop.map((r) => r.name).join(" = ")} (%${tiedTop[0]!.percent})`
+        : rows
+            .slice(0, 3)
+            .map((row, i) => `${i + 1}. ${row.name} %${row.percent}`)
+            .join(" · ");
+  const maxHistory = Math.max(1, ...history.map((h) => h.total));
 
   return (
     <div className="min-h-screen bg-[#F2EFE6] text-black relative">
@@ -63,10 +83,12 @@ export default function CityPageView({ city, total, rows }: Props) {
                   <li
                     key={row.teamId}
                     className={`flex items-center gap-2 border-[3px] border-black px-3 py-2 ${
-                      i === 0 ? "bg-[#FFEA00]" : "bg-[#FFFEFA]"
+                      row.votes === topVotes ? "bg-[#FFEA00]" : "bg-[#FFFEFA]"
                     }`}
                   >
-                    <span className="font-anton text-[16px] w-7">{i + 1}.</span>
+                    <span className="font-anton text-[16px] w-7">
+                      {row.votes === topVotes && isTie ? "=" : `${i + 1}.`}
+                    </span>
                     {team ? <TeamColors team={team} size={12} /> : null}
                     <span className="font-anton text-[16px] md:text-[18px] flex-1 leading-tight">
                       {row.name}
@@ -79,10 +101,55 @@ export default function CityPageView({ city, total, rows }: Props) {
               })}
             </ol>
           )}
+          {isTie && (
+            <p className="font-mono text-[12px] mt-3 border-[2px] border-dashed border-black p-2">
+              Bu ilde zirve berabere. Haritada çizgili gösterilir; hiçbir takım önde sayılmaz.
+            </p>
+          )}
+          <p className="font-mono text-[10px] opacity-60 mt-3">
+            Veri: {fmt(generatedAt)}
+            {lastVoteAt ? ` • son oy ${fmt(lastVoteAt)}` : ""} • yalnızca telefonu doğrulanmış
+            hesapların, hesap başına bir kalıcı oyu sayılır.
+          </p>
           <div className="mt-4">
             <CityShare slug={city.slug} headline={headline} summary={summary} />
           </div>
         </section>
+
+        {history.some((h) => h.total > 0) && (
+          <section className="mt-6 border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[6px_6px_0_black]">
+            <h2 className="font-anton text-[22px] leading-none">SON 8 HAFTA</h2>
+            <p className="font-mono text-[11px] mt-1 opacity-70">
+              Her haftanın sonundaki doğrulanmış oy sayısı ve o haftanın lideri.
+            </p>
+            <ol className="mt-3 space-y-1">
+              {history.map((h) => {
+                const leaders = h.leaderIds.map((id) => getTeam(id)?.name ?? id);
+                return (
+                  <li key={h.weekEnding} className="flex items-center gap-2 font-mono text-[11px]">
+                    <span className="w-[82px] shrink-0 tabular-nums">
+                      {new Date(h.weekEnding).toLocaleDateString("tr-TR")}
+                    </span>
+                    <span className="flex-1 h-[14px] border-[2px] border-black bg-white relative">
+                      <span
+                        className="absolute inset-y-0 left-0 bg-black"
+                        style={{ width: `${(h.total / maxHistory) * 100}%` }}
+                      />
+                    </span>
+                    <span className="w-[36px] text-right tabular-nums">{h.total}</span>
+                    <span className="w-[42%] truncate">
+                      {leaders.length === 0
+                        ? "oy yok"
+                        : leaders.length > 1
+                          ? `berabere: ${leaders.join(" = ")}`
+                          : leaders[0]}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </section>
+        )}
 
         {rows.some((row) => row.forumHref) ? (
           <section className="mt-6">

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import CityPageView from "@/components/CityPageView";
 import { CITIES, getCityBySlug } from "@/lib/cities";
 import { cityPageMetadata } from "@/lib/city-seo";
-import { cityVoteTotals } from "@/lib/city-stats";
+import { cityHistory, cityLastVoteAt, cityVoteTotals } from "@/lib/city-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -31,5 +31,14 @@ export default async function CityPage({
   const city = getCityBySlug(citySlug);
   if (!city) notFound();
   const { total, rows } = cityVoteTotals(city.name);
-  return <CityPageView city={city} total={total} rows={rows} />;
+  return (
+    <CityPageView
+      city={city}
+      total={total}
+      rows={rows}
+      history={cityHistory(city.name)}
+      lastVoteAt={cityLastVoteAt(city.name)}
+      generatedAt={new Date().toISOString()}
+    />
+  );
 }
