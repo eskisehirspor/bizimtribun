@@ -5,14 +5,18 @@ import { useState } from "react";
 export function AdminCard({
   title,
   value,
+  hint,
 }: {
   title: string;
   value: string | number;
+  /** How the number is counted. */
+  hint?: string;
 }) {
   return (
     <div className="border-[3px] border-black bg-[#FFFEFA] p-3 shadow-[4px_4px_0_black]">
       <p className="font-mono text-[10px] tracking-wide opacity-60">{title}</p>
       <p className="font-anton text-[32px] leading-none mt-1">{value}</p>
+      {hint && <p className="font-mono text-[9px] leading-tight opacity-60 mt-1">{hint}</p>}
     </div>
   );
 }

@@ -21,6 +21,7 @@ import {
   type UserRow,
 } from "./users";
 import { FORUM_PHONE_UNVERIFIED_ERROR } from "./policy";
+import { MAINTENANCE_ERROR, maintenanceBlocks } from "./site-settings";
 
 type SessionRow = {
   id: number;
@@ -211,6 +212,9 @@ export function requireForumWriter(user: UserRow | undefined): {
       error: FORUM_PHONE_UNVERIFIED_ERROR,
       status: 403,
     };
+  }
+  if (maintenanceBlocks(active.user.role)) {
+    return { ok: false, error: MAINTENANCE_ERROR, status: 503 };
   }
   return active;
 }

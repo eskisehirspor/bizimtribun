@@ -16,6 +16,7 @@ export const PERMISSIONS = [
   "team_requests.manage",
   "dashboard.view",
   "audit.view",
+  "content.manage",
   "settings.manage",
   "security.self",
 ] as const;
@@ -41,6 +42,7 @@ const ADMIN: Permission[] = [
   "team_requests.manage",
   "dashboard.view",
   "audit.view",
+  "content.manage",
 ];
 
 const SUPER_ADMIN: Permission[] = [...ADMIN, "roles.manage", "settings.manage"];

@@ -6,6 +6,7 @@ import { castFanVote, findFanVote } from "@/lib/fan-votes";
 import { rateCount, rateNote } from "@/lib/auth-otp";
 import { hmac } from "@/lib/crypto";
 import { FAN_VOTE_PER_USER_HOUR } from "@/lib/policy";
+import { MAINTENANCE_ERROR, maintenanceBlocks } from "@/lib/site-settings";
 
 const Body = z.object({
   teamId: z.string().min(1).max(64),
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const active = requireActiveUser(await getSessionUser(req));
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
+  if (maintenanceBlocks(active.user.role)) return noStoreJson({ error: MAINTENANCE_ERROR }, 503);
   const body = await readJsonBody(req);
   if ("error" in body) return noStoreJson({ error: body.error }, 400);
   const parsed = Body.safeParse(body.data);

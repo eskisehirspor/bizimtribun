@@ -5,6 +5,7 @@ import { setLike } from "@/lib/forum-social";
 import { refreshBadges } from "@/lib/profiles";
 import { noStoreJson, readJsonBody } from "@/lib/http";
 import { notifyLike } from "@/lib/notifications";
+import { getSettings } from "@/lib/site-settings";
 
 const Body = z.object({
   type: z.enum(["topic", "post"]),
@@ -19,6 +20,7 @@ export async function POST(req: Request) {
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) return noStoreJson({ error: "Geçersiz istek." }, 400);
+  if (!getSettings().features.likesEnabled) return noStoreJson({ error: "Beğeniler şu an kapalı." }, 403);
 
   const db = getDb();
   const result = setLike(db, active.user.id, parsed.data.type, parsed.data.id, parsed.data.liked);

@@ -30,6 +30,7 @@ import {
 import { FORUM_BODY_MAX, FORUM_TITLE_MAX, FORUM_TITLE_MIN } from "./policy";
 import { clientIp } from "./request";
 import { getDb } from "./db";
+import { getSettings } from "./site-settings";
 import { refreshBadges } from "./profiles";
 
 /**
@@ -52,13 +53,14 @@ export function resolveTeamBoard(teamSlug: string): ResolvedBoard | null {
   };
 }
 
-export function resolveGeneralBoard(): ResolvedBoard {
+export function resolveGeneralBoard(): ResolvedBoard | null {
+  if (!getSettings().features.generalBoardOpen) return null;
   return { ref: { kind: "general" }, info: { kind: "general", id: "genel", name: "Genel Tribün" } };
 }
 
 export function resolveCityBoard(citySlug: string): ResolvedBoard | null {
   const city = getCityBySlug(citySlug);
-  if (!city) return null;
+  if (!city || !getSettings().features.cityBoardsOpen) return null;
   return {
     ref: { kind: "city", city: city.name },
     info: { kind: "city", id: city.slug, name: `${city.name} Tribünü`, city: city.name },

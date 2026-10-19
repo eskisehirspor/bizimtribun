@@ -23,6 +23,8 @@ test("role management and settings are super-admin only", () => {
   assert.equal(can("admin", "roles.manage"), false);
   assert.equal(can("super_admin", "roles.manage"), true);
   assert.equal(can("admin", "settings.manage"), false);
+  assert.equal(can("admin", "content.manage"), true);
+  assert.equal(can("moderator", "content.manage"), false);
   assert.equal(can("moderator", "votes.void"), false);
   assert.equal(can("admin", "votes.void"), true);
 });

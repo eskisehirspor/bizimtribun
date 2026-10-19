@@ -477,6 +477,21 @@ CREATE TABLE IF NOT EXISTS user_badges (
 `);
     },
   },
+  {
+    id: "006_site_settings",
+    up(db) {
+      // One JSON value per key; values are validated by src/lib/site-settings.ts
+      // before they are written and again when they are read.
+      db.exec(`
+CREATE TABLE IF NOT EXISTS site_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL CHECK (json_valid(value)),
+  updated_at TEXT NOT NULL,
+  updated_by_user_id INTEGER REFERENCES users(id)
+);
+`);
+    },
+  },
 ];
 
 export function appliedMigrationIds(db: Database.Database) {

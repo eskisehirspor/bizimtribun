@@ -14,6 +14,7 @@ const LINKS: Array<{ href: string; label: string; needs: Permission }> = [
   { href: "/admin/banlar", label: "Banlar", needs: "users.ban" },
   { href: "/admin/takimlar", label: "Takımlar ve Sezonlar", needs: "teams.manage" },
   { href: "/admin/takim-talepleri", label: "Takım Talepleri", needs: "team_requests.manage" },
+  { href: "/admin/ayarlar", label: "Site Ayarları", needs: "content.manage" },
   { href: "/admin/denetim", label: "Denetim Kaydı", needs: "audit.view" },
   { href: "/admin/guvenlik", label: "Güvenlik", needs: "security.self" },
 ];

@@ -15,6 +15,7 @@ import { hmac } from "@/lib/crypto";
 import { requestIpKey } from "@/lib/otp-http";
 import { SIGNUP_PER_IP_HOUR, SIGNUP_TICKET_COOKIE } from "@/lib/policy";
 import { findUserById, toPublicUser } from "@/lib/users";
+import { getSettings, MAINTENANCE_ERROR } from "@/lib/site-settings";
 
 const Body = z.object({
   username: z.string().min(3).max(20),
@@ -41,6 +42,12 @@ export async function POST(req: Request) {
       { error: "Kullanıcı adı, takım ve takımın kalıcı olduğunu onaylaman gerekiyor." },
       400,
     );
+  }
+
+  const settings = getSettings();
+  if (settings.maintenance.enabled) return noStoreJson({ error: MAINTENANCE_ERROR }, 503);
+  if (!settings.features.signupsOpen) {
+    return noStoreJson({ error: "Yeni üyelik şu an kapalı. Daha sonra tekrar dene." }, 403);
   }
 
   const db = getDb();

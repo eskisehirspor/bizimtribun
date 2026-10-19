@@ -1,8 +1,10 @@
+import type Database from "better-sqlite3";
 import { refreshBadges } from "./profiles";
 import { can, canBanRole } from "./permissions";
 import { maskEmail, maskPhone } from "./privacy";
 import { notifyModeration } from "./notifications";
 import { getDb } from "./db";
+import { FORUM_SYSTEM_PASSWORD_HASH } from "./forum-system";
 import {
   adminSoftDeletePost,
   adminSoftDeleteTopic,
@@ -36,17 +38,21 @@ function bannedClause(alias: string) {
     AND (${alias}.ban_expires_at IS NULL OR ${alias}.ban_expires_at > ?)`;
 }
 
+/** The non-login system account that owns the pinned starter topics is not a member. */
+const HUMAN = `password_hash IS NOT '${FORUM_SYSTEM_PASSWORD_HASH}'`;
+const BY_HUMAN = `user_id NOT IN (SELECT id FROM users WHERE password_hash = '${FORUM_SYSTEM_PASSWORD_HASH}')`;
+
 export function getDashboardStats() {
   const db = getDb();
   const now = nowIso();
   const totalMembers = (
-    db.prepare(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL`).get() as { c: number }
+    db.prepare(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN}`).get() as { c: number }
   ).c;
   const activeMembers = (
     db
       .prepare(
         `SELECT COUNT(*) as c FROM users u
-         WHERE u.deleted_at IS NULL AND NOT (${bannedClause("u")})`,
+         WHERE u.deleted_at IS NULL AND ${HUMAN} AND NOT (${bannedClause("u")})`,
       )
       .get(now) as { c: number }
   ).c;
@@ -54,7 +60,7 @@ export function getDashboardStats() {
     db
       .prepare(
         `SELECT COUNT(*) as c FROM forum_topics
-         WHERE deleted_at IS NULL AND held_at IS NULL`,
+         WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN}`,
       )
       .get() as { c: number }
   ).c;
@@ -62,7 +68,7 @@ export function getDashboardStats() {
     db
       .prepare(
         `SELECT COUNT(*) as c FROM forum_posts
-         WHERE deleted_at IS NULL AND held_at IS NULL`,
+         WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN}`,
       )
       .get() as { c: number }
   ).c;
@@ -139,6 +145,114 @@ export function getDashboardStats() {
       targetTopicId: row.target_topic_id,
       targetPostId: row.target_post_id,
     })),
+    ...getDashboardExtras(db),
+  };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Growth, distribution, queue and abuse indicators. Every figure is a plain
+ * COUNT over live rows; definitions are shown next to each card in the UI.
+ */
+function getDashboardExtras(db: Database.Database, nowMs = Date.now()) {
+  const since = (days: number) => new Date(nowMs - days * DAY_MS).toISOString();
+  const count = (sql: string, ...params: unknown[]) => (db.prepare(sql).get(...params) as { c: number }).c;
+
+  const signups = {
+    day: count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(1)),
+    week: count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(7)),
+    month: count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(30)),
+  };
+  const newTopicsWeek = count(
+    `SELECT COUNT(*) as c FROM forum_topics WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN} AND created_at >= ?`,
+    since(7),
+  );
+  const newPostsWeek = count(
+    `SELECT COUNT(*) as c FROM forum_posts WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN} AND created_at >= ?`,
+    since(7),
+  );
+  const openReports = count(`SELECT COUNT(*) as c FROM forum_reports WHERE status = 'open'`);
+  const held = countHeldItems(db);
+
+  const teamDistribution = db
+    .prepare(
+      `SELECT fv.team_id as teamId, COALESCE(t.name, fv.team_id) as name, COUNT(*) as votes
+       FROM fan_votes fv LEFT JOIN teams t ON t.id = fv.team_id
+       WHERE fv.status = 'active' GROUP BY fv.team_id ORDER BY votes DESC, name LIMIT 10`,
+    )
+    .all() as { teamId: string; name: string; votes: number }[];
+  const provinceDistribution = db
+    .prepare(
+      `SELECT city as province, COUNT(*) as votes FROM fan_votes
+       WHERE status = 'active' AND city IS NOT NULL GROUP BY city ORDER BY votes DESC, city LIMIT 10`,
+    )
+    .all() as { province: string; votes: number }[];
+  const votesWithoutProvince = count(
+    `SELECT COUNT(*) as c FROM fan_votes WHERE status = 'active' AND city IS NULL`,
+  );
+
+  const day = since(1);
+  const suspicious = {
+    /** SMS codes requested in the last 24 hours (each one is a paid SMS in production). */
+    otpRequests: count(`SELECT COUNT(*) as c FROM auth_otps WHERE created_at >= ?`, day),
+    /** Codes locked after too many wrong guesses in the last 24 hours. */
+    otpLockouts: count(
+      `SELECT COUNT(*) as c FROM auth_otps WHERE created_at >= ? AND attempts >= max_attempts`,
+      day,
+    ),
+    /** Most sign-ups in a single clock hour over the last 24 hours (a burst hints at scripted sign-ups). */
+    signupPeakHour: count(
+      `SELECT COALESCE(MAX(n), 0) as c FROM (SELECT COUNT(*) as n FROM users WHERE ${HUMAN} AND created_at >= ?
+       GROUP BY substr(created_at, 1, 13))`,
+      day,
+    ),
+    /** Members who tried a staff-only action in the last 24 hours. */
+    deniedAdminAttempts: count(
+      `SELECT COUNT(*) as c FROM security_events WHERE created_at >= ? AND action LIKE 'admin_denied:%'`,
+      day,
+    ),
+    /** Failed staff sign-ins / 2FA checks in the last 24 hours. */
+    failedStaffLogins: count(
+      `SELECT COUNT(*) as c FROM security_events WHERE created_at >= ? AND success = 0
+       AND action NOT LIKE 'admin_denied:%'`,
+      day,
+    ),
+    /** Votes voided by staff in the last 30 days. */
+    votesVoided30d: count(
+      `SELECT COUNT(*) as c FROM fan_votes WHERE status = 'void' AND voided_at >= ?`,
+      since(30),
+    ),
+  };
+
+  const recentAdmin = db
+    .prepare(
+      `SELECT a.id, a.action, a.target_type as targetType, a.target_id as targetId, a.reason,
+              a.created_at as createdAt, u.username as actor
+       FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+       ORDER BY a.id DESC LIMIT 10`,
+    )
+    .all() as {
+    id: number;
+    action: string;
+    targetType: string | null;
+    targetId: string | null;
+    reason: string | null;
+    createdAt: string;
+    actor: string | null;
+  }[];
+
+  return {
+    signups,
+    newTopicsWeek,
+    newPostsWeek,
+    openReports,
+    heldItems: held,
+    teamDistribution,
+    provinceDistribution,
+    votesWithoutProvince,
+    suspicious,
+    recentAdmin,
   };
 }
 

@@ -14,6 +14,7 @@ import {
   createTeamRequest,
   isTeamRequestRateLimited,
 } from "@/lib/team-requests";
+import { getSettings, MAINTENANCE_ERROR, maintenanceBlocks } from "@/lib/site-settings";
 
 const Body = z.object({
   teamName: z.string().min(1).max(TEAM_REQUEST_NAME_MAX + 20),
@@ -30,6 +31,10 @@ export async function POST(req: Request) {
   const active = requireActiveUser(await getSessionUser(req));
   if (!active.ok) {
     return noStoreJson({ error: active.error }, active.status);
+  }
+  if (maintenanceBlocks(active.user.role)) return noStoreJson({ error: MAINTENANCE_ERROR }, 503);
+  if (!getSettings().features.teamRequestsOpen) {
+    return noStoreJson({ error: "Takım talepleri şu an kapalı." }, 403);
   }
 
   const parsed = Body.safeParse(body.data);

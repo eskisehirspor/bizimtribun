@@ -28,6 +28,7 @@ import {
   getMonthlyForumLeader as queryMonthlyForumLeader,
 } from "./forum-leaders";
 import { isPublicForumRow } from "./moderation/forum-gate";
+import { getSettings } from "./site-settings";
 
 export type ForumTeam = {
   id: string;
@@ -138,8 +139,9 @@ export function findForumTeam(slug: string) {
 export function topicBoardOpen(topic: Pick<ForumTopic, "board" | "team_id" | "city">) {
   const board = boardOfTopic(topic);
   if (board.kind === "team") return Boolean(requireForumBoard(board.teamId));
-  if (board.kind === "city") return isProvince(board.city);
-  return true;
+  const { features } = getSettings();
+  if (board.kind === "city") return features.cityBoardsOpen && isProvince(board.city);
+  return features.generalBoardOpen;
 }
 
 export function requireForumBoard(slug: string) {

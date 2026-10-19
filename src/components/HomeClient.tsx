@@ -28,8 +28,14 @@ type Props = {
   leagues: { id: LeagueId; name: string; sortOrder: number }[];
   season: string | null;
   recentTopics: RecentTopic[];
+  featuredTopics: RecentTopic[];
+  /** Leagues an admin chose to show as filters on the home page. */
+  homeLeagueIds: string[];
+  socialLinks: { x: string; instagram: string; youtube: string; tiktok: string };
   generatedAt: string;
 };
+
+const SOCIAL_LABEL = { x: "X", instagram: "Instagram", youtube: "YouTube", tiktok: "TikTok" } as const;
 
 export default function HomeClient({
   initialTeams,
@@ -39,6 +45,9 @@ export default function HomeClient({
   leagues: initialLeagues,
   season: initialSeason,
   recentTopics,
+  featuredTopics,
+  homeLeagueIds,
+  socialLinks,
   generatedAt,
 }: Props) {
   const { user } = useAuth();
@@ -53,11 +62,17 @@ export default function HomeClient({
     () => (leagues.length ? leagues.map((l) => l.id) : LEAGUE_ORDER),
     [leagues],
   );
+  const leagueTabs = useMemo(
+    () => leagueOrder.filter((id) => homeLeagueIds.includes(id)),
+    [leagueOrder, homeLeagueIds],
+  );
   const leagueLabel = useMemo(
     () => ({ ...LEAGUE_LABEL, ...Object.fromEntries(leagues.map((l) => [l.id, l.name])) }),
     [leagues],
   );
-  const [league, setLeague] = useState<"all" | LeagueId>("super");
+  const [league, setLeague] = useState<"all" | LeagueId>(() =>
+    homeLeagueIds.includes("super") ? "super" : ((homeLeagueIds[0] as LeagueId | undefined) ?? "all"),
+  );
   const [query, setQuery] = useState("");
   const preview = { teams, total, cities, standings };
   const myTeamId = user?.voteTeamId ?? null;
@@ -209,7 +224,7 @@ export default function HomeClient({
               >
                 TÜMÜ
               </button>
-              {leagueOrder.map((id) => (
+              {leagueTabs.map((id) => (
                 <button
                   key={id}
                   type="button"
@@ -335,6 +350,24 @@ export default function HomeClient({
             </div>
           </div>
 
+          {featuredTopics.length > 0 && (
+            <div className="border-[4px] border-black bg-[#FFEA00] p-4 shadow-[5px_5px_0_black]">
+              <h3 className="font-anton text-[22px]">ÖNE ÇIKAN KONULAR</h3>
+              <div className="mt-3 space-y-2">
+                {featuredTopics.map((row) => (
+                  <Link
+                    key={row.id}
+                    href={`/forum/konu/${row.id}`}
+                    className="flex items-center gap-2 font-mono text-[11px] md:text-[12px] border-b border-dashed border-black/30 pb-1.5 hover:bg-white/50"
+                  >
+                    <span className="min-w-0 flex-1 truncate font-bold">{row.title}</span>
+                    <span className="shrink-0 opacity-70">@{row.authorUsername}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="border-[4px] border-black bg-white p-4 shadow-[5px_5px_0_black]">
             <h3 className="font-anton text-[22px]">FORUMDA SON KONULAR</h3>
             <div className="mt-3 space-y-2">
@@ -391,6 +424,19 @@ export default function HomeClient({
               <Link href="/sil-verilerim" className="border border-white/30 px-2 py-1">
                 Verilerimi sil
               </Link>
+              {(Object.keys(SOCIAL_LABEL) as (keyof typeof SOCIAL_LABEL)[])
+                .filter((key) => socialLinks[key])
+                .map((key) => (
+                  <a
+                    key={key}
+                    href={socialLinks[key]}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="border border-white/30 px-2 py-1"
+                  >
+                    {SOCIAL_LABEL[key]}
+                  </a>
+                ))}
             </div>
           </div>
         </div>
