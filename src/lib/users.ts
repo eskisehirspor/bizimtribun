@@ -1,3 +1,4 @@
+import { can } from "./permissions";
 import { getDb } from "./db";
 import { hmac } from "./crypto";
 import { recordModerationAction } from "./moderation";
@@ -276,30 +277,56 @@ export function countAdmins() {
   ).c;
 }
 
+export function countSuperAdmins() {
+  return (
+    getDb()
+      .prepare(
+        `SELECT COUNT(*) as c FROM users
+         WHERE role = 'super_admin' AND deleted_at IS NULL AND status = 'active'`,
+      )
+      .get() as { c: number }
+  ).c;
+}
+
+/**
+ * Role changes are a super-admin power (checked by the route as
+ * `roles.manage`). Nobody changes their own role, the last active super
+ * admin cannot be demoted, and staff roles need an active, phone-verified
+ * account. The target's sessions are revoked so the new role applies at
+ * the next login (including the admin second factor).
+ */
 export function setUserRole(
   targetId: number,
   role: UserRole,
   moderator: UserRow,
   reason: string,
 ): { ok: true } | { ok: false; error: string } {
+  if (!can(moderator.role, "roles.manage")) {
+    return { ok: false, error: "Rolleri yalnızca süper admin değiştirebilir." };
+  }
   const target = findUserById(targetId);
-  if (!target) return { ok: false, error: "Kullanıcı bulunamadı." };
-  const next = role === "admin" ? "admin" : "user";
-  if (target.role === next) return { ok: true };
-
-  if (next === "user" && isAdmin(target)) {
-    if (target.id !== moderator.id) {
-      return { ok: false, error: "Başka bir adminin rolü düşürülemez." };
+  if (!target || target.deleted_at) return { ok: false, error: "Kullanıcı bulunamadı." };
+  if (!USER_ROLES.includes(role)) return { ok: false, error: "Geçersiz rol." };
+  if (target.role === role) return { ok: true };
+  if (target.id === moderator.id) {
+    return { ok: false, error: "Kendi rolünü değiştiremezsin." };
+  }
+  if (role !== "user") {
+    if (!target.phone_verified_at) {
+      return { ok: false, error: "Yetkili rolü için hesabın telefonu doğrulanmış olmalı." };
     }
-    if (countAdmins() <= 1) {
-      return { ok: false, error: "Son admin hesabının rolü düşürülemez." };
+    if (isUserBanned(target)) {
+      return { ok: false, error: "Banlı hesaba yetki verilemez." };
     }
+  }
+  if (target.role === "super_admin" && countSuperAdmins() <= 1) {
+    return { ok: false, error: "Son süper admin hesabının rolü düşürülemez." };
   }
 
   const now = new Date().toISOString();
   const updated = getDb()
-    .prepare(`UPDATE users SET role = ?, updated_at = ? WHERE id = ?`)
-    .run(next, now, targetId);
+    .prepare(`UPDATE users SET role = ?, updated_at = ? WHERE id = ? AND role = ?`)
+    .run(role, now, targetId, target.role);
   if (updated.changes !== 1) {
     return { ok: false, error: "Rol güncellenemedi." };
   }
@@ -307,7 +334,7 @@ export function setUserRole(
   recordModerationAction({
     moderatorUserId: moderator.id,
     targetUserId: targetId,
-    action: next === "admin" ? "promote_admin" : "demote_admin",
+    action: `role_${target.role}_to_${role}`,
     reason,
   });
   revokeUserSessionsOn(getDb(), targetId);

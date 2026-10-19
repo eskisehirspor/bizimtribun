@@ -1,5 +1,6 @@
 import { requireAdmin } from "./admin";
 import { noStoreJson } from "./http";
+import type { Permission } from "./permissions";
 import { parseHeldId, parseHeldKind } from "./moderation/held";
 import { ADMIN_PAGE_DEFAULT, ADMIN_PAGE_MAX } from "./policy";
 
@@ -26,8 +27,9 @@ export function likeQuery(raw: string | null) {
   return `%${q}%`;
 }
 
-export async function requireAdminResponse(req: Request) {
-  const gate = await requireAdmin(req);
+/** Every admin API route names the permission it needs; there is no default. */
+export async function requireAdminResponse(req: Request, permission: Permission) {
+  const gate = await requireAdmin(req, permission);
   if (!gate.ok) {
     return {
       ok: false as const,
@@ -42,7 +44,7 @@ export async function requireHeldAdminAction(
   req: Request,
   ctx: { params: Promise<{ type: string; id: string }> },
 ) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "forum.moderate");
   if (!gate.ok) return { ok: false as const, res: gate.res };
   const { type, id: raw } = await ctx.params;
   const kind = parseHeldKind(type);

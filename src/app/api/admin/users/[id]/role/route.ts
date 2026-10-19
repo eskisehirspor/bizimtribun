@@ -3,9 +3,10 @@ import { cleanAdminReason, requireAdminResponse } from "@/lib/admin-http";
 import { adminSetRole } from "@/lib/admin-service";
 import { parseIdParam } from "@/lib/forum";
 import { noStoreJson, readJsonBody } from "@/lib/http";
+import { USER_ROLES } from "@/lib/users";
 
 const Body = z.object({
-  role: z.enum(["user", "admin"]),
+  role: z.enum(USER_ROLES),
   reason: z.string(),
 });
 
@@ -13,7 +14,7 @@ export async function PUT(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "roles.manage");
   if (!gate.ok) return gate.res;
 
   const { id: raw } = await ctx.params;

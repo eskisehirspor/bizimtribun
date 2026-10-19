@@ -9,7 +9,7 @@ import {
 } from "@/lib/team-requests";
 
 export async function GET(req: Request) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "team_requests.manage");
   if (!gate.ok) return gate.res;
 
   const url = new URL(req.url);

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import { requireAdmin } from "@/lib/admin";
+import { permissionsFor, ROLE_LABELS } from "@/lib/permissions";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const gate = await requireAdmin();
@@ -12,7 +13,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <p className="font-mono text-[10px] tracking-[0.2em]">403</p>
           <h1 className="font-anton text-[40px] leading-none mt-1">YETKİN YOK</h1>
           <p className="font-mono text-[13px] mt-3">
-            Bu alan yalnızca yöneticilere açık. Menüde görünmemesi güvenlik değildir; sunucu
+            Bu alan yalnızca moderatör ve yöneticilere açık. Menüde görünmemesi güvenlik değildir; sunucu
             da reddeder.
           </p>
         </div>
@@ -20,5 +21,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     );
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  const role = gate.user.role;
+  return (
+    <AdminShell
+      viewer={{
+        role,
+        roleLabel: ROLE_LABELS[role] ?? role,
+        permissions: permissionsFor(role),
+      }}
+    >
+      {children}
+    </AdminShell>
+  );
 }

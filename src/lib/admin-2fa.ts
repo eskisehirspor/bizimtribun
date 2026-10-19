@@ -1,3 +1,4 @@
+import { can, isStaffRole } from "./permissions";
 import type Database from "better-sqlite3";
 import { hmac, newToken } from "./crypto";
 import { randomBytes } from "crypto";
@@ -42,7 +43,7 @@ export function isAdminTotpEnabled(user: {
   role?: string;
   totp_enabled?: number | null;
 }) {
-  return (user.role === "admin" || user.role === "super_admin") && Number(user.totp_enabled) === 1;
+  return isStaffRole(user.role) && Number(user.totp_enabled) === 1;
 }
 
 export function passwordLoginNextStep(user: {
@@ -164,7 +165,7 @@ export function startTotpSetup(
   db: Database.Database,
   user: { id: number; username: string; role: string },
 ) {
-  if (user.role !== "admin") {
+  if (!can(user.role, "security.self")) {
     return { ok: false as const, error: "Bu işlem için yetkin yok.", status: 403 };
   }
   const secret = generateTotpSecret();
@@ -411,7 +412,7 @@ export function completeLoginChallenge(
         totp_secret_enc: string | null;
       }
     | undefined;
-  if (!user || user.role !== "admin" || Number(user.totp_enabled) !== 1) {
+  if (!user || !can(user.role, "security.self") || Number(user.totp_enabled) !== 1) {
     return { ok: false, error: "Doğrulama kodu hatalı.", status: 401 };
   }
 

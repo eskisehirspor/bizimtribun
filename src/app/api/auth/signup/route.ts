@@ -1,3 +1,4 @@
+import { maskPhone } from "@/lib/privacy";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { noStoreJson, readJsonBody } from "@/lib/http";
@@ -24,10 +25,6 @@ const Body = z.object({
   confirmTeamLocked: z.literal(true),
   acceptTerms: z.literal(true),
 });
-
-function maskPhone(norm: string) {
-  return `${norm.slice(0, 3)} *** ** ${norm.slice(8)}`;
-}
 
 export async function GET(req: Request) {
   const ticket = lookupSignupTicket(getDb(), await readCookie(req, SIGNUP_TICKET_COOKIE));

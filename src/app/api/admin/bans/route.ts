@@ -3,7 +3,7 @@ import { listBans } from "@/lib/admin-service";
 import { noStoreJson } from "@/lib/http";
 
 export async function GET(req: Request) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "users.ban");
   if (!gate.ok) return gate.res;
 
   const url = new URL(req.url);

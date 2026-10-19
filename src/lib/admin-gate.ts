@@ -1,3 +1,4 @@
+import { can, type Permission } from "./permissions";
 import { isUserBanned } from "./users";
 
 export type AdminGateUser = {
@@ -14,11 +15,12 @@ export type AdminGateResult<T extends AdminGateUser = AdminGateUser> =
 /** Session cookie → DB user. Role is never read from the token. */
 export function evaluateAdminGate<T extends AdminGateUser>(
   user: T | null | undefined,
+  permission: Permission = "admin.access",
 ): AdminGateResult<T> {
   if (!user) {
     return { ok: false, error: "Giriş gerekli.", status: 401 };
   }
-  if (user.role !== "admin") {
+  if (!can(user.role, permission)) {
     return { ok: false, error: "Bu işlem için yetkin yok.", status: 403 };
   }
   if (isUserBanned(user)) {

@@ -24,7 +24,7 @@ export function applyDevAdminBootstrap() {
     db.prepare(
       `UPDATE users
        SET role = 'admin', updated_at = ?
-       WHERE username_norm = ? AND role != 'admin'`,
+       WHERE username_norm = ? AND role NOT IN ('admin', 'super_admin')`,
     ).run(now, usernameNorm);
   }
 
@@ -33,7 +33,7 @@ export function applyDevAdminBootstrap() {
     db.prepare(
       `UPDATE users
        SET role = 'admin', updated_at = ?
-       WHERE email_norm = ? AND role != 'admin'`,
+       WHERE email_norm = ? AND role NOT IN ('admin', 'super_admin')`,
     ).run(now, emailNorm);
   }
 }

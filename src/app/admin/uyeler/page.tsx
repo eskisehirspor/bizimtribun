@@ -8,6 +8,7 @@ import {
   adminJson,
   formatWhen,
 } from "@/components/admin/AdminUi";
+import { ROLE_LABELS } from "@/lib/permissions";
 
 type UserItem = {
   id: number;
@@ -17,6 +18,8 @@ type UserItem = {
   teamName: string | null;
   status: string;
   role: string;
+  phoneVerified?: boolean;
+  deleted?: boolean;
   createdAt: string;
   lastLoginAt: string | null;
   banned: boolean;
@@ -87,8 +90,11 @@ export default function AdminUsersPage() {
           className="border-[3px] border-black px-2 py-2 font-mono text-[13px]"
         >
           <option value="">Rol: hepsi</option>
-          <option value="user">user</option>
-          <option value="admin">admin</option>
+          {Object.entries(ROLE_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
         </select>
         <select
           value={banned}
@@ -152,8 +158,11 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="p-2">{u.displayName}</td>
                   <td className="p-2">{u.teamName || "—"}</td>
-                  <td className="p-2">{u.status}</td>
-                  <td className="p-2">{u.role}</td>
+                  <td className="p-2">
+                    {u.deleted ? "silindi" : u.status}
+                    {u.phoneVerified ? " • ☎" : ""}
+                  </td>
+                  <td className="p-2">{ROLE_LABELS[u.role] ?? u.role}</td>
                   <td className="p-2 whitespace-nowrap">{formatWhen(u.createdAt)}</td>
                   <td className="p-2 whitespace-nowrap">{formatWhen(u.lastLoginAt)}</td>
                   <td className="p-2">{u.banned ? "banlı" : "—"}</td>

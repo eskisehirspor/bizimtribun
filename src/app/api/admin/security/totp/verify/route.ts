@@ -12,7 +12,7 @@ const Body = z.object({
 });
 
 export async function POST(req: Request) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "security.self");
   if (!gate.ok) return gate.res;
 
   const body = await readJsonBody(req);

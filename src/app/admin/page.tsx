@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useAdminCan } from "@/components/admin/AdminShell";
 import { AdminCard, AdminNotice, adminJson, formatWhen } from "@/components/admin/AdminUi";
 
 type Dashboard = {
@@ -24,6 +26,32 @@ type Dashboard = {
 };
 
 export default function AdminDashboardPage() {
+  const can = useAdminCan();
+  if (!can("dashboard.view")) return <ModeratorHome />;
+  return <DashboardView />;
+}
+
+function ModeratorHome() {
+  return (
+    <div>
+      <h2 className="font-anton text-[32px] leading-none">MODERATÖR</h2>
+      <p className="font-mono text-[12px] mt-2">
+        Forum içeriğini yönetebilir, bekleyen içerikleri onaylayabilir ve normal üyeleri
+        banlayabilirsin. Rol, oy ve site ayarları yöneticilere açık.
+      </p>
+      <div className="flex flex-wrap gap-2 mt-4">
+        <Link href="/admin/moderasyon" className="font-anton border-[3px] border-black px-3 py-2 bg-[#FFEA00]">
+          MODERASYON KUYRUĞU
+        </Link>
+        <Link href="/admin/forum" className="font-anton border-[3px] border-black px-3 py-2 bg-white">
+          FORUM
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function DashboardView() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
 

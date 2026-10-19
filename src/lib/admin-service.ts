@@ -1,3 +1,5 @@
+import { can, canBanRole } from "./permissions";
+import { maskEmail, maskPhone } from "./privacy";
 import { getDb } from "./db";
 import {
   adminSoftDeletePost,
@@ -140,9 +142,11 @@ export function getDashboardStats() {
 
 export type UserListFilters = {
   q: string | null;
-  role: "user" | "admin" | null;
+  role: UserRole | null;
   banned: boolean | null;
   teamId: string | null;
+  /** Whether the viewer may search by phone / e-mail / real name. */
+  pii: boolean;
   offset: number;
   limit: number;
 };
@@ -153,7 +157,10 @@ export function listAdminUsers(filters: UserListFilters) {
   const where: string[] = ["1=1"];
   const params: unknown[] = [];
 
-  if (filters.q) {
+  if (filters.q && !filters.pii) {
+    where.push(`(u.username_norm LIKE ? OR u.display_name LIKE ?)`);
+    params.push(filters.q, filters.q);
+  } else if (filters.q) {
     where.push(
       `(u.username_norm LIKE ? OR u.email_norm LIKE ? OR u.display_name LIKE ?
         OR IFNULL(u.first_name,'') LIKE ? OR IFNULL(u.last_name,'') LIKE ?
@@ -196,7 +203,7 @@ export function listAdminUsers(filters: UserListFilters) {
     .prepare(
       `SELECT u.id, u.username, u.display_name, u.team_id, u.status, u.role,
               u.created_at, u.last_login_at, u.banned_at, u.ban_reason, u.ban_expires_at,
-              tm.name as team_name
+              u.phone_verified_at, u.deleted_at, tm.name as team_name
        FROM users u
        LEFT JOIN teams tm ON tm.id = u.team_id
        WHERE ${whereSql}
@@ -215,6 +222,8 @@ export function listAdminUsers(filters: UserListFilters) {
     banned_at: string | null;
     ban_reason: string | null;
     ban_expires_at: string | null;
+    phone_verified_at: string | null;
+    deleted_at: string | null;
     team_name: string | null;
   }>;
 
@@ -227,7 +236,9 @@ export function listAdminUsers(filters: UserListFilters) {
       teamId: row.team_id,
       teamName: row.team_name,
       status: row.status,
-      role: row.role === "admin" ? "admin" : "user",
+      role: row.role,
+      phoneVerified: Boolean(row.phone_verified_at),
+      deleted: Boolean(row.deleted_at),
       createdAt: row.created_at,
       lastLoginAt: row.last_login_at,
       banned: isUserBanned(row),
@@ -248,7 +259,13 @@ export function listAdminTeamOptions() {
     .all() as Array<{ id: string; name: string }>;
 }
 
-export function getAdminUserDetail(id: number) {
+/**
+ * `viewerRole` decides how much personal data comes back: moderators see
+ * the account and its forum history only; admins also see the e-mail and
+ * profile fields. The phone number is always masked.
+ */
+export function getAdminUserDetail(id: number, viewerRole: string) {
+  const pii = can(viewerRole, "users.pii");
   const user = findUserById(id);
   if (!user) return null;
   const team = user.team_id
@@ -256,6 +273,23 @@ export function getAdminUserDetail(id: number) {
         .prepare(`SELECT id, name FROM teams WHERE id = ?`)
         .get(user.team_id) as { id: string; name: string } | undefined)
     : undefined;
+
+  const vote = getDb()
+    .prepare(
+      `SELECT v.team_id, t.name as team_name, v.city, v.cast_at, v.status, v.voided_at, v.void_reason
+       FROM fan_votes v LEFT JOIN teams t ON t.id = v.team_id WHERE v.user_id = ?`,
+    )
+    .get(id) as
+    | {
+        team_id: string;
+        team_name: string | null;
+        city: string;
+        cast_at: string;
+        status: string;
+        voided_at: string | null;
+        void_reason: string | null;
+      }
+    | undefined;
 
   const topics = getDb()
     .prepare(
@@ -296,16 +330,29 @@ export function getAdminUserDetail(id: number) {
     id: user.id,
     username: user.username,
     displayName: user.display_name,
-    email: user.email,
-    phone: user.phone,
-    firstName: user.first_name,
-    lastName: user.last_name,
-    birthDate: user.birth_date,
+    email: pii ? user.email : maskEmail(user.email),
+    phoneMasked: maskPhone(user.phone_norm ?? user.phone),
+    phoneVerified: Boolean(user.phone_verified_at),
+    firstName: pii ? user.first_name : null,
+    lastName: pii ? user.last_name : null,
+    birthDate: pii ? user.birth_date : null,
     city: user.city,
+    deleted: Boolean(user.deleted_at),
+    vote: vote
+      ? {
+          teamId: vote.team_id,
+          teamName: vote.team_name,
+          city: vote.city,
+          castAt: vote.cast_at,
+          status: vote.status,
+          voidedAt: vote.voided_at,
+          voidReason: vote.void_reason,
+        }
+      : null,
     teamId: user.team_id,
     teamName: team?.name ?? null,
     status: user.status,
-    role: user.role === "admin" ? "admin" : "user",
+    role: user.role,
     createdAt: user.created_at,
     lastLoginAt: user.last_login_at,
     banned: isUserBanned(user),
@@ -341,11 +388,27 @@ export function adminBanUser(
   moderator: UserRow,
 ) {
   const db = getDb();
+  const denied = banPermissionError(targetId, moderator);
+  if (denied) return denied;
   return db.transaction(() => banUser(targetId, reason, expiresAt, moderator.id))();
+}
+
+function banPermissionError(targetId: number, moderator: UserRow) {
+  const target = findUserById(targetId);
+  if (!target) return { ok: false as const, error: "Kullanıcı bulunamadı." };
+  if (target.id === moderator.id) {
+    return { ok: false as const, error: "Kendi hesabın üzerinde ban işlemi yapamazsın." };
+  }
+  if (!canBanRole(moderator.role, target.role)) {
+    return { ok: false as const, error: "Bu hesabın banını değiştirme yetkin yok." };
+  }
+  return null;
 }
 
 export function adminUnbanUser(targetId: number, reason: string, moderator: UserRow) {
   const db = getDb();
+  const denied = banPermissionError(targetId, moderator);
+  if (denied) return denied;
   return db.transaction(() => unbanUser(targetId, reason, moderator.id))();
 }
 
@@ -848,8 +911,8 @@ export function adminBanHeld(
   const db = getDb();
   const loaded = loadHeldTarget(db, kind, id);
   if (!loaded.ok) return loaded;
-  if (loaded.target.authorRole === "admin") {
-    return { ok: false as const, error: "Admin hesap banlanamaz.", status: 409 };
+  if (!canBanRole(moderator.role, loaded.target.authorRole)) {
+    return { ok: false as const, error: "Bu hesabı banlama yetkin yok.", status: 409 };
   }
   try {
     return db.transaction(() => {

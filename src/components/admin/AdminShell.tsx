@@ -2,18 +2,45 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { createContext, useContext } from "react";
+import type { Permission } from "@/lib/permissions";
 
-const LINKS = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/uyeler", label: "Üyeler" },
-  { href: "/admin/forum", label: "Forum" },
-  { href: "/admin/moderasyon", label: "Moderasyon" },
-  { href: "/admin/banlar", label: "Banlar" },
-  { href: "/admin/takim-talepleri", label: "Takım Talepleri" },
-  { href: "/admin/guvenlik", label: "Güvenlik" },
+const LINKS: Array<{ href: string; label: string; needs: Permission }> = [
+  { href: "/admin", label: "Dashboard", needs: "admin.access" },
+  { href: "/admin/uyeler", label: "Üyeler", needs: "users.view" },
+  { href: "/admin/forum", label: "Forum", needs: "forum.moderate" },
+  { href: "/admin/moderasyon", label: "Moderasyon", needs: "moderation.view" },
+  { href: "/admin/banlar", label: "Banlar", needs: "users.ban" },
+  { href: "/admin/takim-talepleri", label: "Takım Talepleri", needs: "team_requests.manage" },
+  { href: "/admin/denetim", label: "Denetim Kaydı", needs: "audit.view" },
+  { href: "/admin/guvenlik", label: "Güvenlik", needs: "security.self" },
 ];
 
-export default function AdminShell({ children }: { children: React.ReactNode }) {
+type AdminViewer = { role: string; roleLabel: string; permissions: Permission[] };
+
+const AdminViewerContext = createContext<AdminViewer>({
+  role: "user",
+  roleLabel: "",
+  permissions: [],
+});
+
+/** UI hint only; the API checks the same permission on every request. */
+export function useAdminCan() {
+  const viewer = useContext(AdminViewerContext);
+  return (permission: Permission) => viewer.permissions.includes(permission);
+}
+
+export function useAdminViewer() {
+  return useContext(AdminViewerContext);
+}
+
+export default function AdminShell({
+  children,
+  viewer,
+}: {
+  children: React.ReactNode;
+  viewer: AdminViewer;
+}) {
   const pathname = usePathname();
 
   return (
@@ -24,9 +51,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <div className="border-[4px] border-black bg-black text-[#FFEA00] p-3 shadow-[6px_6px_0_#111]">
             <p className="font-mono text-[9px] tracking-[0.22em] opacity-80">BİZİM TRİBÜN</p>
             <h1 className="font-anton text-[28px] leading-none mt-1">ADMIN</h1>
+            <p className="font-mono text-[10px] mt-1">{viewer.roleLabel.toLocaleUpperCase("tr-TR")}</p>
           </div>
           <nav className="mt-3 flex md:flex-col gap-2 overflow-x-auto pb-1">
-            {LINKS.map((link) => {
+            {LINKS.filter((link) => viewer.permissions.includes(link.needs)).map((link) => {
               const active =
                 link.href === "/admin"
                   ? pathname === "/admin"
@@ -45,7 +73,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             })}
           </nav>
         </aside>
-        <main className="min-w-0 flex-1">{children}</main>
+        <main className="min-w-0 flex-1">
+          <AdminViewerContext.Provider value={viewer}>{children}</AdminViewerContext.Provider>
+        </main>
       </div>
     </div>
   );

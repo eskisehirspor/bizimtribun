@@ -1,3 +1,4 @@
+import { isStaffRole } from "./permissions";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getDb } from "./db";
@@ -13,7 +14,6 @@ import {
 import { applyDevAdminBootstrap } from "./admin-bootstrap";
 import {
   findUserById,
-  isAdmin,
   isUserBanned,
   reconcileExpiredBan,
   toPublicUser,
@@ -37,7 +37,7 @@ function tokenHash(raw: string) {
 }
 
 export function sessionTtlMsForUser(user: Pick<UserRow, "role"> | undefined) {
-  return user && isAdmin(user) ? SESSION_ADMIN_TTL_MS : SESSION_TTL_MS;
+  return user && isStaffRole(user.role) ? SESSION_ADMIN_TTL_MS : SESSION_TTL_MS;
 }
 
 export function sessionCookieOptions(maxAgeSec: number) {
@@ -159,7 +159,7 @@ export function userFromSessionToken(raw: string | null | undefined) {
   const loaded = findUserById(row.user_id);
   if (!loaded || loaded.deleted_at) return undefined;
   const user = reconcileExpiredBan(loaded);
-  if (isAdmin(user)) {
+  if (isStaffRole(user.role)) {
     const last = Date.parse(row.last_seen_at || row.created_at);
     if (Number.isFinite(last) && Date.now() - last > SESSION_ADMIN_IDLE_MS) {
       const now = new Date().toISOString();

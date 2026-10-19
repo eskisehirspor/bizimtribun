@@ -1,5 +1,6 @@
 "use client";
 
+import { isStaffRole } from "@/lib/permissions";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -43,7 +44,7 @@ export default function SiteNav() {
             >
               TRİBÜN
             </Link>
-            {(user?.role === "admin" || user?.role === "super_admin") && (
+            {isStaffRole(user?.role) && (
               <Link
                 href="/admin"
                 className={
@@ -58,7 +59,7 @@ export default function SiteNav() {
           </div>
         </div>
         <div className="flex items-center gap-2 font-mono text-[11px] sm:text-[12px]">
-          {(user?.role === "admin" || user?.role === "super_admin") && (
+          {isStaffRole(user?.role) && (
             <Link href="/admin" className="sm:hidden opacity-80">
               ADMIN
             </Link>

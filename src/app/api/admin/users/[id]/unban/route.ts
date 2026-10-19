@@ -12,7 +12,7 @@ export async function POST(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "users.ban");
   if (!gate.ok) return gate.res;
 
   const { id: raw } = await ctx.params;

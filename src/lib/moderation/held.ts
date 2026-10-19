@@ -1,3 +1,4 @@
+import { can, roleRank } from "../permissions";
 import type Database from "better-sqlite3";
 
 export const HELD_KINDS = ["topic", "post"] as const;
@@ -17,7 +18,7 @@ export function parseHeldId(raw: string | undefined | null) {
 
 export function heldModerationAdminGate(user: { role?: string } | null | undefined) {
   if (!user) return { ok: false as const, error: "Giriş gerekli.", status: 401 };
-  if (user.role !== "admin") {
+  if (!can(user.role, "forum.moderate")) {
     return { ok: false as const, error: "Bu işlem için yetkin yok.", status: 403 };
   }
   return { ok: true as const };
@@ -378,7 +379,7 @@ export function banHeldAuthor(
   }
   const loaded = loadHeldTarget(db, kind, id);
   if (!loaded.ok) return loaded;
-  if (loaded.target.authorRole === "admin") {
+  if (roleRank(loaded.target.authorRole) >= 1) {
     return { ok: false, error: "Admin hesap banlanamaz.", status: 409 };
   }
 

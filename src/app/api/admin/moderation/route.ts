@@ -4,7 +4,7 @@ import { parseIdParam } from "@/lib/forum";
 import { noStoreJson } from "@/lib/http";
 
 export async function GET(req: Request) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "moderation.view");
   if (!gate.ok) return gate.res;
 
   const url = new URL(req.url);
