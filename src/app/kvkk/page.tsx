@@ -31,7 +31,17 @@ export default function KvkkPage() {
           İlini konumundan veya IP adresinden tahmin etmeyiz.
         </li>
         <li>
-          <strong>Forum içerikleri:</strong> Topluluk hizmetini sunmak ve moderasyon.
+          <strong>Forum içerikleri, beğeniler, raporlar ve engellemeler:</strong> Topluluk hizmetini
+          sunmak ve moderasyon. Rapor ettiğin içerik ve gerekçen yalnızca moderatörlere görünür.
+        </li>
+        <li>
+          <strong>Profil:</strong> İsteğe bağlı görünen ad, kısa tanıtım ve hazır avatar. Profilin
+          varsayılan olarak yalnızca giriş yapmış üyelere açıktır; herkese açık yapmayı ve ilini
+          göstermeyi sen seçersin. Rozetler ve katkı puanı yalnızca forum katkısından hesaplanır.
+        </li>
+        <li>
+          <strong>Bildirimler:</strong> Yalnızca site içinde gösterilir; SMS veya e-posta ile
+          gönderilmez. Hangi bildirimleri alacağını Hesabım sayfasından seçebilirsin.
         </li>
         <li>
           <strong>Güvenlik kayıtları:</strong> IP adresi ve tarayıcı bilgisi ham hâliyle
@@ -68,6 +78,7 @@ export default function KvkkPage() {
           tutulur ve süre sonunda silinir.
         </li>
         <li>SMS kodları en geç 2 gün, kötüye kullanım sayaçları en geç 2 gün içinde silinir.</li>
+        <li>Site içi bildirimler 90 gün sonra silinir. Hesap silinince bildirimlerin, rozetlerin ve profil bilgilerin de silinir.</li>
       </ul>
       <h2>Haklarınız</h2>
       <p>

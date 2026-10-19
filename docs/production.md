@@ -79,7 +79,27 @@ Restore snapshots the current live file into `<db-dir>/restore-safety/` first, c
 
 On first connection the process applies the idempotent baseline (`CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN`), then the ordered run-once migrations in `src/lib/migrations.ts` (recorded in `schema_migrations`), team catalog sync, pinned starter topics (skip if title exists), and removal of leftover demo ballots from old dev builds. **Take a backup (`npm run db:backup`) before deploying a build that adds a migration.** See [data-policy.md](data-policy.md). Failed boot closes the connection and does not keep a half-open singleton. Production also refuses to serve if `PRAGMA quick_check` is not `ok`.
 
-Team `is_forum_active` is reset from code on each boot (the 25 active tribunes). That is idempotent; it does not delete forum posts.
+Migrations shipped so far:
+
+| Id | What it does |
+| --- | --- |
+| `001_phone_accounts_and_fan_votes` | Phone accounts, roles, `fan_votes` (one immutable vote per account, DB triggers), `audit_log` |
+| `002_team_catalog_leagues_seasons` | Team catalog columns (active, province, colours), `leagues`, `seasons`, `team_seasons` |
+| `003_forum_boards_likes_reports_blocks` | Forum boards (team / general / province), edit history, likes, reports, member blocks |
+| `004_notifications` | In-site notifications |
+| `005_profiles_badges` | Profile fields, notification preferences, `user_badges` |
+| `006_site_settings` | `site_settings` (announcement, featured topics, maintenance, feature flags…) |
+| `007_query_indexes` | Indexes for province history and date-range counts |
+
+The team catalog in `src/lib/teams.ts` is synced on boot only into rows an admin has never edited (`admin_edited_at IS NULL`). Edits made in `/admin/takimlar` are kept across deploys. Nothing in the sync deletes votes or forum posts.
+
+## Site settings and maintenance
+
+`/admin/ayarlar` holds the announcement banner, featured topics, home-page leagues, home SEO texts and social links (admins), plus read-only maintenance mode and feature flags (super admins only). Every change is written to `audit_log`. In maintenance mode members cannot sign up, vote, post, like or report; staff can. Values are plain text and https links; nothing is rendered as HTML.
+
+## Share images
+
+Open Graph images (`/opengraph-image`, `/takim/<id>/opengraph-image`, `/il/<slug>/opengraph-image`) are drawn per request from live counts and carry the data time. They read the fonts in `assets/fonts` (SIL Open Font License, licence files next to them), so run `next start` from the repository directory or copy `assets/` alongside the build.
 
 ## SMS
 
@@ -87,7 +107,7 @@ Sign-up and sign-in are by SMS code. Set `SMS_PROVIDER` and that provider's cred
 
 ## First super admin
 
-There is no admin sign-up and no default admin. See [admin-bootstrap.md](admin-bootstrap.md).
+There is no admin sign-up and no default admin. See [admin-bootstrap.md](admin-bootstrap.md). Roles and what each can do: [admin.md](admin.md). Every staff account should turn on TOTP at `/admin/guvenlik`; once it is on, sign-in asks for it.
 
 ## Trusted proxy
 

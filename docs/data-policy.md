@@ -41,12 +41,39 @@
 - voids the vote (`void_reason = 'account_deleted'`), so every count drops by one;
 - erases phone, e-mail, names, birth date, city, password and 2FA secrets; the username
   becomes `silinmis_<id>`, display name "Silinmiş üye"; sessions are revoked;
+- clears bio, avatar and profile choices, and deletes the member's badges and notifications;
 - keeps forum posts, shown under "Silinmiş üye";
 - stores a keyed HMAC of the phone in `phone_holds` for **30 days** (`PHONE_HOLD_MS`) so the
   same number cannot immediately re-register and vote again. After that it is deleted and the
   number can open a new account whose vote counts once. This is disclosed in the KVKK text.
 
 Admin accounts must be demoted before deletion.
+
+## Profiles, badges and notifications
+
+- `/u/<username>` shows username, optional display name, preset avatar, team, member-since
+  month, badges, contribution points and live posts. Never phone, e-mail, real name, birth
+  date or verification details.
+- Profiles are **members-only by default** (signed-out visitors and search engines do not see
+  them). A member can make the profile public; only public profiles go into the sitemap and
+  are indexable. The province is hidden unless the member turns on "ilimi göster".
+- Username and team cannot be changed from the profile.
+- Badges and contribution points (XP) come only from live forum content: removed or held
+  posts earn nothing, writing points are capped at 10 a day, and likes from other members
+  add 2 each. They never touch `fan_votes`, counts or rankings, and the team a member supports
+  plays no part.
+- Notifications are in-site only (no SMS, e-mail or push). Replies, mentions and likes can be
+  switched off per member; moderation, badge and system notices always arrive. A block in
+  either direction stops notifications between the two members.
+
+## Forum safety
+
+- Likes: one per member per item, not on your own content.
+- Reports: one open report per member per item; a moderator closes all open reports on the
+  same item at once, with a reason, and the decision goes to `audit_log`.
+- Blocks: hide the blocked member's posts from the blocker, stop replies to the blocker's
+  topics and stop notifications. Staff cannot be blocked.
+- There is no private messaging.
 
 ## Old e-mail census ("mühür")
 
@@ -65,4 +92,8 @@ builds are removed at boot; nothing seeds fans or votes any more.
 | `auth_otps`, rate-limit counters | ≤ 2 days |
 | `signup_tickets` | 15 minutes (purged after expiry) |
 | `phone_holds` | 30 days after deletion |
+| `notifications` | 90 days (read or not) |
+| `user_badges` | while the account exists |
+| `forum_reports` | kept with the moderation record |
+| `site_settings` | until changed (every change is in `audit_log`) |
 | `audit_log`, `security_events` | append-only; no OTPs, passwords or phone numbers |

@@ -11,6 +11,8 @@ There is no admin sign-up, no default admin and no known password.
    ```
 
 3. Sign in again and enable TOTP 2FA at `/admin/guvenlik`.
+4. Promote moderators and admins from `/admin/uyeler/<id>` (super admin only). See
+   [admin.md](admin.md) for what each role can do.
 
 The command refuses if a super admin already exists, if the account does not exist,
 is deleted or banned, or has not verified its phone. It revokes the account's sessions
