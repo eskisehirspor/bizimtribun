@@ -1,3 +1,4 @@
+import { runHousekeepingIfDue } from "./housekeeping";
 import { randomBytes, randomInt } from "crypto";
 import type Database from "better-sqlite3";
 import { hmac, identityPhoneHash, safeEqual } from "./crypto";
@@ -79,7 +80,7 @@ export async function requestOtp(
     userId?: number | null;
   },
 ): Promise<OtpRequestResult> {
-  purgeIfDue(db);
+  runHousekeepingIfDue(db);
   const phoneHash = phoneKeyHash(input.phoneNorm);
   const ipRateKey = hmac(`otp-send-ip:${input.ipKey}`);
 
@@ -251,16 +252,6 @@ export function verifyOtp(
     if (hit.changes !== 1) return INVALID;
     return { ok: true };
   })();
-}
-
-let lastPurgeAt = 0;
-
-/** Runs the purge at most every 10 minutes, piggybacking on code requests. */
-function purgeIfDue(db: Database.Database) {
-  const now = Date.now();
-  if (now - lastPurgeAt < 10 * 60 * 1000) return;
-  lastPurgeAt = now;
-  purgeExpiredAuthRows(db);
 }
 
 /** Housekeeping: drop expired codes, tickets and finished phone holds. */

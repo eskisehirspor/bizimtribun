@@ -53,7 +53,10 @@ export default function TakimlarPage() {
 
   return (
     <ForumShell>
-      <p className="font-mono text-[10px] tracking-[0.16em]">BİZİM TRİBÜN • TRİBÜN</p>
+      <Link href="/forum" className="font-mono text-[11px] underline">
+        ← Forum: Genel Tribün ve il tribünleri
+      </Link>
+      <p className="font-mono text-[10px] tracking-[0.16em] mt-3">BİZİM TRİBÜN • TRİBÜN</p>
       <h1 className="font-anton text-[40px] sm:text-[52px] leading-[0.85] mt-2">
         TAKIM
         <br />

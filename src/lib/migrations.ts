@@ -13,6 +13,8 @@ export type Migration = {
   id: string;
   /** Table rebuilds need foreign_keys=OFF, which SQLite only allows outside a transaction. */
   rebuildsTables?: boolean;
+  /** Tables whose foreign keys are verified after a rebuild (default: users). */
+  fkCheck?: string[];
   up(db: Database.Database): void;
 };
 
@@ -304,6 +306,153 @@ CREATE TABLE IF NOT EXISTS team_seasons (
       LEAGUE_ORDER.forEach((id, i) => insert.run(id, LEAGUE_LABEL[id], i, now));
     },
   },
+  {
+    id: "003_forum_boards_likes_reports_blocks",
+    rebuildsTables: true,
+    fkCheck: ["forum_topics", "forum_posts"],
+    up(db) {
+      // forum_topics: a topic now lives on a board. Team boards keep team_id;
+      // "Genel Tribün" has neither team nor city; city boards carry a
+      // province name. The CHECK keeps the three shapes apart.
+      const cols = (db.prepare(`PRAGMA table_info(forum_topics)`).all() as { name: string }[]).map(
+        (c) => c.name,
+      );
+      const copy = [
+        "id",
+        "team_id",
+        "user_id",
+        "title",
+        "content",
+        "created_at",
+        "updated_at",
+        "locked_at",
+        "deleted_at",
+        "held_at",
+        "category",
+        "is_pinned",
+      ].filter((c) => cols.includes(c));
+      // Triggers that read forum_topics must be dropped while the table is
+      // swapped, or the rename fails; teams_keep_history is recreated below.
+      db.exec(`DROP TRIGGER IF EXISTS teams_keep_history`);
+      db.exec(`
+CREATE TABLE forum_topics_new (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board TEXT NOT NULL DEFAULT 'team' CHECK (board IN ('team', 'general', 'city')),
+  team_id TEXT REFERENCES teams(id),
+  city TEXT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  locked_at TEXT,
+  deleted_at TEXT,
+  held_at TEXT,
+  category TEXT NOT NULL DEFAULT 'gundem',
+  is_pinned INTEGER NOT NULL DEFAULT 0,
+  edited_at TEXT,
+  CHECK (
+    (board = 'team' AND team_id IS NOT NULL AND city IS NULL) OR
+    (board = 'general' AND team_id IS NULL AND city IS NULL) OR
+    (board = 'city' AND team_id IS NULL AND city IS NOT NULL)
+  )
+);
+INSERT INTO forum_topics_new (board, ${copy.join(", ")})
+  SELECT 'team', ${copy.join(", ")} FROM forum_topics;
+DROP TABLE forum_topics;
+ALTER TABLE forum_topics_new RENAME TO forum_topics;
+CREATE INDEX IF NOT EXISTS idx_forum_topics_team_created ON forum_topics(team_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_forum_topics_user ON forum_topics(user_id);
+CREATE INDEX IF NOT EXISTS idx_forum_topics_team_cat_pin
+  ON forum_topics(team_id, category, is_pinned, updated_at);
+CREATE INDEX IF NOT EXISTS idx_forum_topics_board
+  ON forum_topics(board, city, is_pinned, updated_at);
+CREATE TRIGGER IF NOT EXISTS teams_keep_history
+BEFORE DELETE ON teams
+WHEN EXISTS (SELECT 1 FROM fan_votes WHERE team_id = OLD.id)
+  OR EXISTS (SELECT 1 FROM forum_topics WHERE team_id = OLD.id)
+BEGIN
+  SELECT RAISE(ABORT, 'TEAM_HAS_HISTORY');
+END;
+`);
+      const postCols = new Set(
+        (db.prepare(`PRAGMA table_info(forum_posts)`).all() as { name: string }[]).map((c) => c.name),
+      );
+      if (!postCols.has("edited_at")) db.exec(`ALTER TABLE forum_posts ADD COLUMN edited_at TEXT`);
+
+      db.exec(`
+-- Previous versions of edited topics/posts, for moderators. Never shown publicly.
+CREATE TABLE IF NOT EXISTS forum_edits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  target_type TEXT NOT NULL CHECK (target_type IN ('topic', 'post')),
+  target_id INTEGER NOT NULL,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  old_title TEXT,
+  old_content TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_forum_edits_target ON forum_edits(target_type, target_id);
+
+CREATE TABLE IF NOT EXISTS forum_likes (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  target_type TEXT NOT NULL CHECK (target_type IN ('topic', 'post')),
+  target_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (user_id, target_type, target_id)
+);
+CREATE INDEX IF NOT EXISTS idx_forum_likes_target ON forum_likes(target_type, target_id);
+
+CREATE TABLE IF NOT EXISTS forum_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  reporter_user_id INTEGER NOT NULL REFERENCES users(id),
+  target_type TEXT NOT NULL CHECK (target_type IN ('topic', 'post', 'user')),
+  target_id INTEGER NOT NULL,
+  reason TEXT NOT NULL CHECK (reason IN ('hakaret', 'nefret', 'spam', 'kisisel_veri', 'siddet', 'diger')),
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved', 'dismissed')),
+  created_at TEXT NOT NULL,
+  handled_by_user_id INTEGER REFERENCES users(id),
+  handled_at TEXT,
+  resolution_note TEXT,
+  UNIQUE (reporter_user_id, target_type, target_id)
+);
+CREATE INDEX IF NOT EXISTS idx_forum_reports_status ON forum_reports(status, created_at);
+
+-- A block hides the blocked member's topics and replies from the blocker and
+-- stops the blocked member from generating notifications for them.
+CREATE TABLE IF NOT EXISTS user_blocks (
+  blocker_user_id INTEGER NOT NULL REFERENCES users(id),
+  blocked_user_id INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (blocker_user_id, blocked_user_id),
+  CHECK (blocker_user_id != blocked_user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_blocks_blocked ON user_blocks(blocked_user_id);
+`);
+    },
+  },
+  {
+    id: "004_notifications",
+    up(db) {
+      db.exec(`
+CREATE TABLE IF NOT EXISTS notifications (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  kind TEXT NOT NULL CHECK (kind IN ('reply', 'like', 'mention', 'moderation', 'badge', 'system')),
+  actor_user_id INTEGER REFERENCES users(id),
+  topic_id INTEGER,
+  post_id INTEGER,
+  body TEXT NOT NULL,
+  dedupe_key TEXT,
+  read_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read_at, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_dedupe
+  ON notifications(user_id, dedupe_key) WHERE dedupe_key IS NOT NULL;
+`);
+    },
+  },
 ];
 
 export function appliedMigrationIds(db: Database.Database) {
@@ -327,8 +476,10 @@ export function runMigrations(db: Database.Database, list = MIGRATIONS) {
     const apply = db.transaction(() => {
       migration.up(db);
       if (migration.rebuildsTables) {
-        const broken = db.prepare(`PRAGMA foreign_key_check(users)`).all();
-        if (broken.length) throw new Error(`MIGRATION_FK_BROKEN:${migration.id}`);
+        for (const table of migration.fkCheck ?? ["users"]) {
+          const broken = db.prepare(`PRAGMA foreign_key_check(${table})`).all();
+          if (broken.length) throw new Error(`MIGRATION_FK_BROKEN:${migration.id}:${table}`);
+        }
       }
       db.prepare(`INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)`).run(
         migration.id,

@@ -11,7 +11,7 @@ import {
   listPosts,
   parseIdParam,
   parsePageLimit,
-  requireForumBoard,
+  topicBoardOpen,
   serializeTopic,
   softDeleteTopic,
   updateTopic,
@@ -41,15 +41,16 @@ export async function GET(
   }
 
   const topic = findLiveTopic(topicId);
-  if (!topic || !requireForumBoard(topic.team_id)) {
+  if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
   }
 
   const { page, limit, offset } = parsePageLimit(new URL(req.url));
-  const { total, posts } = listPosts(topic.id, offset, limit);
+  const viewerId = (await getSessionUser(req))?.id ?? null;
+  const { total, posts } = listPosts(topic.id, offset, limit, viewerId);
   return noStoreJson({
     ok: true,
-    topic: serializeTopic(topic),
+    topic: serializeTopic(topic, viewerId),
     page,
     limit,
     total,
@@ -78,7 +79,7 @@ export async function PUT(
   }
 
   const topic = findLiveTopic(topicId);
-  if (!topic || !requireForumBoard(topic.team_id)) {
+  if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
   }
   if (topic.user_id !== active.user.id) {
@@ -106,7 +107,7 @@ export async function PUT(
     surface: "topic",
     field: "body",
     userId: active.user.id,
-    teamId: topic.team_id,
+    teamId: topic.team_id ?? undefined,
     topicId: topic.id,
   });
   const mode = forumWriteMode(verdict.decision);
@@ -139,7 +140,7 @@ export async function PUT(
   }
   return noStoreJson({
     ok: true,
-    topic: serializeTopic(findLiveTopic(topic.id)!),
+    topic: serializeTopic(findLiveTopic(topic.id)!, active.user.id),
   });
 }
 
@@ -163,7 +164,7 @@ export async function DELETE(
   }
 
   const topic = findLiveTopic(topicId);
-  if (!topic || !requireForumBoard(topic.team_id)) {
+  if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
   }
   if (topic.user_id !== active.user.id) {

@@ -29,10 +29,11 @@ test("boot + migrations are idempotent and recorded once", () => {
 
 test("migration keeps existing users and their data", () => {
   const db = new Database(":memory:");
-  // Simulate a database from before migration 001: baseline only. Later
-  // migrations run normally so the boot-time team sync has its columns.
+  // Simulate a database from before migration 001: baseline only. 002 runs
+  // so the boot-time team sync has its columns; 003 is skipped because its
+  // trigger reads fan_votes, which 001 creates.
   db.exec(`CREATE TABLE schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`);
-  for (const m of MIGRATIONS.filter((m) => m.id.startsWith("001_"))) {
+  for (const m of MIGRATIONS.filter((m) => /^00[13]_/.test(m.id))) {
     db.prepare(`INSERT INTO schema_migrations VALUES (?, 'x')`).run(m.id);
   }
   applyDatabaseBoot(db);

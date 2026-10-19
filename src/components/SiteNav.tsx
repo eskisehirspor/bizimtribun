@@ -3,18 +3,38 @@
 import { isStaffRole } from "@/lib/permissions";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 
 export default function SiteNav() {
   const pathname = usePathname();
   const { user, loading, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+  const userId = user?.id ?? null;
+
+  useEffect(() => {
+    if (!userId) return;
+    let live = true;
+    const load = () =>
+      fetch("/api/notifications?count=1", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (live && d && typeof d.unread === "number") setUnread(d.unread);
+        })
+        .catch(() => {});
+    void load();
+    const timer = setInterval(load, 60_000);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, [userId, pathname]);
   const next = pathname && pathname !== "/giris" && pathname !== "/uye-ol"
     ? `?next=${encodeURIComponent(pathname)}`
     : "";
   const inTribun = pathname.startsWith("/takim") || pathname.startsWith("/forum");
-  const switchHref = inTribun ? "/" : "/takimlar";
+  const switchHref = inTribun ? "/" : "/forum";
   const switchLabel = inTribun ? "SAYIM" : "TRİBÜNE GEÇ";
 
   return (
@@ -35,7 +55,7 @@ export default function SiteNav() {
               SAYIM
             </Link>
             <Link
-              href="/takimlar"
+              href="/forum"
               className={
                 pathname.startsWith("/takim") || pathname.startsWith("/forum")
                   ? "underline decoration-2"
@@ -68,6 +88,18 @@ export default function SiteNav() {
             <span className="opacity-50">…</span>
           ) : user ? (
             <div className="relative flex items-center gap-2">
+              <Link
+                href="/bildirimler"
+                aria-label={unread ? `${unread} okunmamış bildirim` : "Bildirimler"}
+                className="relative shrink-0 font-anton text-[13px] border-[2px] border-[#FFEA00] px-2 py-0.5"
+              >
+                🔔
+                {unread > 0 && (
+                  <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-[#C8102E] text-white text-[10px] leading-[18px] text-center">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
+              </Link>
               {(!user.phoneVerified || !user.voteTeamId) && (
                 <Link
                   href="/takim-sec"

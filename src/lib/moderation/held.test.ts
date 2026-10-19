@@ -44,7 +44,9 @@ function openDb() {
     );
     CREATE TABLE forum_topics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_id TEXT NOT NULL,
+      board TEXT NOT NULL DEFAULT 'team',
+      city TEXT,
+      team_id TEXT,
       user_id INTEGER NOT NULL,
       title TEXT NOT NULL,
       content TEXT NOT NULL,
@@ -62,6 +64,24 @@ function openDb() {
       updated_at TEXT NOT NULL,
       deleted_at TEXT,
       held_at TEXT
+    );
+    CREATE TABLE notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      actor_user_id INTEGER,
+      topic_id INTEGER,
+      post_id INTEGER,
+      body TEXT NOT NULL,
+      dedupe_key TEXT,
+      read_at TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE (user_id, dedupe_key)
+    );
+    CREATE TABLE user_blocks (
+      blocker_user_id INTEGER NOT NULL,
+      blocked_user_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL
     );
     CREATE TABLE moderation_actions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

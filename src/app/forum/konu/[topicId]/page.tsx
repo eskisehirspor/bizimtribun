@@ -17,11 +17,18 @@ import {
 import { useTeamCatalog } from "@/components/useTeamCatalog";
 import { formatForumDate, forumApiError } from "@/lib/forum-ui";
 import ForumAuthorName from "@/components/ForumAuthorName";
+import { BlockButton, LikeButton, ReportButton } from "@/components/forum/ForumActions";
+import { citySlug } from "@/lib/cities";
 
 type Author = { id: number; username: string; isTribunLeader?: boolean };
 type Topic = {
   id: number;
-  teamId: string;
+  board: "team" | "general" | "city";
+  teamId: string | null;
+  province: string | null;
+  likeCount: number;
+  likedByMe: boolean;
+  editedAt: string | null;
   title: string;
   content: string;
   createdAt: string;
@@ -37,6 +44,9 @@ type Post = {
   content: string;
   createdAt: string;
   updatedAt: string;
+  editedAt?: string | null;
+  likeCount?: number;
+  likedByMe?: boolean;
   author: Author;
 };
 
@@ -89,7 +99,22 @@ export default function KonuPage() {
     void Promise.resolve().then(load);
   }, [load]);
 
-  const team = topic ? catalog.getTeam(topic.teamId) : undefined;
+  const team = topic?.teamId ? catalog.getTeam(topic.teamId) : undefined;
+  const boardHref = !topic
+    ? "/forum"
+    : topic.board === "team" && topic.teamId
+      ? `/takim/${topic.teamId}/forum`
+      : topic.board === "city" && topic.province
+        ? `/forum/il/${citySlug(topic.province)}`
+        : "/forum/genel";
+  const boardLabel = !topic
+    ? "Forum"
+    : team
+      ? tribunTitle(team.name)
+      : topic.board === "city" && topic.province
+        ? `${topic.province} Tribünü`
+        : "Genel Tribün";
+  const canWrite = Boolean(user && user.phoneVerified && !banned);
   const pages = Math.max(1, Math.ceil(total / limit));
   const isOwner = Boolean(user && topic && user.id === topic.author?.id);
   const locked = Boolean(topic?.lockedAt);
@@ -164,7 +189,7 @@ export default function KonuPage() {
         setPostError(forumApiError(res.status, data.error));
         return;
       }
-      router.push(team ? `/takim/${team.id}/forum` : "/takimlar");
+      router.push(boardHref);
     } finally {
       setSending(false);
     }
@@ -225,8 +250,8 @@ export default function KonuPage() {
       <ForumShell>
         <h1 className="font-anton text-[32px]">KONU YOK</h1>
         <p className="font-mono text-[13px] mt-2">{loadError}</p>
-        <Link href="/takimlar" className="mt-4 inline-block font-anton border-[3px] border-black px-3 py-2">
-          TRİBÜNLER
+        <Link href="/forum" className="mt-4 inline-block font-anton border-[3px] border-black px-3 py-2">
+          FORUM
         </Link>
       </ForumShell>
     );
@@ -234,15 +259,10 @@ export default function KonuPage() {
 
   return (
     <ForumShell>
-      {team && (
-        <Link
-          href={`/takim/${team.id}/forum`}
-          className="font-mono text-[11px] underline inline-flex items-center gap-2"
-        >
-          <TeamMark team={team} size={22} />
-          {tribunTitle(team.name)}
-        </Link>
-      )}
+      <Link href={boardHref} className="font-mono text-[11px] underline inline-flex items-center gap-2">
+        {team ? <TeamMark team={team} size={22} /> : null}
+        {boardLabel}
+      </Link>
 
       <article className="mt-4 border-[4px] border-black bg-[#FFFEFA] shadow-[6px_6px_0_black] p-4 sm:p-5">
         {editing ? (
@@ -312,12 +332,30 @@ export default function KonuPage() {
                 />
               ) : null}{" "}
               • {formatForumDate(topic.createdAt)}
+              {topic.editedAt ? " • düzenlendi" : ""}
               {locked ? " • KİLİTLİ" : ""}
             </p>
             <div className="font-mono text-[14px] mt-4 whitespace-pre-wrap leading-[1.5]">
               {topic.content}
             </div>
-            {isOwner && user?.emailVerified && (
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <LikeButton
+                type="topic"
+                id={topic.id}
+                count={topic.likeCount}
+                liked={topic.likedByMe}
+                canLike={canWrite && !isOwner}
+              />
+              {canWrite && !isOwner && <ReportButton type="topic" id={topic.id} />}
+              {canWrite && !isOwner && topic.author && (
+                <BlockButton
+                  userId={topic.author.id}
+                  username={topic.author.username}
+                  onBlocked={() => router.push(boardHref)}
+                />
+              )}
+            </div>
+            {isOwner && user?.phoneVerified && (
               <div className="mt-4 flex gap-2">
                 <button
                   type="button"
@@ -353,13 +391,14 @@ export default function KonuPage() {
           <p className="p-4 font-mono text-[13px]">Henüz yorum yok.</p>
         ) : (
           posts.map((p) => (
-            <div key={p.id} className="p-3 sm:p-4">
+            <div key={p.id} id={`yorum-${p.id}`} className="p-3 sm:p-4">
               <p className="font-mono text-[11px] opacity-70">
                 <ForumAuthorName
                   username={p.author.username}
                   isTribunLeader={p.author.isTribunLeader}
                 />{" "}
                 • {formatForumDate(p.createdAt)}
+                {p.editedAt ? " • düzenlendi" : ""}
               </p>
               {editPostId === p.id ? (
                 <div className="mt-2 space-y-2">
@@ -390,7 +429,24 @@ export default function KonuPage() {
               ) : (
                 <p className="font-mono text-[14px] mt-1 whitespace-pre-wrap">{p.content}</p>
               )}
-              {user && user.emailVerified && user.id === p.author.id && editPostId !== p.id && (
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <LikeButton
+                  type="post"
+                  id={p.id}
+                  count={p.likeCount ?? 0}
+                  liked={Boolean(p.likedByMe)}
+                  canLike={canWrite && user?.id !== p.author.id}
+                />
+                {canWrite && user?.id !== p.author.id && <ReportButton type="post" id={p.id} />}
+                {canWrite && user?.id !== p.author.id && (
+                  <BlockButton
+                    userId={p.author.id}
+                    username={p.author.username}
+                    onBlocked={() => void load()}
+                  />
+                )}
+              </div>
+              {user && user.phoneVerified && user.id === p.author.id && editPostId !== p.id && (
                 <div className="mt-2 flex gap-2">
                   <button
                     type="button"
@@ -457,11 +513,11 @@ export default function KonuPage() {
             </Link>
             .
           </p>
-        ) : user && !user.emailVerified ? (
+        ) : user && !user.phoneVerified ? (
           <p className="font-mono text-[13px]">
             Yorum yazmak için{" "}
-            <Link href="/uye-dogrula" className="underline font-anton">
-              e-posta adresini doğrula
+            <Link href="/takim-sec" className="underline font-anton">
+              telefonunu doğrula
             </Link>
             .
           </p>

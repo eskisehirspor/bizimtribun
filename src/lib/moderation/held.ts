@@ -1,3 +1,4 @@
+import { notifyModeration, notifyReply } from "../notifications";
 import { can, roleRank } from "../permissions";
 import type Database from "better-sqlite3";
 
@@ -217,21 +218,23 @@ export function listHeldItems(db: Database.Database, offset: number, limit: numb
   const rows = db
     .prepare(
       `SELECT * FROM (
-         SELECT 'topic' as kind, t.id as id, t.team_id as teamId, tm.name as teamName,
+         SELECT 'topic' as kind, t.id as id, t.team_id as teamId,
+                COALESCE(tm.name, CASE t.board WHEN 'city' THEN t.city || ' Tribünü' ELSE 'Genel Tribün' END) as teamName,
                 t.title as title, t.content as content, t.held_at as heldAt,
                 t.user_id as userId, u.username as username, t.id as topicId
          FROM forum_topics t
          JOIN users u ON u.id = t.user_id
-         JOIN teams tm ON tm.id = t.team_id
+         LEFT JOIN teams tm ON tm.id = t.team_id
          WHERE t.held_at IS NOT NULL AND t.deleted_at IS NULL
          UNION ALL
-         SELECT 'post' as kind, p.id as id, t.team_id as teamId, tm.name as teamName,
+         SELECT 'post' as kind, p.id as id, t.team_id as teamId,
+                COALESCE(tm.name, CASE t.board WHEN 'city' THEN t.city || ' Tribünü' ELSE 'Genel Tribün' END) as teamName,
                 t.title as title, p.content as content, p.held_at as heldAt,
                 p.user_id as userId, u.username as username, p.topic_id as topicId
          FROM forum_posts p
          JOIN forum_topics t ON t.id = p.topic_id
          JOIN users u ON u.id = p.user_id
-         JOIN teams tm ON tm.id = t.team_id
+         LEFT JOIN teams tm ON tm.id = t.team_id
          WHERE p.held_at IS NOT NULL AND p.deleted_at IS NULL
        )
        ORDER BY heldAt ASC, kind ASC, id ASC
@@ -240,7 +243,7 @@ export function listHeldItems(db: Database.Database, offset: number, limit: numb
     .all(limit, offset) as Array<{
     kind: HeldKind;
     id: number;
-    teamId: string;
+    teamId: string | null;
     teamName: string;
     title: string;
     content: string;
@@ -311,6 +314,23 @@ export function approveHeldContent(
       targetTopicId: target.topicId,
       targetPostId: target.postId,
     });
+    if (kind === "post" && target.postId != null) {
+      const post = db.prepare(`SELECT content FROM forum_posts WHERE id = ?`).get(target.postId) as
+        | { content: string }
+        | undefined;
+      notifyReply(db, {
+        actorId: target.userId,
+        topicId: target.topicId,
+        postId: target.postId,
+        content: post?.content ?? "",
+      });
+    }
+    notifyModeration(db, {
+      userId: target.userId,
+      topicId: target.topicId,
+      postId: target.postId,
+      body: `İncelemedeki ${kind === "topic" ? "konun" : "yorumun"} onaylandı ve yayında.`,
+    });
     return { ok: true as const };
   });
   return run();
@@ -342,6 +362,12 @@ function applyRejectHeld(
     targetUserId: target.userId,
     targetTopicId: target.topicId,
     targetPostId: target.postId,
+  });
+  notifyModeration(db, {
+    userId: target.userId,
+    topicId: target.topicId,
+    postId: target.postId,
+    body: `İncelemedeki ${target.kind === "topic" ? "konun" : "yorumun"} topluluk kurallarına uymadığı için yayımlanmadı.`,
   });
   return { ok: true as const };
 }

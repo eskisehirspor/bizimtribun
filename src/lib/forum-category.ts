@@ -1,5 +1,6 @@
 export const FORUM_CATEGORIES = [
   "gundem",
+  "mac-gunu",
   "deplasman",
   "tartisma",
   "anilar",
@@ -17,6 +18,11 @@ export const FORUM_CATEGORY_META: Record<
     label: "Gündem",
     tab: "GÜNDEM",
     blurb: "Maç, transfer, oyuncu, teknik direktör, takım haberleri.",
+  },
+  "mac-gunu": {
+    label: "Maç Günü",
+    tab: "MAÇ GÜNÜ",
+    blurb: "Maç önü, canlı yorum, maç sonu. Kadro, skor, tribün havası.",
   },
   deplasman: {
     label: "Deplasman",

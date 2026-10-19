@@ -12,9 +12,10 @@ import {
   topicOrderSql,
 } from "./forum-category";
 
-test("4 kategori geçerli", () => {
+test("5 kategori geçerli", () => {
   assert.deepEqual(FORUM_CATEGORIES, [
     "gundem",
+    "mac-gunu",
     "deplasman",
     "tartisma",
     "anilar",

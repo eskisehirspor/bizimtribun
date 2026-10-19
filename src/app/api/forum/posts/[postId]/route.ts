@@ -8,7 +8,7 @@ import {
   findLivePost,
   findLiveTopic,
   parseIdParam,
-  requireForumBoard,
+  topicBoardOpen,
   serializePost,
   softDeletePost,
   updatePost,
@@ -50,7 +50,7 @@ export async function PUT(
     return noStoreJson({ error: "Yazı bulunamadı." }, 404);
   }
   const topic = findLiveTopic(post.topic_id);
-  if (!topic || !requireForumBoard(topic.team_id)) {
+  if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Yazı bulunamadı." }, 404);
   }
   if (post.user_id !== active.user.id) {
@@ -69,7 +69,7 @@ export async function PUT(
   const verdict = moderateForumPublication([content], {
     surface: "post",
     userId: active.user.id,
-    teamId: topic.team_id,
+    teamId: topic.team_id ?? undefined,
     topicId: topic.id,
   });
   const mode = forumWriteMode(verdict.decision);
@@ -96,7 +96,7 @@ export async function PUT(
     return noStoreJson({ error: FORUM_CONTENT_REVIEW_ERROR }, 422);
   }
   const updated = findLivePost(post.id)!;
-  return noStoreJson({ ok: true, post: serializePost(updated) });
+  return noStoreJson({ ok: true, post: serializePost(updated, active.user.id) });
 }
 
 export async function DELETE(
@@ -123,7 +123,7 @@ export async function DELETE(
     return noStoreJson({ error: "Yazı bulunamadı." }, 404);
   }
   const topic = findLiveTopic(post.topic_id);
-  if (!topic || !requireForumBoard(topic.team_id)) {
+  if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Yazı bulunamadı." }, 404);
   }
   if (post.user_id !== active.user.id) {

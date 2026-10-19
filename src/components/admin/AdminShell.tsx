@@ -10,6 +10,7 @@ const LINKS: Array<{ href: string; label: string; needs: Permission }> = [
   { href: "/admin/uyeler", label: "Üyeler", needs: "users.view" },
   { href: "/admin/forum", label: "Forum", needs: "forum.moderate" },
   { href: "/admin/moderasyon", label: "Moderasyon", needs: "moderation.view" },
+  { href: "/admin/bildirimler", label: "Üye Bildirimleri", needs: "forum.moderate" },
   { href: "/admin/banlar", label: "Banlar", needs: "users.ban" },
   { href: "/admin/takimlar", label: "Takımlar ve Sezonlar", needs: "teams.manage" },
   { href: "/admin/takim-talepleri", label: "Takım Talepleri", needs: "team_requests.manage" },

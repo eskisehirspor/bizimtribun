@@ -344,14 +344,22 @@ export default function HomeClient({
                 </p>
               )}
               {recentTopics.map((row) => {
-                const team = teams.find((t) => t.id === row.teamId) ?? getTeam(row.teamId);
+                const team = row.teamId
+                  ? (teams.find((t) => t.id === row.teamId) ?? getTeam(row.teamId))
+                  : undefined;
                 return (
                   <Link
                     key={row.id}
                     href={`/forum/konu/${row.id}`}
                     className="flex items-center gap-2 font-mono text-[11px] md:text-[12px] border-b border-dashed border-black/20 pb-1.5 hover:bg-[#FFEA00]/40"
                   >
-                    {team && <TeamColors team={team} size={10} />}
+                    {team ? (
+                      <TeamColors team={team} size={10} />
+                    ) : (
+                      <span className="shrink-0 border border-black px-1 text-[9px]">
+                        {row.board === "city" ? row.province : "GENEL"}
+                      </span>
+                    )}
                     <span className="min-w-0 flex-1 truncate">{row.title}</span>
                     <span className="shrink-0 opacity-60">@{row.authorUsername}</span>
                   </Link>

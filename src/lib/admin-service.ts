@@ -1,5 +1,6 @@
 import { can, canBanRole } from "./permissions";
 import { maskEmail, maskPhone } from "./privacy";
+import { notifyModeration } from "./notifications";
 import { getDb } from "./db";
 import {
   adminSoftDeletePost,
@@ -621,6 +622,11 @@ export function deleteTopicAdmin(topicId: number, reason: string, moderator: Use
       action: "delete_topic",
       reason,
     });
+    notifyModeration(db, {
+      userId: topic.user_id,
+      topicId,
+      body: `"${topic.title.slice(0, 80)}" konun moderatör tarafından kaldırıldı. Gerekçe: ${reason.slice(0, 160)}`,
+    });
     return true;
   })();
   if (!ok) return { ok: false as const, error: "Konu silinemedi.", status: 409 };
@@ -643,6 +649,12 @@ export function deletePostAdmin(postId: number, reason: string, moderator: UserR
       targetUserId: post.user_id,
       action: "delete_post",
       reason,
+    });
+    notifyModeration(db, {
+      userId: post.user_id,
+      topicId: post.topic_id,
+      postId,
+      body: `Bir yorumun moderatör tarafından kaldırıldı. Gerekçe: ${reason.slice(0, 160)}`,
     });
     return true;
   })();
