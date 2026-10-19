@@ -14,7 +14,7 @@ import {
   type ForumCategory,
   type TopicSort,
 } from "@/lib/forum-category";
-import { FORUM_ACTIVE_TEAM_IDS, LEAGUE_LABEL, getTeam } from "@/lib/teams";
+import { useTeamCatalog } from "@/components/useTeamCatalog";
 import { formatForumDate } from "@/lib/forum-ui";
 import ForumAuthorName from "@/components/ForumAuthorName";
 
@@ -40,8 +40,9 @@ export default function TeamForumPage() {
   const rawSlug = useParams<{ teamSlug: string }>().teamSlug;
   const teamSlug = (Array.isArray(rawSlug) ? rawSlug[0] : rawSlug) || "";
   const { user, banned, message, loading } = useAuth();
-  const team = getTeam(teamSlug);
-  const active = FORUM_ACTIVE_TEAM_IDS.includes(teamSlug);
+  const catalog = useTeamCatalog();
+  const team = catalog.getTeam(teamSlug);
+  const active = Boolean(team?.isForumActive);
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<TopicSort>("activity");
   const [category, setCategory] = useState<ForumCategory>(FORUM_CATEGORY_DEFAULT);
@@ -124,7 +125,7 @@ export default function TeamForumPage() {
             {tribunTitle(team.name)}
           </h1>
           <p className="font-mono text-[11px] opacity-60 mt-1">
-            {LEAGUE_LABEL[team.league]} • {total} konu
+            {catalog.leagueLabel(team.league)} • {total} konu
           </p>
         </div>
       </div>

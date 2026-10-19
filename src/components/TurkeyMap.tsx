@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { citySlug } from "@/lib/cities";
 import { compactCityPreview } from "@/lib/city-rank";
-import { getTeam } from "@/lib/teams";
+import { useTeamCatalog } from "@/components/useTeamCatalog";
 import mapData from "@/lib/turkey-paths.json";
 
 type Standing = { teamId: string; votes: number };
@@ -30,8 +30,9 @@ export default function TurkeyMap({ leaders, standings }: Props) {
   const [picked, setPicked] = useState<string | null>(null);
   const uid = useId().replace(/:/g, "");
   const router = useRouter();
+  const { getTeam } = useTeamCatalog();
   const shown = hover ?? picked;
-  const preview = shown ? compactCityPreview(standings[shown] ?? []) : null;
+  const preview = shown ? compactCityPreview(standings[shown] ?? [], getTeam) : null;
 
   function goCity(name: string) {
     setPicked(name);

@@ -1,5 +1,5 @@
 import { getDb, type Participant } from "./db";
-import { TEAMS } from "./teams";
+import { listTeamCatalog } from "./team-catalog";
 import { hmac } from "./crypto";
 
 /**
@@ -18,7 +18,11 @@ export function teamCounts() {
     )
     .all() as { id: string; votes: number }[];
   const map = Object.fromEntries(rows.map((r) => [r.id, r.votes]));
-  return TEAMS.map((t) => ({ ...t, votes: map[t.id] ?? 0 }));
+  // Inactive teams stay listed while they still hold votes, so history
+  // never silently disappears from the public count.
+  return listTeamCatalog()
+    .map((t) => ({ ...t, votes: map[t.id] ?? 0 }))
+    .filter((t) => t.isActive || t.votes > 0);
 }
 
 export type CityStanding = { teamId: string; votes: number };

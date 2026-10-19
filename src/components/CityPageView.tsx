@@ -8,7 +8,7 @@ import {
 import type { CityTeamRow } from "@/lib/city-rank";
 import CityShare from "@/components/CityShare";
 import TeamColors from "@/components/TeamColors";
-import { getTeam } from "@/lib/teams";
+import { useTeamCatalog } from "@/components/useTeamCatalog";
 
 type Props = {
   city: CityRecord;
@@ -17,6 +17,7 @@ type Props = {
 };
 
 export default function CityPageView({ city, total, rows }: Props) {
+  const { getTeam } = useTeamCatalog();
   const locative = cityLocative(city.name);
   const headline = `${locative} bu haftanın tribün dağılımı`;
   const summary =

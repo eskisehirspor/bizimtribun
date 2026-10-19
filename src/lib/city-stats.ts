@@ -1,5 +1,6 @@
 import { rankCityTeams, type CityTeamRow } from "./city-rank";
 import { getDb } from "./db";
+import { listTeamCatalog } from "./team-catalog";
 
 export type { CityTeamRow };
 
@@ -14,5 +15,6 @@ export function cityVoteTotals(cityName: string) {
     )
     .all(cityName) as { teamId: string; votes: number }[];
   const total = rows.reduce((sum, row) => sum + row.votes, 0);
-  return { total, rows: rankCityTeams(rows) };
+  const catalog = new Map(listTeamCatalog().map((t) => [t.id, t]));
+  return { total, rows: rankCityTeams(rows, (id) => catalog.get(id)) };
 }

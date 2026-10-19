@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { LEAGUE_LABEL, LEAGUE_ORDER } from "./teams";
 
 /**
  * Ordered, run-once schema migrations.
@@ -250,6 +251,57 @@ BEGIN
   SELECT RAISE(ABORT, 'AUDIT_APPEND_ONLY');
 END;
 `);
+    },
+  },
+  {
+    id: "002_team_catalog_leagues_seasons",
+    up(db) {
+      // Teams become editable from the admin panel. Catalog defaults from
+      // teams.ts only fill rows an admin has never touched.
+      const cols = new Set(
+        (db.prepare(`PRAGMA table_info(teams)`).all() as { name: string }[]).map((c) => c.name),
+      );
+      for (const [name, type] of [
+        ["city", "TEXT"],
+        ["color_primary", "TEXT"],
+        ["color_secondary", "TEXT"],
+        ["admin_edited_at", "TEXT"],
+      ] as const) {
+        if (!cols.has(name)) db.exec(`ALTER TABLE teams ADD COLUMN ${name} ${type}`);
+      }
+      db.exec(`
+CREATE TABLE IF NOT EXISTS leagues (
+  id TEXT PRIMARY KEY CHECK (id IN (${sqlList([...LEAGUE_ORDER])})),
+  name TEXT NOT NULL,
+  sort_order INTEGER NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS seasons (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  label TEXT NOT NULL UNIQUE,
+  starts_on TEXT NOT NULL,
+  ends_on TEXT NOT NULL,
+  is_current INTEGER NOT NULL DEFAULT 0 CHECK (is_current IN (0, 1)),
+  created_at TEXT NOT NULL,
+  CHECK (ends_on > starts_on)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_seasons_one_current ON seasons(is_current) WHERE is_current = 1;
+
+-- Which league each team played in during a season. Written when a season
+-- is opened, so later league moves never rewrite history.
+CREATE TABLE IF NOT EXISTS team_seasons (
+  season_id INTEGER NOT NULL REFERENCES seasons(id),
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  league_id TEXT NOT NULL REFERENCES leagues(id),
+  PRIMARY KEY (season_id, team_id)
+);
+`);
+      const now = new Date().toISOString();
+      const insert = db.prepare(
+        `INSERT OR IGNORE INTO leagues (id, name, sort_order, updated_at) VALUES (?, ?, ?, ?)`,
+      );
+      LEAGUE_ORDER.forEach((id, i) => insert.run(id, LEAGUE_LABEL[id], i, now));
     },
   },
 ];

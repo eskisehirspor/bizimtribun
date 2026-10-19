@@ -14,7 +14,7 @@ import {
   tribunTitle,
   type ForumCategory,
 } from "@/lib/forum-category";
-import { getTeam } from "@/lib/teams";
+import { useTeamCatalog } from "@/components/useTeamCatalog";
 import { formatForumDate, forumApiError } from "@/lib/forum-ui";
 import ForumAuthorName from "@/components/ForumAuthorName";
 
@@ -44,6 +44,7 @@ export default function KonuPage() {
   const { topicId } = useParams<{ topicId: string }>();
   const router = useRouter();
   const { user, banned, message, loading } = useAuth();
+  const catalog = useTeamCatalog();
   const [topic, setTopic] = useState<Topic | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [page, setPage] = useState(1);
@@ -88,7 +89,7 @@ export default function KonuPage() {
     void Promise.resolve().then(load);
   }, [load]);
 
-  const team = topic ? getTeam(topic.teamId) : undefined;
+  const team = topic ? catalog.getTeam(topic.teamId) : undefined;
   const pages = Math.max(1, Math.ceil(total / limit));
   const isOwner = Boolean(user && topic && user.id === topic.author?.id);
   const locked = Boolean(topic?.lockedAt);

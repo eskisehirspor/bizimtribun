@@ -29,9 +29,10 @@ test("boot + migrations are idempotent and recorded once", () => {
 
 test("migration keeps existing users and their data", () => {
   const db = new Database(":memory:");
-  // Simulate a database from before the migration: baseline only.
+  // Simulate a database from before migration 001: baseline only. Later
+  // migrations run normally so the boot-time team sync has its columns.
   db.exec(`CREATE TABLE schema_migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL)`);
-  for (const m of MIGRATIONS) {
+  for (const m of MIGRATIONS.filter((m) => m.id.startsWith("001_"))) {
     db.prepare(`INSERT INTO schema_migrations VALUES (?, 'x')`).run(m.id);
   }
   applyDatabaseBoot(db);

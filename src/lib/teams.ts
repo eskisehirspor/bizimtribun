@@ -177,7 +177,7 @@ const RAW: Row[] = [
   ["nazillispor", "Nazillispor", "Aydın", "bal", "#111111"],
 ];
 
-function initials(name: string) {
+export function initials(name: string) {
   const parts = name.replace(/FK|SK|A\.Ş\.?/gi, "").trim().split(/\s+/);
   if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
   return parts
@@ -377,6 +377,18 @@ export const FORUM_ACTIVE_TEAM_IDS = [
 
 export function isForumActiveTeam(id: string) {
   return FORUM_ACTIVE_TEAM_IDS.includes(id);
+}
+
+export function leaguePaper(league: string) {
+  return PAPER[league as LeagueId] ?? "#EDE6DA";
+}
+
+export function resolveTeamAlias(id: string) {
+  return ALIAS[id] || id;
+}
+
+export function isLeagueId(value: string): value is LeagueId {
+  return (LEAGUE_ORDER as string[]).includes(value);
 }
 
 export function getTeam(id: string) {

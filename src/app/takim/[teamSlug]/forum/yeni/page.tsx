@@ -19,7 +19,7 @@ import {
   FORUM_TITLE_MAX,
   FORUM_TITLE_MIN,
 } from "@/lib/policy";
-import { FORUM_ACTIVE_TEAM_IDS, getTeam } from "@/lib/teams";
+import { useTeamCatalog } from "@/components/useTeamCatalog";
 import { forumApiError } from "@/lib/forum-ui";
 
 export default function YeniKonuPage() {
@@ -27,8 +27,9 @@ export default function YeniKonuPage() {
   const teamSlug = (Array.isArray(rawSlug) ? rawSlug[0] : rawSlug) || "";
   const router = useRouter();
   const { user, banned, message, loading } = useAuth();
-  const team = getTeam(teamSlug);
-  const active = FORUM_ACTIVE_TEAM_IDS.includes(teamSlug);
+  const catalog = useTeamCatalog();
+  const team = catalog.getTeam(teamSlug);
+  const active = Boolean(team?.isForumActive);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [category, setCategory] = useState<ForumCategory>(FORUM_CATEGORY_DEFAULT);

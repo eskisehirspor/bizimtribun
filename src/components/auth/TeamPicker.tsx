@@ -29,6 +29,7 @@ export default function TeamPicker({
   onConfirm,
 }: Props) {
   const [teams, setTeams] = useState<PickerTeam[] | null>(null);
+  const [labels, setLabels] = useState<Record<string, string>>(LEAGUE_LABEL);
   const [loadError, setLoadError] = useState(false);
   const [teamId, setTeamId] = useState(initialTeamId ?? "");
   const [city, setCity] = useState(initialCity ?? "");
@@ -42,7 +43,16 @@ export default function TeamPicker({
     fetch("/api/teams", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => {
-        if (!cancelled) setTeams(Array.isArray(d.teams) ? d.teams : []);
+        if (cancelled) return;
+        setTeams(Array.isArray(d.teams) ? d.teams : []);
+        if (Array.isArray(d.leagues)) {
+          setLabels({
+            ...LEAGUE_LABEL,
+            ...Object.fromEntries(
+              (d.leagues as { id: string; name: string }[]).map((l) => [l.id, l.name]),
+            ),
+          });
+        }
       })
       .catch(() => {
         if (!cancelled) setLoadError(true);
@@ -70,7 +80,7 @@ export default function TeamPicker({
           <p className="font-mono text-[10px]">SEÇİMİN</p>
           <p className="font-anton text-[30px] leading-none mt-1">{chosen.name}</p>
           <p className="font-mono text-[11px] mt-1">
-            {LEAGUE_LABEL[chosen.league]}
+            {labels[chosen.league]}
             {city ? ` • ${city}` : " • il belirtilmedi"}
           </p>
         </div>
@@ -133,7 +143,7 @@ export default function TeamPicker({
               league === id ? "bg-black text-[#FFEA00]" : "bg-white"
             }`}
           >
-            {id === "all" ? "TÜMÜ" : LEAGUE_LABEL[id].toLocaleUpperCase("tr")}
+            {id === "all" ? "TÜMÜ" : labels[id].toLocaleUpperCase("tr")}
           </button>
         ))}
       </div>
@@ -166,7 +176,7 @@ export default function TeamPicker({
               onChange={() => setTeamId(t.id)}
             />
             <span className="font-anton text-[15px] flex-1">{t.name}</span>
-            <span className="font-mono text-[10px] opacity-70">{LEAGUE_LABEL[t.league]}</span>
+            <span className="font-mono text-[10px] opacity-70">{labels[t.league]}</span>
           </label>
         ))}
         {shown.length === 0 && <p className="p-3 font-mono text-[12px]">Eşleşen takım yok.</p>}

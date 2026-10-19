@@ -25,6 +25,8 @@ type Props = {
   initialTotal: number;
   initialCities: Record<string, CityLeader>;
   initialStandings: Record<string, CityStanding[]>;
+  leagues: { id: LeagueId; name: string; sortOrder: number }[];
+  season: string | null;
   recentTopics: RecentTopic[];
   generatedAt: string;
 };
@@ -34,6 +36,8 @@ export default function HomeClient({
   initialTotal,
   initialCities,
   initialStandings,
+  leagues: initialLeagues,
+  season: initialSeason,
   recentTopics,
   generatedAt,
 }: Props) {
@@ -43,6 +47,16 @@ export default function HomeClient({
   const [cities, setCities] = useState(initialCities);
   const [standings, setStandings] = useState(initialStandings);
   const [asOf, setAsOf] = useState(generatedAt);
+  const [leagues, setLeagues] = useState(initialLeagues);
+  const [season, setSeason] = useState(initialSeason);
+  const leagueOrder = useMemo(
+    () => (leagues.length ? leagues.map((l) => l.id) : LEAGUE_ORDER),
+    [leagues],
+  );
+  const leagueLabel = useMemo(
+    () => ({ ...LEAGUE_LABEL, ...Object.fromEntries(leagues.map((l) => [l.id, l.name])) }),
+    [leagues],
+  );
   const [league, setLeague] = useState<"all" | LeagueId>("super");
   const [query, setQuery] = useState("");
   const preview = { teams, total, cities, standings };
@@ -53,11 +67,11 @@ export default function HomeClient({
       [...preview.teams].sort((a, b) => {
         if (b.votes !== a.votes) return b.votes - a.votes;
         const leagueDiff =
-          LEAGUE_ORDER.indexOf(a.league) - LEAGUE_ORDER.indexOf(b.league);
+          leagueOrder.indexOf(a.league) - leagueOrder.indexOf(b.league);
         if (leagueDiff) return leagueDiff;
         return a.name.localeCompare(b.name, "tr");
       }),
-    [preview.teams],
+    [preview.teams, leagueOrder],
   );
   const leader = preview.total > 0 ? ranked[0] : undefined;
 
@@ -84,6 +98,8 @@ export default function HomeClient({
       setCities(data.cities);
       setStandings(data.standings);
       if (data.generatedAt) setAsOf(data.generatedAt);
+      if (Array.isArray(data.leagues)) setLeagues(data.leagues);
+      if ("season" in data) setSeason(data.season ?? null);
     } catch {
       /* keep the last good numbers */
     }
@@ -104,7 +120,7 @@ export default function HomeClient({
         <div className="absolute top-0 left-0 w-full h-[6px] bg-[repeating-linear-gradient(90deg,black_0_20px,#FFEA00_20px_40px)]" />
         <div className="max-w-[1320px] mx-auto px-4 sm:px-5 md:px-8 pt-8 pb-5 md:py-8">
           <div className="font-mono text-[9px] sm:text-[10px] tracking-[0.08em] sm:tracking-[0.16em] leading-tight mb-5 md:mb-4">
-            81 İL • {teams.length} TAKIM • VERİ:{" "}
+            81 İL • {teams.length} TAKIM • {season ? `${season} SEZONU • ` : ""}VERİ:{" "}
             {new Date(asOf).toLocaleString("tr-TR", {
               day: "2-digit",
               month: "2-digit",
@@ -193,7 +209,7 @@ export default function HomeClient({
               >
                 TÜMÜ
               </button>
-              {LEAGUE_ORDER.map((id) => (
+              {leagueOrder.map((id) => (
                 <button
                   key={id}
                   type="button"
@@ -202,7 +218,7 @@ export default function HomeClient({
                     league === id ? "bg-black text-[#FFEA00]" : "bg-white"
                   }`}
                 >
-                  {LEAGUE_LABEL[id].toLocaleUpperCase("tr")}
+                  {leagueLabel[id].toLocaleUpperCase("tr")}
                 </button>
               ))}
             </div>
@@ -234,7 +250,7 @@ export default function HomeClient({
                         <TeamColors team={team} />
                       </div>
                       <div className="font-mono text-[10px] mt-1">
-                        {LEAGUE_LABEL[team.league]} • {team.city}
+                        {leagueLabel[team.league]} • {team.city}
                       </div>
                     </div>
                     <div className="text-right">
@@ -309,7 +325,7 @@ export default function HomeClient({
                     <TeamColors team={m} size={10} />
                   </span>
                   <span className="font-mono text-[9px] opacity-50 w-[72px] text-right shrink-0">
-                    {LEAGUE_LABEL[m.league]}
+                    {leagueLabel[m.league]}
                   </span>
                   <span className="font-mono text-[11px] tabular-nums w-[28px] text-right shrink-0">
                     {m.votes.toLocaleString("tr-TR")}
@@ -328,7 +344,7 @@ export default function HomeClient({
                 </p>
               )}
               {recentTopics.map((row) => {
-                const team = getTeam(row.teamId);
+                const team = teams.find((t) => t.id === row.teamId) ?? getTeam(row.teamId);
                 return (
                   <Link
                     key={row.id}

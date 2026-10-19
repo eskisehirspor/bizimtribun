@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import ForumShell from "@/components/ForumShell";
 import TeamMark from "@/components/TeamMark";
-import { FORUM_ACTIVE_TEAM_IDS, LEAGUE_LABEL, getTeam } from "@/lib/teams";
+import { useTeamCatalog } from "@/components/useTeamCatalog";
 import { formatForumDate } from "@/lib/forum-ui";
 
 type Preview = {
@@ -15,11 +15,14 @@ type Preview = {
 
 export default function TakimlarPage() {
   const [previews, setPreviews] = useState<Record<string, Preview>>({});
+  const { forumTeams, leagueLabel, ready } = useTeamCatalog();
+  const forumIds = forumTeams.map((t) => t.id).join(",");
 
   useEffect(() => {
+    if (!ready) return;
     let cancelled = false;
     void Promise.all(
-      FORUM_ACTIVE_TEAM_IDS.map(async (id) => {
+      forumIds.split(",").filter(Boolean).map(async (id) => {
         try {
           const res = await fetch(`/api/forum/teams/${id}/topics?limit=1&page=1`, {
             cache: "no-store",
@@ -46,7 +49,7 @@ export default function TakimlarPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ready, forumIds]);
 
   return (
     <ForumShell>
@@ -59,13 +62,12 @@ export default function TakimlarPage() {
         </span>
       </h1>
       <p className="font-mono text-[13px] mt-3 max-w-[520px]">
-        25 tribün. Gündem, deplasman, tartışma, anılar. Küfürsüz, net, taraftar usulü.
+        {forumTeams.length} tribün. Gündem, deplasman, tartışma, anılar. Küfürsüz, net, taraftar usulü.
       </p>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {FORUM_ACTIVE_TEAM_IDS.map((id) => {
-          const team = getTeam(id);
-          if (!team) return null;
+        {forumTeams.map((team) => {
+          const id = team.id;
           const preview = previews[id];
           return (
             <Link
@@ -79,7 +81,7 @@ export default function TakimlarPage() {
                   {team.name} Tribünü
                 </div>
                 <div className="font-mono text-[10px] opacity-60 mt-0.5">
-                  {LEAGUE_LABEL[team.league]} • {preview ? `${preview.total} konu` : "…"}
+                  {leagueLabel(team.league)} • {preview ? `${preview.total} konu` : "…"}
                 </div>
                 <div className="font-mono text-[11px] mt-1 truncate">
                   {preview?.lastTitle

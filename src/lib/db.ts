@@ -509,17 +509,30 @@ CREATE INDEX IF NOT EXISTS idx_security_events_action_created
 
 runMigrations(db);
 
+// The code catalog (teams.ts) seeds teams and refreshes rows no admin has
+// edited. Once an admin changes a team in the panel, that row is theirs.
+const forumActive = new Set(FORUM_ACTIVE_TEAM_IDS);
 const upsertTeam = db.prepare(
-  `INSERT INTO teams (id, name, league, is_forum_active) VALUES (?, ?, ?, 0)
-   ON CONFLICT(id) DO UPDATE SET name = excluded.name, league = excluded.league`,
+  `INSERT INTO teams (id, name, league, city, color_primary, color_secondary, is_forum_active)
+   VALUES (@id, @name, @league, @city, @bleed, @accent, @forum)
+   ON CONFLICT(id) DO UPDATE SET
+     name = excluded.name, league = excluded.league, city = excluded.city,
+     color_primary = excluded.color_primary, color_secondary = excluded.color_secondary,
+     is_forum_active = excluded.is_forum_active
+   WHERE teams.admin_edited_at IS NULL`,
 );
 const syncTeams = db.transaction(() => {
   for (const team of TEAMS) {
-    upsertTeam.run(team.id, team.name, team.league);
+    upsertTeam.run({
+      id: team.id,
+      name: team.name,
+      league: team.league,
+      city: team.city,
+      bleed: team.bleed,
+      accent: team.accent,
+      forum: forumActive.has(team.id) ? 1 : 0,
+    });
   }
-  db.prepare(`UPDATE teams SET is_forum_active = 0`).run();
-  const activate = db.prepare(`UPDATE teams SET is_forum_active = 1 WHERE id = ?`);
-  for (const id of FORUM_ACTIVE_TEAM_IDS) activate.run(id);
 });
 syncTeams();
 seedPinnedStarterTopics(db);

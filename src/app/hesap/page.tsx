@@ -6,7 +6,7 @@ import { Suspense, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
 import { errorText, inputClass, Notice, postJson, secondaryButton } from "@/components/auth/ui";
-import { FORUM_ACTIVE_TEAM_IDS, getTeam } from "@/lib/teams";
+import { useTeamCatalog } from "@/components/useTeamCatalog";
 
 const CONFIRM = "HESABIMI SİL";
 
@@ -14,6 +14,7 @@ function Account() {
   const router = useRouter();
   const params = useSearchParams();
   const { user, loading, refresh, logout } = useAuth();
+  const catalog = useTeamCatalog();
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +27,7 @@ function Account() {
       </Notice>
     );
   }
-  const team = user.voteTeamId ? getTeam(user.voteTeamId) : undefined;
+  const team = user.voteTeamId ? catalog.getTeam(user.voteTeamId) : undefined;
 
   async function remove() {
     setBusy(true);
@@ -63,7 +64,7 @@ function Account() {
             {user.phoneVerified ? "TAKIMINI SEÇ" : "TELEFONU DOĞRULA VE TAKIM SEÇ"}
           </Link>
         )}
-        {team && FORUM_ACTIVE_TEAM_IDS.includes(team.id) && (
+        {team && team.isForumActive && (
           <Link href={`/takim/${team.id}/forum`} className="mt-3 inline-block underline font-mono text-[12px]">
             {team.name} tribününe git
           </Link>
