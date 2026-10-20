@@ -2,6 +2,7 @@ import type Database from "better-sqlite3";
 import { hmac, identityPhoneHash, newToken } from "./crypto";
 import { writeAudit } from "./audit";
 import { castFanVote, findFanVote, voidFanVote } from "./fan-votes";
+import { recordLegalAcceptance } from "./legal";
 import {
   PHONE_HOLD_MS,
   PHONE_HOLD_PERMANENT_UNTIL,
@@ -96,6 +97,8 @@ export type SignupInput = {
   displayName?: string | null;
   city?: string | null;
   teamId: string;
+  /** Text versions the member ticked on the sign-up form. */
+  legal: { termsVersion: string; privacyVersion: string };
 };
 
 export type SignupResult =
@@ -182,6 +185,16 @@ export function signupWithTicket(db: Database.Database, input: SignupInput): Sig
           now,
         );
       const userId = Number(info.lastInsertRowid);
+      const legal = recordLegalAcceptance(db, {
+        userId,
+        source: "signup",
+        at: now,
+        accepted: [
+          { doc: "terms", version: input.legal.termsVersion },
+          { doc: "privacy", version: input.legal.privacyVersion },
+        ],
+      });
+      if (!legal.ok) throw new SignupAbort(409, legal.error);
       const vote = castFanVote(db, { userId, teamId: input.teamId, city });
       if (!vote.ok) throw new SignupAbort(vote.status, vote.error);
       writeAudit(db, {

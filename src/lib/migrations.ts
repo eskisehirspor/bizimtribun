@@ -568,6 +568,38 @@ END;
       if (!cols.has("like_count")) db.exec(`ALTER TABLE forum_leaders ADD COLUMN like_count INTEGER`);
     },
   },
+  {
+    id: "011_legal_acceptances",
+    up(db) {
+      // One row per member, text and version: when they accepted the terms or
+      // acknowledged the KVKK notice. Append-only proof; earlier sign-ups
+      // carry over the terms version stored on the account.
+      db.exec(`
+CREATE TABLE IF NOT EXISTS legal_acceptances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  doc TEXT NOT NULL CHECK (doc IN ('terms', 'privacy')),
+  version TEXT NOT NULL,
+  accepted_at TEXT NOT NULL,
+  source TEXT NOT NULL CHECK (source IN ('signup', 'reaccept', 'legacy')),
+  UNIQUE (user_id, doc, version)
+);
+CREATE INDEX IF NOT EXISTS idx_legal_acceptances_user ON legal_acceptances(user_id, doc);
+CREATE TRIGGER IF NOT EXISTS legal_acceptances_append_only
+BEFORE UPDATE ON legal_acceptances
+BEGIN
+  SELECT RAISE(ABORT, 'LEGAL_RECORD_IMMUTABLE');
+END;
+`);
+      const cols = new Set((db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[]).map((c) => c.name));
+      if (cols.has("terms_version")) {
+        db.exec(`
+INSERT OR IGNORE INTO legal_acceptances (user_id, doc, version, accepted_at, source)
+  SELECT id, 'terms', terms_version, COALESCE(terms_accepted_at, created_at), 'legacy'
+  FROM users WHERE terms_version IS NOT NULL;`);
+      }
+    },
+  },
 ];
 
 export function appliedMigrationIds(db: Database.Database) {

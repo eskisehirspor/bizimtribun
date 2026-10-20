@@ -21,6 +21,7 @@ import {
   type UserRow,
 } from "./users";
 import { FORUM_PHONE_UNVERIFIED_ERROR } from "./policy";
+import { LEGAL_PENDING_ERROR, pendingLegalDocs } from "./legal";
 import { MAINTENANCE_ERROR, maintenanceBlocks } from "./site-settings";
 
 type SessionRow = {
@@ -199,7 +200,12 @@ export function requireActiveUser(user: UserRow | undefined): {
   return { ok: true, user, publicUser: toPublicUser(user) };
 }
 
-export function requireForumWriter(user: UserRow | undefined): {
+const hasPendingLegal = (userId: number) => pendingLegalDocs(getDb(), userId).length > 0;
+
+export function requireForumWriter(
+  user: UserRow | undefined,
+  legalPending: (userId: number) => boolean = hasPendingLegal,
+): {
   ok: true;
   user: UserRow;
   publicUser: PublicUser;
@@ -215,6 +221,10 @@ export function requireForumWriter(user: UserRow | undefined): {
   }
   if (maintenanceBlocks(active.user.role)) {
     return { ok: false, error: MAINTENANCE_ERROR, status: 503 };
+  }
+  // Writing waits until the member has accepted the current terms and notice.
+  if (legalPending(active.user.id)) {
+    return { ok: false, error: LEGAL_PENDING_ERROR, status: 403 };
   }
   return active;
 }

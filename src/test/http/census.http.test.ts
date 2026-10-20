@@ -19,6 +19,7 @@ import {
   authRegisterBody,
   freshDb,
   invoke,
+  LEGAL_OK,
   legacyPasswordUser,
   setNodeEnv,
   signupCookie,
@@ -122,7 +123,7 @@ test("sign-up needs a fresh, single-use ticket and the permanent-team confirmati
   const noTicket = await invoke(signup, {
     method: "POST",
     path: "/api/auth/signup",
-    body: { username: name(), teamId: "galatasaray", confirmTeamLocked: true, acceptTerms: true },
+    body: { username: name(), teamId: "galatasaray", confirmTeamLocked: true, ...LEGAL_OK },
   });
   assert.equal(noTicket.status, 401);
 
@@ -136,7 +137,7 @@ test("sign-up needs a fresh, single-use ticket and the permanent-team confirmati
     method: "POST",
     path: "/api/auth/signup",
     cookie,
-    body: { username: name(), teamId: "galatasaray", acceptTerms: true },
+    body: { username: name(), teamId: "galatasaray", ...LEGAL_OK },
   });
   assert.equal(noConfirm.status, 400);
 
@@ -144,14 +145,14 @@ test("sign-up needs a fresh, single-use ticket and the permanent-team confirmati
     method: "POST",
     path: "/api/auth/signup",
     cookie,
-    body: { username: name(), teamId: "galatasaray", confirmTeamLocked: true, acceptTerms: true },
+    body: { username: name(), teamId: "galatasaray", confirmTeamLocked: true, ...LEGAL_OK },
   });
   assert.equal(first.status, 200, first.text);
   const replay = await invoke(signup, {
     method: "POST",
     path: "/api/auth/signup",
     cookie,
-    body: { username: name(), teamId: "fenerbahce", confirmTeamLocked: true, acceptTerms: true },
+    body: { username: name(), teamId: "fenerbahce", confirmTeamLocked: true, ...LEGAL_OK },
   });
   assert.equal(replay.status, 401);
   assert.equal((await stats()).total, 1);
@@ -175,14 +176,14 @@ test("same phone cannot open a second account; verifying again signs in", async 
     method: "POST",
     path: "/api/auth/signup",
     cookie: signupCookie(c1.res),
-    body: { username: name(), teamId: "galatasaray", confirmTeamLocked: true, acceptTerms: true },
+    body: { username: name(), teamId: "galatasaray", confirmTeamLocked: true, ...LEGAL_OK },
   });
   assert.equal(one.status, 200);
   const two = await invoke(signup, {
     method: "POST",
     path: "/api/auth/signup",
     cookie: signupCookie(c2.res),
-    body: { username: name(), teamId: "fenerbahce", confirmTeamLocked: true, acceptTerms: true },
+    body: { username: name(), teamId: "fenerbahce", confirmTeamLocked: true, ...LEGAL_OK },
   });
   assert.equal(two.status, 409);
   const count = (

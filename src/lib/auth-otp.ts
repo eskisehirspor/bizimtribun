@@ -261,4 +261,8 @@ export function purgeExpiredAuthRows(db: Database.Database) {
   db.prepare(`DELETE FROM signup_tickets WHERE expires_at < ?`).run(now);
   db.prepare(`DELETE FROM phone_holds WHERE release_at < ?`).run(now);
   db.prepare(`DELETE FROM register_attempts WHERE created_at < ?`).run(since(2 * DAY_MS));
+  // Ended sessions are kept 30 days for "where am I signed in" questions, then dropped.
+  db.prepare(`DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?`).run(since(30 * DAY_MS), since(30 * DAY_MS));
+  // Security events hold only hashed IP / browser data; kept one year.
+  db.prepare(`DELETE FROM security_events WHERE created_at < ?`).run(since(365 * DAY_MS));
 }

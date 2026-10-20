@@ -24,7 +24,13 @@ const Body = z.object({
   teamId: z.string().min(1).max(64),
   /** The client must show and the user must accept that the team is permanent. */
   confirmTeamLocked: z.literal(true),
+  /** Separate, unticked boxes: accepting the terms and acknowledging the KVKK notice. */
   acceptTerms: z.literal(true),
+  acknowledgePrivacy: z.literal(true),
+  /** 18+, or 13–17 with a parent's permission (see the terms). */
+  confirmAge: z.literal(true),
+  termsVersion: z.string().max(20),
+  privacyVersion: z.string().max(20),
 });
 
 export async function GET(req: Request) {
@@ -39,7 +45,7 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) {
     return noStoreJson(
-      { error: "Kullanıcı adı, takım ve takımın kalıcı olduğunu onaylaman gerekiyor." },
+      { error: "Kullanıcı adı, takım, takımın kalıcı olduğu, Kullanım Koşulları ve Aydınlatma Metni onayı gerekiyor." },
       400,
     );
   }
@@ -63,6 +69,7 @@ export async function POST(req: Request) {
     displayName: parsed.data.displayName,
     city: parsed.data.city,
     teamId: parsed.data.teamId,
+    legal: { termsVersion: parsed.data.termsVersion, privacyVersion: parsed.data.privacyVersion },
   });
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
 

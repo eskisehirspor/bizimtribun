@@ -3,6 +3,7 @@ import { Anton, Bangers, Caveat, Kalam, Space_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import SiteBanner from "@/components/SiteBanner";
 import SiteFooter from "@/components/SiteFooter";
+import LegalGate from "@/components/LegalGate";
 import SiteNav from "@/components/SiteNav";
 import "./globals.css";
 
@@ -57,6 +58,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <SiteBanner />
           {children}
           <SiteFooter />
+          <LegalGate />
         </AuthProvider>
       </body>
     </html>

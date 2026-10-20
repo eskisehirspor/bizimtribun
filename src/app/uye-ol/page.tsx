@@ -10,6 +10,7 @@ import TeamPicker from "@/components/auth/TeamPicker";
 import { errorText, inputClass, Notice, postJson, primaryButton } from "@/components/auth/ui";
 import { safeNextPath } from "@/lib/forum-ui";
 import { hintClass, labelClass } from "@/components/ui";
+import { LEGAL_DOCS } from "@/lib/legal";
 
 type Step = "phone" | "profile" | "team";
 
@@ -31,6 +32,8 @@ function Flow() {
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [terms, setTerms] = useState(false);
+  const [privacy, setPrivacy] = useState(false);
+  const [age, setAge] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -85,7 +88,11 @@ function Flow() {
       city,
       teamId,
       confirmTeamLocked: true,
-      acceptTerms: true,
+      acceptTerms: terms,
+      acknowledgePrivacy: privacy,
+      confirmAge: age,
+      termsVersion: LEGAL_DOCS.terms.version,
+      privacyVersion: LEGAL_DOCS.privacy.version,
     });
     setBusy(false);
     if (!r.ok) {
@@ -174,25 +181,51 @@ function Flow() {
               maxLength={40}
             />
           </label>
-          <label className="flex items-start gap-2 font-mono text-[12px]">
-            <input
-              type="checkbox"
-              checked={terms}
-              onChange={(e) => setTerms(e.target.checked)}
-              className="mt-0.5 w-4 h-4"
-            />
-            <span>
-              <Link href="/kullanim-kosullari" className="underline" target="_blank">
-                Kullanım koşullarını
-              </Link>{" "}
-              kabul ediyorum.{" "}
-              <Link href="/kvkk" className="underline" target="_blank">
-                Aydınlatma metni
-              </Link>
-            </span>
-          </label>
+          <fieldset className="space-y-2 border-[3px] border-black p-3">
+            <legend className={`${labelClass} px-1`}>ONAYLAR (HEPSİ ZORUNLU)</legend>
+            <label className="flex min-h-11 items-start gap-3 font-mono text-[13px]">
+              <input
+                type="checkbox"
+                checked={terms}
+                onChange={(e) => setTerms(e.target.checked)}
+                className="mt-0.5 h-5 w-5 shrink-0"
+              />
+              <span>
+                <Link href={LEGAL_DOCS.terms.path} className="underline" target="_blank">
+                  Kullanım Koşulları
+                </Link>
+                &apos;nı okudum ve kabul ediyorum.
+              </span>
+            </label>
+            <label className="flex min-h-11 items-start gap-3 font-mono text-[13px]">
+              <input
+                type="checkbox"
+                checked={privacy}
+                onChange={(e) => setPrivacy(e.target.checked)}
+                className="mt-0.5 h-5 w-5 shrink-0"
+              />
+              <span>
+                <Link href={LEGAL_DOCS.privacy.path} className="underline" target="_blank">
+                  KVKK Aydınlatma Metni
+                </Link>
+                &apos;ni okudum; kişisel verilerimin nasıl işlendiği konusunda bilgilendirildim.
+              </span>
+            </label>
+            <label className="flex min-h-11 items-start gap-3 font-mono text-[13px]">
+              <input
+                type="checkbox"
+                checked={age}
+                onChange={(e) => setAge(e.target.checked)}
+                className="mt-0.5 h-5 w-5 shrink-0"
+              />
+              <span>18 yaşından büyüğüm ya da 13–17 yaşındayım ve velimin izni var.</span>
+            </label>
+            <p className={hintClass}>
+              Aydınlatma Metni bir rıza metni değildir; üyelik için açık rızan istenmez.
+            </p>
+          </fieldset>
           {error && <Notice tone="error">{error}</Notice>}
-          <button disabled={!terms} className={primaryButton}>
+          <button disabled={!terms || !privacy || !age} className={primaryButton}>
             TAKIM SEÇİMİNE GEÇ
           </button>
         </form>

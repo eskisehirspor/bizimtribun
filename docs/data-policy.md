@@ -99,7 +99,33 @@ builds are removed at boot; nothing seeds fans or votes any more.
 | `signup_tickets` | 15 minutes (purged after expiry) |
 | `phone_holds` | 30 days after deletion; 1 year if the account voted; no end date if it was banned |
 | `notifications` | 90 days (read or not) |
+| `sessions` | 30 days after expiry or sign-out |
+| `security_events` (hashed IP / browser only) | 1 year |
+| `legal_acceptances` | while the account exists, then 10 years after deletion |
 | `user_badges` | while the account exists |
 | `forum_reports` | kept with the moderation record |
 | `site_settings` | until changed (every change is in `audit_log`) |
 | `audit_log`, `security_events` | append-only; no OTPs, passwords or phone numbers |
+
+## Legal texts and consent
+
+The texts live at `/kullanim-kosullari`, `/kvkk` (aydınlatma metni) and `/cerez-politikasi`.
+Versions are in `src/lib/policy.ts` (`TERMS_VERSION`, `PRIVACY_NOTICE_VERSION`,
+`COOKIE_POLICY_VERSION`); company details are placeholders in `LEGAL_ENTITY`
+(`src/lib/legal.ts`). All pages still carry the "not reviewed by a lawyer" banner.
+
+- Sign-up has three separate, unticked, required boxes: accept the terms, acknowledge the KVKK
+  notice (an acknowledgement, not consent), and the age statement (18+, or 13–17 with a parent's
+  permission). The server checks the submitted versions against the current ones.
+- Each acceptance is a row in `legal_acceptances` (member, text, version, time, source). Rows
+  can't be updated (trigger); older sign-ups were carried over from `users.terms_version`.
+- When a version is bumped, `/api/auth/me` lists it in `legalPending`, the site shows a gate,
+  and forum writes answer 403 until the member accepts (`POST /api/account/legal`).
+- No açık rıza is collected: nothing the site does relies on consent. If a consent-based feature
+  is added (e.g. marketing messages), it needs its own optional box that doesn't block sign-up.
+- Only strictly necessary cookies are used, so there is no cookie banner.
+
+Before launch: fill in `LEGAL_ENTITY`, the SMS provider and hosting placeholders in `/kvkk`,
+sign the KVKK standard contract with US providers (Twilio if used, Cloudflare, Resend) and notify
+the Authority within 5 business days, decide the audit-log retention period, check whether
+VERBİS registration is required, and have a lawyer review all three texts.

@@ -49,12 +49,12 @@ export function staticSitemapEntries(base: string, now = new Date()): SitemapEnt
       changeFrequency: "hourly",
       priority: 0.8,
     },
-    {
-      url: `${root}/kvkk`,
+    ...["/kvkk", "/kullanim-kosullari", "/cerez-politikasi"].map((path) => ({
+      url: `${root}${path}`,
       lastModified: now,
-      changeFrequency: "yearly",
+      changeFrequency: "yearly" as const,
       priority: 0.3,
-    },
+    })),
     ...CITIES.map((city) => ({
       url: `${root}/il/${city.slug}`,
       lastModified: now,

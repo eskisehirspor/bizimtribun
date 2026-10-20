@@ -56,6 +56,9 @@ export default function SiteFooter() {
             <Link href="/kvkk" className={linkClass}>
               KVKK aydınlatma
             </Link>
+            <Link href="/cerez-politikasi" className={linkClass}>
+              Çerez politikası
+            </Link>
             <Link href="/sil-verilerim" className={linkClass}>
               Verilerimi sil
             </Link>

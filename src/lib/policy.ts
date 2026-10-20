@@ -25,7 +25,13 @@ export const PHONE_HOLD_MS = 30 * 24 * 60 * 60 * 1000;
 export const PHONE_HOLD_VOTED_MS = 365 * 24 * 60 * 60 * 1000;
 /** Accounts deleted while banned: the number stays closed (no automatic release). */
 export const PHONE_HOLD_PERMANENT_UNTIL = "9999-12-31T00:00:00.000Z";
-export const TERMS_VERSION = "2026-10-19";
+/** Bump when the text changes; signed-in members are asked to accept the new version. */
+export const TERMS_VERSION = "2026-10-20";
+/** KVKK aydınlatma metni; members acknowledge each version once. */
+export const PRIVACY_NOTICE_VERSION = "2026-10-20";
+export const COOKIE_POLICY_VERSION = "2026-10-20";
+/** Acceptance records of deleted accounts are kept this long as proof (general limitation period). */
+export const LEGAL_RECORD_AFTER_DELETE_MS = 10 * 365 * 24 * 60 * 60 * 1000;
 export const ACCOUNT_DELETE_PER_USER_HOUR = 3;
 export const FAN_VOTE_PER_USER_HOUR = 10;
 export const REGISTER_PER_HOUR = 3;

@@ -15,6 +15,8 @@ import { POST as login } from "../../app/api/auth/login/route";
 import { POST as otpRequest } from "../../app/api/auth/otp/request/route";
 import { POST as otpVerify } from "../../app/api/auth/otp/verify/route";
 import { POST as signup } from "../../app/api/auth/signup/route";
+import { PRIVACY_NOTICE_VERSION, TERMS_VERSION } from "@/lib/policy";
+import { recordLegalAcceptance } from "@/lib/legal";
 
 export const TEST_PASSWORD = "Passw0rd!";
 export const ORIGIN = "http://localhost:3000";
@@ -254,7 +256,7 @@ export async function smsSignup(opts: {
       teamId: opts.teamId ?? "galatasaray",
       city: opts.city === undefined ? "İstanbul" : opts.city,
       confirmTeamLocked: true,
-      acceptTerms: true,
+      ...LEGAL_OK,
     },
   });
   if (done.status !== 200) throw new Error(`signup ${done.status} ${done.text}`);
@@ -267,6 +269,15 @@ export function markPhoneVerified(userId: number) {
   getDb()
     .prepare(`UPDATE users SET phone_verified_at = ?, updated_at = ? WHERE id = ?`)
     .run(now, now, userId);
+  // Old password accounts never saw the current texts; tests treat them as having accepted.
+  recordLegalAcceptance(getDb(), {
+    userId,
+    source: "reaccept",
+    accepted: [
+      { doc: "terms", version: TERMS_VERSION },
+      { doc: "privacy", version: PRIVACY_NOTICE_VERSION },
+    ],
+  });
 }
 
 /** Gives a phone-verified test account its one team vote (team tribunes need it). */
@@ -287,3 +298,12 @@ export function markEmailVerified(userId: number) {
 export function trPhone(n: number) {
   return `532${String(1000000 + n).slice(-7)}`;
 }
+
+/** The consent fields the sign-up form sends when both boxes are ticked. */
+export const LEGAL_OK = {
+  acceptTerms: true,
+  acknowledgePrivacy: true,
+  confirmAge: true,
+  termsVersion: TERMS_VERSION,
+  privacyVersion: PRIVACY_NOTICE_VERSION,
+} as const;

@@ -22,8 +22,12 @@ export type AuthUser = {
   voteTeamId: string | null;
 };
 
+export type LegalPending = { doc: "terms" | "privacy"; version: string; title: string; path: string; label: string };
+
 type AuthState = {
   user: AuthUser | null;
+  /** Current legal texts the signed-in member still has to accept. */
+  legalPending: LegalPending[];
   banned: boolean;
   message: string | null;
   loading: boolean;
@@ -35,6 +39,7 @@ const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [legalPending, setLegalPending] = useState<LegalPending[]>([]);
   const [banned, setBanned] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -60,8 +65,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         : null;
       setUser(nextUser);
+      setLegalPending(nextUser && Array.isArray(data.legalPending) ? data.legalPending : []);
     } catch {
       setUser(null);
+      setLegalPending([]);
     } finally {
       setLoading(false);
     }
@@ -74,13 +81,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
+    setLegalPending([]);
     setBanned(false);
     setMessage(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, banned, message, loading, refresh, logout }),
-    [user, banned, message, loading, refresh, logout],
+    () => ({ user, legalPending, banned, message, loading, refresh, logout }),
+    [user, legalPending, banned, message, loading, refresh, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
