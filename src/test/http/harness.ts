@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { getDb, resetDbForTests } from "@/lib/db";
+import { castFanVote } from "@/lib/fan-votes";
 import {
   ADMIN_2FA_COOKIE,
   SESSION_COOKIE,
@@ -266,6 +267,12 @@ export function markPhoneVerified(userId: number) {
   getDb()
     .prepare(`UPDATE users SET phone_verified_at = ?, updated_at = ? WHERE id = ?`)
     .run(now, now, userId);
+}
+
+/** Gives a phone-verified test account its one team vote (team tribunes need it). */
+export function castTestVote(userId: number, teamId = "galatasaray") {
+  const res = castFanVote(getDb(), { userId, teamId, city: null });
+  if (!res.ok) throw new Error(`vote ${res.code}`);
 }
 
 export function markEmailVerified(userId: number) {

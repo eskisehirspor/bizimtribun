@@ -204,6 +204,7 @@ export function banUser(
 ): { ok: true } | { ok: false; error: string } {
   const target = findUserById(userId);
   if (!target) return { ok: false, error: "Kullanıcı bulunamadı." };
+  if (target.deleted_at) return { ok: false, error: "Silinmiş hesap banlanamaz." };
   if (isAdmin(target)) {
     return { ok: false, error: "Admin hesap banlanamaz." };
   }
@@ -246,6 +247,7 @@ export function unbanUser(
 ): { ok: true } | { ok: false; error: string } {
   const target = findUserById(userId);
   if (!target) return { ok: false, error: "Kullanıcı bulunamadı." };
+  if (target.deleted_at) return { ok: false, error: "Silinmiş hesabın banı kaldırılamaz." };
   const flagged = target.status === "banned" || Boolean(target.banned_at);
   if (!flagged) return { ok: false, error: "Bu hesapta ban yok." };
 

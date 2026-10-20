@@ -11,12 +11,15 @@ export type RecentTopic = {
   createdAt: string;
 };
 
-/** Public, live topics on boards that are open right now. */
+/**
+ * Public, live topics on boards that are open right now. Team tribunes are
+ * members-only, so their topics never appear on the shared home page.
+ */
 function openBoardSql() {
   const { features } = getSettings();
   return `t.deleted_at IS NULL AND t.held_at IS NULL
     AND (
-      (t.board = 'team' AND EXISTS (SELECT 1 FROM teams tm WHERE tm.id = t.team_id AND tm.is_forum_active = 1))
+      0
       ${features.generalBoardOpen ? "OR t.board = 'general'" : ""}
       ${features.cityBoardsOpen ? "OR t.board = 'city'" : ""}
     )`;

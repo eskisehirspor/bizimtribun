@@ -11,6 +11,9 @@ import { notify } from "./notifications";
  */
 
 import { AVATARS, PROFILE_BIO_MAX, PROFILE_DISPLAY_NAME_MAX, type AvatarKey } from "./profile-options";
+import { isStaffRole } from "./permissions";
+import { isReservedName } from "./name";
+import { moderateForumPublication } from "./moderation";
 
 export { AVATAR_EMOJI, AVATARS, PROFILE_BIO_MAX, PROFILE_DISPLAY_NAME_MAX, type AvatarKey } from "./profile-options";
 
@@ -290,20 +293,36 @@ export type ProfileActivityItem = {
   createdAt: string;
 };
 
-/** The member's live topics and replies on open boards, newest first. */
-export function listProfileActivity(db: Database.Database, userId: number, offset: number, limit: number) {
-  const params = { uid: userId, limit, offset };
+/**
+ * The member's live topics and replies on open boards, newest first.
+ * Team-tribune items only show to viewers who may read that tribune.
+ */
+export function listProfileActivity(
+  db: Database.Database,
+  userId: number,
+  offset: number,
+  limit: number,
+  viewer: { id: number; role: string | null } | null | undefined,
+) {
+  const staff = Boolean(viewer && isStaffRole(viewer.role));
+  const params = { uid: userId, limit, offset, vid: viewer?.id ?? 0 };
+  const board = staff
+    ? ""
+    : viewer
+      ? `AND (t.board != 'team' OR t.team_id =
+           (SELECT fv.team_id FROM fan_votes fv WHERE fv.user_id = @vid AND fv.status = 'active'))`
+      : `AND t.board != 'team'`;
   const items = db
     .prepare(
       `SELECT * FROM (
          SELECT 'topic' as type, t.id as id, t.id as topicId, t.title as title,
                 substr(t.content, 1, 200) as excerpt, t.created_at as createdAt
-         FROM forum_topics t WHERE t.user_id = @uid AND ${LIVE_TOPIC}
+         FROM forum_topics t WHERE t.user_id = @uid AND ${LIVE_TOPIC} ${board}
          UNION ALL
          SELECT 'post' as type, p.id as id, t.id as topicId, t.title as title,
                 substr(p.content, 1, 200) as excerpt, p.created_at as createdAt
          FROM forum_posts p JOIN forum_topics t ON t.id = p.topic_id
-         WHERE p.user_id = @uid AND ${LIVE_POST} AND ${LIVE_TOPIC}
+         WHERE p.user_id = @uid AND ${LIVE_POST} AND ${LIVE_TOPIC} ${board}
        ) ORDER BY createdAt DESC, type, id DESC LIMIT @limit OFFSET @offset`,
     )
     .all(params) as ProfileActivityItem[];
@@ -319,13 +338,17 @@ export type ProfileSettings = {
   notifyReplies: boolean;
   notifyMentions: boolean;
   notifyLikes: boolean;
+  /** Admins only: a notice for every new topic. Null for everyone else. */
+  notifyNewTopics: boolean | null;
 };
+
+const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 
 export function getProfileSettings(db: Database.Database, userId: number): ProfileSettings | null {
   const row = db
     .prepare(
       `SELECT display_name, username_norm, bio, avatar, profile_visibility, show_city,
-              notify_replies, notify_mentions, notify_likes
+              notify_replies, notify_mentions, notify_likes, notify_new_topics, role
        FROM users WHERE id = ? AND deleted_at IS NULL`,
     )
     .get(userId) as
@@ -339,6 +362,8 @@ export function getProfileSettings(db: Database.Database, userId: number): Profi
         notify_replies: number;
         notify_mentions: number;
         notify_likes: number;
+        notify_new_topics: number;
+        role: string | null;
       }
     | undefined;
   if (!row) return null;
@@ -351,6 +376,7 @@ export function getProfileSettings(db: Database.Database, userId: number): Profi
     notifyReplies: Boolean(row.notify_replies),
     notifyMentions: Boolean(row.notify_mentions),
     notifyLikes: Boolean(row.notify_likes),
+    notifyNewTopics: ADMIN_ROLES.has(row.role ?? "") ? Boolean(row.notify_new_topics) : null,
   };
 }
 
@@ -381,11 +407,28 @@ export function updateProfileSettings(
   if (next.visibility !== "members" && next.visibility !== "public") {
     return { ok: false, error: "Geçersiz görünürlük.", status: 400 };
   }
+  if (/[<>]/.test(displayName)) {
+    return { ok: false, error: "Görünen ad < veya > içeremez.", status: 400 };
+  }
+  const changedText = displayName !== current.displayName || bio !== current.bio;
+  if (changedText) {
+    const role = (db.prepare(`SELECT role FROM users WHERE id = ?`).get(userId) as { role: string | null }).role;
+    if (displayName && isReservedName(displayName) && !isStaffRole(role)) {
+      return { ok: false, error: "Bu görünen ad kullanılamaz.", status: 400 };
+    }
+    // Profile text is public-facing too: same rules as forum posts.
+    const verdict = moderateForumPublication([displayName, bio].filter(Boolean), { surface: "post", userId });
+    if (verdict.decision !== "allow") {
+      return { ok: false, error: "Profil metni topluluk kurallarına uygun değil. Lütfen düzelt.", status: 422 };
+    }
+  }
   const username = (db.prepare(`SELECT username_norm FROM users WHERE id = ?`).get(userId) as { username_norm: string })
     .username_norm;
   db.prepare(
     `UPDATE users SET display_name = ?, bio = ?, avatar = ?, profile_visibility = ?, show_city = ?,
-       notify_replies = ?, notify_mentions = ?, notify_likes = ?, updated_at = ?
+       notify_replies = ?, notify_mentions = ?, notify_likes = ?,
+       notify_new_topics = CASE WHEN role IN ('admin', 'super_admin') AND ? IS NOT NULL THEN ? ELSE notify_new_topics END,
+       updated_at = ?
      WHERE id = ?`,
   ).run(
     displayName || username,
@@ -396,6 +439,8 @@ export function updateProfileSettings(
     next.notifyReplies ? 1 : 0,
     next.notifyMentions ? 1 : 0,
     next.notifyLikes ? 1 : 0,
+    next.notifyNewTopics == null ? null : 1,
+    next.notifyNewTopics ? 1 : 0,
     new Date().toISOString(),
     userId,
   );

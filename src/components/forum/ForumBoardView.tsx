@@ -13,6 +13,7 @@ import {
 } from "@/lib/forum-category";
 import { formatForumDate } from "@/lib/forum-ui";
 import ForumAuthorName from "@/components/ForumAuthorName";
+import TeamBoardGate, { isTeamBoardCode } from "@/components/forum/TeamBoardGate";
 
 type TopicRow = {
   id: number;
@@ -60,6 +61,7 @@ export default function ForumBoardView({
   const [total, setTotal] = useState(0);
   const [topics, setTopics] = useState<TopicRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [gated, setGated] = useState<string | null>(null);
   const [busy, setBusy] = useState(true);
   const limit = 20;
 
@@ -73,10 +75,12 @@ export default function ForumBoardView({
       );
       const data = await res.json();
       if (!res.ok) {
+        if (isTeamBoardCode(data.code)) setGated(data.board?.name ?? "Takım tribünü");
         setLoadError(data.error || "Tribün yüklenemedi.");
         setTopics([]);
         return;
       }
+      setGated(null);
       setTotal(data.total ?? 0);
       setTopics(data.topics ?? []);
     } catch {
@@ -86,13 +90,19 @@ export default function ForumBoardView({
     }
   }, [apiPath, page, category, sort]);
 
+  const viewerId = user?.id;
   useEffect(() => {
     if (active) void Promise.resolve().then(load);
-  }, [active, load]);
+    // Signing in or out changes what a team tribune shows.
+  }, [active, load, viewerId]);
 
   const pages = Math.max(1, Math.ceil(total / limit));
   const meta = FORUM_CATEGORY_META[category];
   const newHref = `${newTopicPath}?category=${category}`;
+
+  if (active && gated) {
+    return <TeamBoardGate title={gated} next={newTopicPath.replace(/\/yeni$/, "")} />;
+  }
 
   if (!active) {
     return (

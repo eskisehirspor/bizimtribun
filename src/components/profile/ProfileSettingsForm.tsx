@@ -14,6 +14,7 @@ type Settings = {
   notifyReplies: boolean;
   notifyMentions: boolean;
   notifyLikes: boolean;
+  notifyNewTopics: boolean | null;
 };
 
 type Block = { id: number; username: string; createdAt: string };
@@ -131,6 +132,11 @@ export default function ProfileSettingsForm({ username }: { username: string }) 
         <Toggle checked={s.notifyLikes} onChange={(v) => set("notifyLikes", v)}>
           Yazım beğenilince
         </Toggle>
+        {s.notifyNewTopics != null && (
+          <Toggle checked={s.notifyNewTopics} onChange={(v) => set("notifyNewTopics", v)}>
+            Yönetici: herhangi bir tribünde yeni konu açılınca
+          </Toggle>
+        )}
         <p className="font-mono text-[10px] opacity-70">
           Moderasyon, rozet ve hesap güvenliği bildirimleri her zaman gelir. SMS veya e-posta bildirimi gönderilmez.
         </p>

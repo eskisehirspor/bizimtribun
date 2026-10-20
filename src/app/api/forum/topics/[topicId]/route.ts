@@ -2,15 +2,19 @@ import { z } from "zod";
 import { isBrowserSameSite } from "@/lib/request";
 import { noStoreJson, readJsonBody } from "@/lib/http";
 import { getSessionUser, requireForumWriter } from "@/lib/auth";
+import { isStaffRole } from "@/lib/permissions";
 import { FORUM_BODY_MAX, FORUM_TITLE_MAX, FORUM_TITLE_MIN } from "@/lib/policy";
 import { parseForumCategoryInput } from "@/lib/forum-category";
 import {
   cleanForumText,
   cleanForumTitle,
+  FORUM_LOCKED_EDIT_ERROR,
   findLiveTopic,
+  forumEditLimited,
   listPosts,
   parseIdParam,
   parsePageLimit,
+  topicAccess,
   topicBoardOpen,
   serializeTopic,
   softDeleteTopic,
@@ -44,9 +48,14 @@ export async function GET(
   if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
   }
+  const viewer = await getSessionUser(req);
+  const access = topicAccess(topic, viewer);
+  if (!access.ok) {
+    return noStoreJson({ error: access.error, code: access.code }, access.status);
+  }
 
   const { page, limit, offset } = parsePageLimit(new URL(req.url));
-  const viewerId = (await getSessionUser(req))?.id ?? null;
+  const viewerId = viewer?.id ?? null;
   const { total, posts } = listPosts(topic.id, offset, limit, viewerId);
   return noStoreJson({
     ok: true,
@@ -82,8 +91,18 @@ export async function PUT(
   if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
   }
+  const access = topicAccess(topic, active.user, "write");
+  if (!access.ok) {
+    return noStoreJson({ error: access.error, code: access.code }, access.status);
+  }
   if (topic.user_id !== active.user.id) {
     return noStoreJson({ error: "Bu konuyu düzenleyemezsin." }, 403);
+  }
+  if (topic.locked_at && !isStaffRole(active.user.role)) {
+    return noStoreJson({ error: FORUM_LOCKED_EDIT_ERROR }, 409);
+  }
+  if (forumEditLimited(active.user.id)) {
+    return noStoreJson({ error: "Çok fazla düzenleme. Biraz sonra dene." }, 429);
   }
 
   const parsed = UpdateBody.safeParse(body.data);
@@ -166,6 +185,10 @@ export async function DELETE(
   const topic = findLiveTopic(topicId);
   if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
+  }
+  const access = topicAccess(topic, active.user, "write");
+  if (!access.ok) {
+    return noStoreJson({ error: access.error, code: access.code }, access.status);
   }
   if (topic.user_id !== active.user.id) {
     return noStoreJson({ error: "Bu konuyu silemezsin." }, 403);

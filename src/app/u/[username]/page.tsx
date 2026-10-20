@@ -71,7 +71,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const p = found.profile;
   const team = p.teamId ? getCatalogTeam(p.teamId) : undefined;
   const isSelf = viewer?.id === p.id;
-  const firstPage = listProfileActivity(db, p.id, 0, 21);
+  const firstPage = listProfileActivity(db, p.id, 0, 21, viewer);
 
   return (
     <ForumShell>

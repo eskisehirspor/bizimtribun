@@ -20,7 +20,7 @@ Copy `.env.example` and set at least:
 | `BIZIM_TRIBUN_DB` | Absolute path to the SQLite file on persistent disk |
 | `APP_SECRET` | ≥ 32 random characters (session HMAC) |
 | `APP_URL` | Public HTTPS origin, no trailing slash |
-| `TRUST_PROXY` | `none` (default), `forwarded` (nginx), or `cloudflare` |
+| `TRUST_PROXY` | **Required in production:** `forwarded` (nginx) or `cloudflare`. `none` is for development only. |
 | `TRUST_PROXY_HOPS` | Hop count when `TRUST_PROXY=forwarded` (usually `1`) |
 | `RESEND_API_KEY` | Required to send mail |
 | `MAIL_FROM` | From address Resend accepts |
@@ -111,4 +111,6 @@ There is no admin sign-up and no default admin. See [admin-bootstrap.md](admin-b
 
 ## Trusted proxy
 
-Leave `TRUST_PROXY=none` unless the process sits behind a proxy you control. Forged `X-Forwarded-For` is ignored unless you opt in.
+Production must run behind a proxy you control and say which one: `TRUST_PROXY=forwarded` (nginx, with `TRUST_PROXY_HOPS`) or `TRUST_PROXY=cloudflare`. With `none`, Next.js route handlers can't see the visitor's address, every request would share one IP and the per-IP limits (SMS codes, sign-up, forum) would lock the whole site after a few requests, so production refuses rate-limited requests until it is set. Forged `X-Forwarded-For` is ignored unless you opt in.
+
+With `cloudflare`, firewall the origin so only Cloudflare can reach it; otherwise anyone can send their own `CF-Connecting-IP`.

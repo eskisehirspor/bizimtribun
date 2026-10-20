@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
+import TeamBoardGate from "@/components/forum/TeamBoardGate";
 import {
   FORUM_CATEGORIES,
   FORUM_CATEGORY_DEFAULT,
@@ -25,10 +26,12 @@ type Props = {
   boardTitle: string;
   active: boolean;
   mark?: React.ReactNode;
+  /** Set on team tribunes, which only that team's fans (and staff) may use. */
+  teamId?: string;
 };
 
 /** New-topic form shared by every board. */
-export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, active, mark }: Props) {
+export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, active, mark, teamId }: Props) {
   const router = useRouter();
   const { user, banned, message, loading } = useAuth();
   const [title, setTitle] = useState("");
@@ -122,6 +125,10 @@ export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, acti
         <p className="font-mono text-[13px]">Giriş sayfasına yönlendiriliyorsun…</p>
       </ForumShell>
     );
+  }
+
+  if (teamId && user.teamId !== teamId) {
+    return <TeamBoardGate title={boardTitle} next={boardPath} />;
   }
 
   if (!user.phoneVerified) {

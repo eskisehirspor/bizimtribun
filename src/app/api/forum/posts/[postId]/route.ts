@@ -2,12 +2,16 @@ import { z } from "zod";
 import { isBrowserSameSite } from "@/lib/request";
 import { noStoreJson, readJsonBody } from "@/lib/http";
 import { getSessionUser, requireForumWriter } from "@/lib/auth";
+import { isStaffRole } from "@/lib/permissions";
 import { FORUM_POST_MAX } from "@/lib/policy";
 import {
   cleanForumText,
   findLivePost,
+  FORUM_LOCKED_EDIT_ERROR,
   findLiveTopic,
+  forumEditLimited,
   parseIdParam,
+  topicAccess,
   topicBoardOpen,
   serializePost,
   softDeletePost,
@@ -53,8 +57,18 @@ export async function PUT(
   if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Yazı bulunamadı." }, 404);
   }
+  const access = topicAccess(topic, active.user, "write");
+  if (!access.ok) {
+    return noStoreJson({ error: access.error, code: access.code }, access.status);
+  }
   if (post.user_id !== active.user.id) {
     return noStoreJson({ error: "Bu yazıyı düzenleyemezsin." }, 403);
+  }
+  if (topic.locked_at && !isStaffRole(active.user.role)) {
+    return noStoreJson({ error: FORUM_LOCKED_EDIT_ERROR }, 409);
+  }
+  if (forumEditLimited(active.user.id)) {
+    return noStoreJson({ error: "Çok fazla düzenleme. Biraz sonra dene." }, 429);
   }
 
   const parsed = Body.safeParse(body.data);
@@ -125,6 +139,10 @@ export async function DELETE(
   const topic = findLiveTopic(post.topic_id);
   if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Yazı bulunamadı." }, 404);
+  }
+  const access = topicAccess(topic, active.user, "write");
+  if (!access.ok) {
+    return noStoreJson({ error: access.error, code: access.code }, access.status);
   }
   if (post.user_id !== active.user.id) {
     return noStoreJson({ error: "Bu yazıyı silemezsin." }, 403);

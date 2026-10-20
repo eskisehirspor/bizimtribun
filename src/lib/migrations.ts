@@ -505,6 +505,20 @@ CREATE INDEX IF NOT EXISTS idx_users_public_profile ON users(updated_at) WHERE p
 `);
     },
   },
+  {
+    id: "008_staff_notice_totp_replay",
+    up(db) {
+      const cols = new Set((db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[]).map((c) => c.name));
+      // Admins hear about every new topic unless they turn it off.
+      if (!cols.has("notify_new_topics")) {
+        db.exec(
+          `ALTER TABLE users ADD COLUMN notify_new_topics INTEGER NOT NULL DEFAULT 1 CHECK (notify_new_topics IN (0, 1))`,
+        );
+      }
+      // Last accepted TOTP time step, so a code can't be replayed inside its window.
+      if (!cols.has("totp_last_step")) db.exec(`ALTER TABLE users ADD COLUMN totp_last_step INTEGER`);
+    },
+  },
 ];
 
 export function appliedMigrationIds(db: Database.Database) {

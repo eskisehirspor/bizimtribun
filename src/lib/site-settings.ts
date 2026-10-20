@@ -25,7 +25,7 @@ const safeLink = z
   .string()
   .max(300)
   .transform((s) => s.trim())
-  .refine((s) => s === "" || /^https:\/\/[^\s<>"']+$/i.test(s) || /^\/(?!\/)[^\s<>"']*$/.test(s), {
+  .refine((s) => s === "" || /^https:\/\/[^\s<>"']+$/i.test(s) || /^\/(?!\/)[^\s<>"'\\]*$/.test(s), {
     message: "Bağlantı https:// ile ya da / ile başlamalı.",
   });
 
@@ -127,8 +127,13 @@ export function updateSetting(
   if (key === "featuredTopics") {
     const ids = (value as Settings["featuredTopics"]).ids;
     for (const id of ids) {
-      const t = db.prepare(`SELECT 1 FROM forum_topics WHERE id = ? AND deleted_at IS NULL AND held_at IS NULL`).get(id);
+      const t = db
+        .prepare(`SELECT board FROM forum_topics WHERE id = ? AND deleted_at IS NULL AND held_at IS NULL`)
+        .get(id) as { board: string } | undefined;
       if (!t) return { ok: false, error: `#${id} numaralı yayında bir konu yok.`, status: 400 };
+      if (t.board === "team") {
+        return { ok: false, error: `#${id} bir takım tribünü konusu; takım tribünleri yalnızca taraftarlarına açık.`, status: 400 };
+      }
     }
   }
   const now = new Date().toISOString();

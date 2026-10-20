@@ -22,6 +22,7 @@ import {
   freshDb,
   invoke,
   markEmailVerified,
+  castTestVote,
   markPhoneVerified,
   sessionCookie,
   trPhone,
@@ -127,15 +128,18 @@ test("verify token valid → verified; replay reject; expired reject", async () 
   assert.equal(expired.status, 400);
 });
 
-test("unverified user forum GET ok, POST topic/post 403; verified mutation ok", async () => {
+test("unverified user: no team tribune, POST topic/post 403; verified fan mutation ok", async () => {
   const u = await registerUnverified("203.0.113.204");
   const list = await invoke(listTopics, {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: u.cookie,
   });
-  assert.equal(list.status, 200);
-  const seedId = (list.json as { topics: { id: number }[] }).topics[0]?.id;
+  // No vote yet, so no team tribune.
+  assert.equal(list.status, 403);
+  const seedId = (
+    getDb().prepare(`SELECT id FROM forum_topics WHERE team_id = 'galatasaray' LIMIT 1`).get() as { id: number }
+  ).id;
   assert.ok(seedId);
 
   const topic = await invoke(createTopic, {
@@ -158,13 +162,15 @@ test("unverified user forum GET ok, POST topic/post 403; verified mutation ok", 
   assert.equal(reply.status, 403);
   assert.equal((reply.json as { error: string }).error, FORUM_PHONE_UNVERIFIED_ERROR);
 
+  markPhoneVerified(u.id);
+
+  castTestVote(u.id);
   const got = await invoke(getTopic, {
     path: `/api/forum/topics/${seedId}`,
     params: { topicId: String(seedId) },
+    cookie: u.cookie,
   });
   assert.equal(got.status, 200);
-
-  markPhoneVerified(u.id);
   const created = await invoke(createTopic, {
     method: "POST",
     path: "/api/forum/teams/galatasaray/topics",

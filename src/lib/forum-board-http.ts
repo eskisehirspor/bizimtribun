@@ -2,6 +2,7 @@ import { z } from "zod";
 import { getSessionUser, requireForumWriter } from "./auth";
 import { getCityBySlug } from "./cities";
 import {
+  boardAccess,
   cleanForumText,
   cleanForumTitle,
   createTopic,
@@ -32,6 +33,7 @@ import { clientIp } from "./request";
 import { getDb } from "./db";
 import { getSettings } from "./site-settings";
 import { refreshBadges } from "./profiles";
+import { notifyStaffNewTopic } from "./notifications";
 
 /**
  * One topic list/create implementation for every board: team tribunes,
@@ -81,6 +83,8 @@ export async function boardTopicsGet(req: Request, board: ResolvedBoard | null) 
   if (!parsedCat.ok) return noStoreJson({ error: "Geçersiz kategori." }, 400);
   const sort = parseTopicSort(url.searchParams.get("sort"));
   const viewer = await getSessionUser(req);
+  const access = boardAccess(board.ref, viewer);
+  if (!access.ok) return noStoreJson({ error: access.error, code: access.code, board: board.info }, access.status);
   const { total, topics } = listTopics(board.ref, offset, limit, {
     category: parsedCat.category,
     sort,
@@ -105,6 +109,8 @@ export async function boardTopicsPost(req: Request, board: ResolvedBoard | null)
 
   const active = requireForumWriter(await getSessionUser(req));
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
+  const access = boardAccess(board.ref, active.user, "write");
+  if (!access.ok) return noStoreJson({ error: access.error, code: access.code }, access.status);
 
   const parsed = CreateBody.safeParse(body.data);
   if (!parsed.success) return noStoreJson({ error: "Başlık ve yazı gerekli." }, 400);
@@ -115,6 +121,13 @@ export async function boardTopicsPost(req: Request, board: ResolvedBoard | null)
   }
   const cat = parseForumCategoryInput(parsed.data.category, FORUM_CATEGORY_DEFAULT);
   if (!cat.ok) return noStoreJson({ error: "Geçersiz kategori." }, 400);
+
+  // Counted before moderation so blocked attempts can't probe the filter for free.
+  const ip = await clientIp();
+  if (forumTopicLimited(ip, active.user.id)) {
+    return noStoreJson({ error: "Çok fazla konu açtın. Biraz sonra dene." }, 429);
+  }
+  noteForumTopicAttempt(ip, active.user.id);
 
   const verdict = moderateForumPublication([title, content], {
     surface: "topic",
@@ -127,12 +140,6 @@ export async function boardTopicsPost(req: Request, board: ResolvedBoard | null)
     return noStoreJson({ error: FORUM_CONTENT_BLOCKED_ERROR }, 422);
   }
 
-  const ip = await clientIp();
-  if (forumTopicLimited(ip, active.user.id)) {
-    return noStoreJson({ error: "Çok fazla konu açtın. Biraz sonra dene." }, 429);
-  }
-  noteForumTopicAttempt(ip, active.user.id);
-
   const topic = createTopic({
     board: board.ref,
     userId: active.user.id,
@@ -140,6 +147,13 @@ export async function boardTopicsPost(req: Request, board: ResolvedBoard | null)
     content,
     category: cat.category ?? FORUM_CATEGORY_DEFAULT,
     holdForReview: mode === "hold",
+  });
+  notifyStaffNewTopic(getDb(), {
+    actorId: active.user.id,
+    topicId: topic.id,
+    title,
+    boardName: String(board.info.name ?? "forum"),
+    held: mode === "hold",
   });
   if (mode === "hold") {
     recordAutoModeration({ userId: active.user.id, result: verdict, targetTopicId: topic.id });

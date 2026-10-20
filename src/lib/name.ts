@@ -18,3 +18,12 @@ export function displayNameFromParts(first: string, last: string) {
   if (full.length <= 40) return full;
   return cleanPersonName(first).slice(0, 40);
 }
+
+/** Words a member's name must not contain, so nobody can pass as staff or the site. */
+const RESERVED_NAME_PARTS = ["moderator", "moderatör", "admin", "yonetici", "yönetici", "yonetim", "yönetim", "bizimtribun", "bizimtribün", "destek", "resmi"];
+
+/** True when a username or display name looks like the site or its staff. */
+export function isReservedName(value: string) {
+  const flat = value.toLocaleLowerCase("tr").replace(/[\s_.\-]+/g, "");
+  return RESERVED_NAME_PARTS.some((part) => flat.includes(part));
+}

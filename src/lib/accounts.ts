@@ -5,6 +5,7 @@ import { castFanVote, findFanVote, voidFanVote } from "./fan-votes";
 import { PHONE_HOLD_MS, SIGNUP_TICKET_TTL_MS, TERMS_VERSION } from "./policy";
 import { isProvince } from "./provinces";
 import { isUsername, normalizeUsername, type UserRow } from "./users";
+import { isReservedName } from "./name";
 
 function ticketHash(raw: string) {
   return hmac(`signup-ticket:${raw}`);
@@ -108,12 +109,15 @@ export function signupWithTicket(db: Database.Database, input: SignupInput): Sig
       error: "Kullanıcı adı 3–20 karakter olmalı; yalnızca küçük harf, rakam ve alt çizgi.",
     };
   }
-  if (usernameNorm.startsWith("silinmis_")) {
+  if (usernameNorm.startsWith("silinmis_") || isReservedName(usernameNorm)) {
     return { ok: false, status: 400, error: "Bu kullanıcı adı kullanılamaz." };
   }
   const displayName = (input.displayName ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
   if (displayName && /[<>]/.test(displayName)) {
     return { ok: false, status: 400, error: "Görünen ad < veya > içeremez." };
+  }
+  if (displayName && isReservedName(displayName)) {
+    return { ok: false, status: 400, error: "Bu görünen ad kullanılamaz." };
   }
   const city = input.city?.trim() || null;
   if (city && !isProvince(city)) {

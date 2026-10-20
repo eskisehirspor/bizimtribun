@@ -62,7 +62,7 @@ test("/takimlar allow", () => {
 });
 
 test("public forum route'ları allow", () => {
-  assert.equal(robotsPathDecision("/takim/galatasaray/forum"), "allow");
+  assert.equal(robotsPathDecision("/takim/galatasaray/forum"), "disallow", "team tribunes are members-only");
   assert.equal(robotsPathDecision("/forum/konu/12"), "allow");
   assert.equal(robotsPathDecision("/"), "allow");
   assert.equal(robotsPathDecision("/kvkk"), "allow");

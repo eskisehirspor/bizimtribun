@@ -11,7 +11,8 @@ export const ROBOTS_DISALLOW = [
   "/dogrula",
   "/uye-dogrula",
   "/sil-verilerim",
-  "/takim/*/forum/yeni",
+  // Team tribunes are members-only.
+  "/takim/*/forum",
   "/forum/*/yeni",
   "/hesap",
   "/bildirimler",

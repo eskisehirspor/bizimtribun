@@ -64,37 +64,6 @@ export function staticSitemapEntries(base: string, now = new Date()): SitemapEnt
   ];
 }
 
-export function activeForumSitemapEntries(
-  db: Database.Database,
-  base: string,
-): SitemapEntry[] {
-  const root = origin(base);
-  const rows = db
-    .prepare(
-      `SELECT t.id AS team_id,
-              MAX(ft.updated_at) AS last_activity
-       FROM teams t
-       LEFT JOIN forum_topics ft
-         ON ft.team_id = t.id
-        AND ft.deleted_at IS NULL
-        AND ft.held_at IS NULL
-       WHERE t.is_forum_active = 1
-       GROUP BY t.id
-       ORDER BY t.id`,
-    )
-    .all() as { team_id: string; last_activity: string | null }[];
-
-  return rows.map((row) => {
-    const lastModified = parseStamp(row.last_activity);
-    return {
-      url: `${root}/takim/${row.team_id}/forum`,
-      ...(lastModified ? { lastModified } : {}),
-      changeFrequency: "daily" as const,
-      priority: 0.7,
-    };
-  });
-}
-
 export type BoardFlags = { generalBoardOpen: boolean; cityBoardsOpen: boolean };
 const ALL_BOARDS: BoardFlags = { generalBoardOpen: true, cityBoardsOpen: true };
 
@@ -110,11 +79,10 @@ export function publicTopicSitemapEntries(
     .prepare(
       `SELECT ft.id AS id, ft.updated_at AS updated_at
        FROM forum_topics ft
-       LEFT JOIN teams t ON t.id = ft.team_id
        WHERE ft.deleted_at IS NULL
          AND ft.held_at IS NULL
          AND (
-           (ft.board = 'team' AND t.is_forum_active = 1)
+           0
            ${boards.generalBoardOpen ? "OR ft.board = 'general'" : ""}
            ${boards.cityBoardsOpen ? "OR ft.board = 'city'" : ""}
          )
@@ -181,13 +149,13 @@ export function buildPublicSitemap(
     staticEntries.push({ url: `${root}/forum/genel`, lastModified: now, changeFrequency: "hourly", priority: 0.7 });
   }
   const teamsPages = teamPageSitemapEntries(db, base);
-  const forums = activeForumSitemapEntries(db, base);
-  const fixed = staticEntries.length + teamsPages.length + forums.length;
+  // Team tribunes are members-only, so neither their boards nor their topics are listed.
+  const fixed = staticEntries.length + teamsPages.length;
   // Profiles get at most a tenth of what is left; topics take the rest.
   const profiles = publicProfileSitemapEntries(db, base, Math.floor((SITEMAP_MAX_URLS - fixed) / 10));
   const topics = publicTopicSitemapEntries(db, base, SITEMAP_MAX_URLS - fixed - profiles.length, boards);
 
-  const entries = [...staticEntries, ...teamsPages, ...forums, ...topics, ...profiles];
+  const entries = [...staticEntries, ...teamsPages, ...topics, ...profiles];
   const seen = new Set<string>();
   const unique: SitemapEntry[] = [];
   for (const entry of entries) {

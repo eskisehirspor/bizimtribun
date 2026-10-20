@@ -9,6 +9,7 @@ import {
   FORUM_PAGE_MAX,
   FORUM_POST_MAX,
   FORUM_POSTS_PER_IP_HOUR,
+  FORUM_EDITS_PER_USER_HOUR,
   FORUM_POSTS_PER_USER_HOUR,
   FORUM_TITLE_MAX,
   FORUM_TITLE_MIN,
@@ -29,6 +30,7 @@ import {
 } from "./forum-leaders";
 import { isPublicForumRow } from "./moderation/forum-gate";
 import { getSettings } from "./site-settings";
+import { isStaffRole } from "./permissions";
 
 export type ForumTeam = {
   id: string;
@@ -148,6 +150,59 @@ export function requireForumBoard(slug: string) {
   const team = findForumTeam(slug);
   if (!team || !team.is_forum_active) return undefined;
   return team;
+}
+
+/** Who is looking at a board. Only id and role matter here. */
+export type BoardViewer = { id: number; role: string | null } | null | undefined;
+
+export type BoardAccess = { ok: true } | { ok: false; status: 401 | 403; error: string; code: string };
+
+export const TEAM_BOARD_LOGIN_ERROR = "Takım tribünleri yalnızca o takımın taraftarlarına açık. Görmek için giriş yap.";
+export const TEAM_BOARD_OTHER_TEAM_ERROR = "Bu tribün yalnızca bu takıma oy veren taraftarlara açık.";
+
+/** The team the member counts for: their active vote. No vote, no team tribune. */
+export function memberTeamId(userId: number) {
+  const row = getDb()
+    .prepare(`SELECT team_id FROM fan_votes WHERE user_id = ? AND status = 'active'`)
+    .get(userId) as { team_id: string } | undefined;
+  return row?.team_id ?? null;
+}
+
+/**
+ * Team tribunes are for that team's fans only (reading and writing).
+ * Moderators and admins can read every team tribune so they can moderate,
+ * but write only in their own team's tribune like any fan.
+ * Genel Tribün and province tribunes are open to everyone.
+ */
+export function boardAccess(
+  board: ForumBoardRef,
+  viewer: BoardViewer,
+  mode: "read" | "write" = "read",
+): BoardAccess {
+  if (board.kind !== "team") return { ok: true };
+  if (!viewer) return { ok: false, status: 401, error: TEAM_BOARD_LOGIN_ERROR, code: "TEAM_BOARD_LOGIN" };
+  if (mode === "read" && isStaffRole(viewer.role)) return { ok: true };
+  if (memberTeamId(viewer.id) === board.teamId) return { ok: true };
+  return { ok: false, status: 403, error: TEAM_BOARD_OTHER_TEAM_ERROR, code: "TEAM_BOARD_OTHER_TEAM" };
+}
+
+export function topicAccess(
+  topic: Pick<ForumTopic, "board" | "team_id" | "city">,
+  viewer: BoardViewer,
+  mode: "read" | "write" = "read",
+) {
+  return boardAccess(boardOfTopic(topic), viewer, mode);
+}
+
+/** SQL filter for lists that mix boards: hides team topics the viewer may not read. */
+export function visibleBoardSql(alias: string, viewer: BoardViewer) {
+  if (viewer && isStaffRole(viewer.role)) return { sql: "", params: [] as (string | number)[] };
+  if (!viewer) return { sql: `AND ${alias}.board != 'team'`, params: [] as (string | number)[] };
+  return {
+    sql: `AND (${alias}.board != 'team' OR ${alias}.team_id =
+      (SELECT fv.team_id FROM fan_votes fv WHERE fv.user_id = ? AND fv.status = 'active'))`,
+    params: [viewer.id] as (string | number)[],
+  };
 }
 
 
@@ -623,6 +678,16 @@ export function noteForumPostAttempt(ip: string, userId: number) {
   noteAuthAttempt(hashedIp(`forum-post:${ip}`));
   noteAuthAttempt(hmac(`forum-post-user:${userId}`));
 }
+
+/** Counts the edit and says whether the member is over the hourly edit limit. */
+export function forumEditLimited(userId: number) {
+  const key = hmac(`forum-edit-user:${userId}`);
+  if (registerAttemptCount(key) >= FORUM_EDITS_PER_USER_HOUR) return true;
+  noteAuthAttempt(key);
+  return false;
+}
+
+export const FORUM_LOCKED_EDIT_ERROR = "Bu konu kilitli. Konu ve yorumlar düzenlenemez.";
 
 export { FORUM_BODY_MAX, FORUM_POST_MAX, FORUM_TITLE_MAX, FORUM_TITLE_MIN };
 

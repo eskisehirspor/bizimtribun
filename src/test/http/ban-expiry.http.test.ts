@@ -13,6 +13,7 @@ import {
   legacyPasswordUser,
   freshDb,
   invoke,
+  castTestVote,
   markPhoneVerified,
   sessionCookie,
   trPhone,
@@ -41,6 +42,7 @@ async function verifiedUser(ip: string) {
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const id = (res.json as { user: { id: number } }).user.id;
   markPhoneVerified(id);
+  castTestVote(id);
   return {
     id,
     username,

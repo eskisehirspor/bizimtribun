@@ -17,6 +17,7 @@ export default function YeniKonuPage() {
       boardTitle={team ? tribunTitle(team.name) : "Tribün"}
       active={Boolean(team?.isForumActive)}
       mark={team ? <TeamMark team={team} size={44} /> : null}
+      teamId={teamSlug}
     />
   );
 }

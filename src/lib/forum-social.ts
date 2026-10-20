@@ -2,7 +2,7 @@ import type Database from "better-sqlite3";
 import { writeAudit } from "./audit";
 import { rateCount, rateNote } from "./auth-otp";
 import { hmac } from "./crypto";
-import { findLivePost, findLiveTopic, topicBoardOpen } from "./forum";
+import { findLivePost, findLiveTopic, topicAccess, topicBoardOpen } from "./forum";
 
 /**
  * Likes, reports and member blocks. All writes come from a phone-verified,
@@ -28,17 +28,24 @@ export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
 type Fail = { ok: false; error: string; status: number };
 type ContentType = "topic" | "post";
 
-/** The live, public topic or post a like/report points at, with its author. */
-function liveTarget(type: ContentType, id: number) {
+/**
+ * The live, public topic or post a like/report points at, with its author.
+ * Team-tribune content only resolves for members of that tribune (staff may
+ * read and report there, but liking counts as taking part).
+ */
+function liveTarget(db: Database.Database, type: ContentType, id: number, userId: number, mode: "read" | "write") {
+  const viewer = db.prepare(`SELECT id, role FROM users WHERE id = ?`).get(userId) as
+    | { id: number; role: string | null }
+    | undefined;
   if (type === "topic") {
     const topic = findLiveTopic(id);
-    if (!topic || !topicBoardOpen(topic)) return null;
+    if (!topic || !topicBoardOpen(topic) || !topicAccess(topic, viewer, mode).ok) return null;
     return { authorId: topic.user_id, topicId: topic.id };
   }
   const post = findLivePost(id);
   if (!post) return null;
   const topic = findLiveTopic(post.topic_id);
-  if (!topic || !topicBoardOpen(topic)) return null;
+  if (!topic || !topicBoardOpen(topic) || !topicAccess(topic, viewer, mode).ok) return null;
   return { authorId: post.user_id, topicId: topic.id };
 }
 
@@ -67,12 +74,15 @@ export function setLike(
   id: number,
   liked: boolean,
 ): { ok: true; likeCount: number; likedByMe: boolean; authorId: number; created: boolean } | Fail {
-  const target = liveTarget(type, id);
+  const target = liveTarget(db, type, id, userId, "write");
   if (!target) return { ok: false, error: "İçerik bulunamadı.", status: 404 };
   if (target.authorId === userId) {
     return { ok: false, error: "Kendi yazını beğenemezsin.", status: 400 };
   }
   let created = false;
+  if (liked && isBlockedBetween(db, userId, target.authorId)) {
+    return { ok: false, error: "Bu üyeyle aranızda engel var.", status: 403 };
+  }
   if (liked) {
     if (limited(db, "forum-like", userId, LIKES_PER_USER_HOUR)) {
       return { ok: false, error: "Çok fazla beğeni. Biraz sonra dene.", status: 429 };
@@ -110,7 +120,7 @@ export function fileReport(
     if (!user) return { ok: false, error: "Üye bulunamadı.", status: 404 };
     if (user.id === reporterId) return { ok: false, error: "Kendini bildiremezsin.", status: 400 };
   } else {
-    const target = liveTarget(input.type, input.id);
+    const target = liveTarget(db, input.type, input.id, reporterId, "read");
     if (!target) return { ok: false, error: "İçerik bulunamadı.", status: 404 };
     if (target.authorId === reporterId) {
       return { ok: false, error: "Kendi yazını bildiremezsin.", status: 400 };

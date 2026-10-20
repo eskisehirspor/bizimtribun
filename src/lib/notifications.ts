@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { topicAccess, type ForumBoardKind } from "./forum";
 import { isBlockedBetween } from "./forum-social";
 
 /**
@@ -100,8 +101,10 @@ export function notifyReply(
   input: { actorId: number; topicId: number; postId: number; content: string },
 ) {
   const topic = db
-    .prepare(`SELECT user_id, title FROM forum_topics WHERE id = ?`)
-    .get(input.topicId) as { user_id: number; title: string } | undefined;
+    .prepare(`SELECT user_id, title, board, team_id, city FROM forum_topics WHERE id = ?`)
+    .get(input.topicId) as
+    | { user_id: number; title: string; board: ForumBoardKind; team_id: string | null; city: string | null }
+    | undefined;
   if (!topic) return;
   const who = username(db, input.actorId) ?? "Bir üye";
   notify(db, {
@@ -114,9 +117,11 @@ export function notifyReply(
   });
   for (const name of extractMentions(input.content)) {
     const target = db
-      .prepare(`SELECT id FROM users WHERE username_norm = ? AND deleted_at IS NULL`)
-      .get(name) as { id: number } | undefined;
+      .prepare(`SELECT id, role FROM users WHERE username_norm = ? AND deleted_at IS NULL`)
+      .get(name) as { id: number; role: string | null } | undefined;
     if (!target || target.id === topic.user_id) continue;
+    // Mentioning a rival fan in a team tribune would leak the topic to them.
+    if (!topicAccess(topic, target).ok) continue;
     notify(db, {
       userId: target.id,
       kind: "mention",
@@ -127,6 +132,39 @@ export function notifyReply(
       dedupeKey: `mention:${input.postId}:${target.id}`,
     });
   }
+}
+
+/**
+ * Tells every admin and super admin that a topic was opened, including topics
+ * held for review (those say so). Admins can turn this off in their settings.
+ */
+export function notifyStaffNewTopic(
+  db: Database.Database,
+  input: { actorId: number; topicId: number; title: string; boardName: string; held: boolean },
+) {
+  const who = username(db, input.actorId) ?? "Bir üye";
+  const admins = db
+    .prepare(
+      `SELECT id FROM users
+       WHERE role IN ('admin', 'super_admin') AND deleted_at IS NULL AND notify_new_topics = 1 AND id != ?`,
+    )
+    .all(input.actorId) as { id: number }[];
+  const what = input.held ? "onay bekleyen bir konu açtı" : "yeni konu açtı";
+  let sent = 0;
+  for (const admin of admins) {
+    const ok = notify(db, {
+      userId: admin.id,
+      kind: "system",
+      // A held topic is not public yet; it is reviewed from the moderation queue.
+      topicId: input.held ? null : input.topicId,
+      body: `@${who} ${input.boardName} içinde ${what}: "${input.title.slice(0, 80)}"${
+        input.held ? " (Yönetim > Moderasyon)" : ""
+      }`,
+      dedupeKey: `new-topic:${input.topicId}`,
+    });
+    if (ok) sent += 1;
+  }
+  return sent;
 }
 
 /** Tells the author when a moderator removes or holds their content. */

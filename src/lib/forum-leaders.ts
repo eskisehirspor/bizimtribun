@@ -75,7 +75,7 @@ const ELIGIBLE_USER_SQL = `
     (u.status = 'banned' OR u.banned_at IS NOT NULL)
     AND (u.ban_expires_at IS NULL OR u.ban_expires_at > ?)
   )
-  AND u.password_hash != ?
+  AND u.password_hash IS NOT ?
   AND (u.email_norm IS NULL OR u.email_norm NOT LIKE ?)
 `;
 

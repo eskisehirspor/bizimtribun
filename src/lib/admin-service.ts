@@ -1,6 +1,6 @@
 import type Database from "better-sqlite3";
 import { refreshBadges } from "./profiles";
-import { can, canBanRole } from "./permissions";
+import { can, canBanRole, roleRank } from "./permissions";
 import { maskEmail, maskPhone } from "./privacy";
 import { notifyModeration } from "./notifications";
 import { getDb } from "./db";
@@ -699,10 +699,25 @@ export function listAdminPosts(filters: PostListFilters) {
   };
 }
 
+/**
+ * Moderators can't act on content by staff of the same or higher rank
+ * (same rule as bans). Super admins can act on anything.
+ */
+function contentRankError(authorId: number, moderator: UserRow) {
+  if (authorId === moderator.id || moderator.role === "super_admin") return null;
+  const author = getDb().prepare(`SELECT role FROM users WHERE id = ?`).get(authorId) as { role: string } | undefined;
+  if (author && roleRank(author.role) >= roleRank(moderator.role)) {
+    return { ok: false as const, error: "Aynı veya daha yüksek yetkili birinin içeriğine işlem yapamazsın.", status: 403 };
+  }
+  return null;
+}
+
 export function lockTopicAdmin(topicId: number, lock: boolean, reason: string, moderator: UserRow) {
   const topic = findTopic(topicId);
   if (!topic) return { ok: false as const, error: "Konu bulunamadı.", status: 404 };
   if (topic.deleted_at) return { ok: false as const, error: "Silinmiş konu kilitlenemez.", status: 409 };
+  const rank = contentRankError(topic.user_id, moderator);
+  if (rank) return rank;
 
   if (lock && topic.locked_at) return { ok: true as const };
   if (!lock && !topic.locked_at) return { ok: true as const };
@@ -725,6 +740,8 @@ export function deleteTopicAdmin(topicId: number, reason: string, moderator: Use
   const topic = findTopic(topicId);
   if (!topic) return { ok: false as const, error: "Konu bulunamadı.", status: 404 };
   if (topic.deleted_at) return { ok: false as const, error: "Konu zaten silinmiş.", status: 409 };
+  const rank = contentRankError(topic.user_id, moderator);
+  if (rank) return rank;
 
   const db = getDb();
   const ok = db.transaction(() => {
@@ -752,6 +769,8 @@ export function deletePostAdmin(postId: number, reason: string, moderator: UserR
   const post = findPost(postId);
   if (!post) return { ok: false as const, error: "Mesaj bulunamadı.", status: 404 };
   if (post.deleted_at) return { ok: false as const, error: "Mesaj zaten silinmiş.", status: 409 };
+  const rank = contentRankError(post.user_id, moderator);
+  if (rank) return rank;
 
   const db = getDb();
   const ok = db.transaction(() => {

@@ -21,6 +21,7 @@ const Body = z
     notifyReplies: z.boolean(),
     notifyMentions: z.boolean(),
     notifyLikes: z.boolean(),
+    notifyNewTopics: z.boolean().nullable(),
   })
   .partial()
   .strict();

@@ -9,9 +9,18 @@ export function runWithTestHeaders<T>(headerInit: Headers, fn: () => T): T {
   return testHeaderStore.run(headerInit, fn);
 }
 
+export const TRUST_PROXY_MISSING_ERROR =
+  "TRUST_PROXY ayarlı değil: üretimde her istek aynı IP'den geliyor sayılır ve hız sınırları tüm siteyi kilitler. TRUST_PROXY=cloudflare veya forwarded ayarla.";
+
 export async function clientIp() {
   const testHeaders = testHeaderStore.getStore();
   const trust = trustProxyFromEnv();
+  // Without a trusted proxy header every visitor resolves to one address, so a
+  // single person could exhaust the per-IP limits (OTP, sign-up, forum) for
+  // the whole site. Refuse instead of running with shared limits.
+  if (!testHeaders && trust.mode === "none" && process.env.NODE_ENV === "production") {
+    throw new Error(TRUST_PROXY_MISSING_ERROR);
+  }
   if (testHeaders) {
     return resolveClientIp(testHeaders, trust);
   }

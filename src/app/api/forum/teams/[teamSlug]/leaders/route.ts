@@ -1,5 +1,6 @@
 import { noStoreJson } from "@/lib/http";
-import { getForumLeaderHistory, requireForumBoard } from "@/lib/forum";
+import { getSessionUser } from "@/lib/auth";
+import { boardAccess, getForumLeaderHistory, requireForumBoard } from "@/lib/forum";
 import { formatForumLeaderPeriod } from "@/lib/forum-leaders";
 
 export async function GET(
@@ -11,6 +12,9 @@ export async function GET(
   if (!team) {
     return noStoreJson({ error: "Bu tribünde forum yok." }, 404);
   }
+  // Leaders are people active in a members-only tribune.
+  const access = boardAccess({ kind: "team", teamId: team.id }, await getSessionUser(req));
+  if (!access.ok) return noStoreJson({ error: access.error, code: access.code }, access.status);
 
   const n = Number(new URL(req.url).searchParams.get("limit") || 12);
   const limit = Math.min(36, Math.max(1, Number.isFinite(n) ? n : 12));

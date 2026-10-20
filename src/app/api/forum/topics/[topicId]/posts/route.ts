@@ -13,6 +13,7 @@ import {
   forumPostLimited,
   noteForumPostAttempt,
   parseIdParam,
+  topicAccess,
   topicBoardOpen,
   serializePost,
 } from "@/lib/forum";
@@ -52,6 +53,10 @@ export async function POST(
   if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
   }
+  const access = topicAccess(topic, active.user, "write");
+  if (!access.ok) {
+    return noStoreJson({ error: access.error, code: access.code }, access.status);
+  }
   if (topic.locked_at) {
     return noStoreJson({ error: "Bu konu kilitli. Yorum eklenemez." }, 409);
   }
@@ -72,6 +77,13 @@ export async function POST(
     return noStoreJson({ error: "Yazı boş olamaz. Limitleri aşma." }, 400);
   }
 
+  // Counted before moderation so blocked attempts can't probe the filter for free.
+  const ip = await clientIp();
+  if (forumPostLimited(ip, active.user.id)) {
+    return noStoreJson({ error: "Çok fazla yorum. Biraz sonra dene." }, 429);
+  }
+  noteForumPostAttempt(ip, active.user.id);
+
   const verdict = moderateForumPublication([content], {
     surface: "post",
     userId: active.user.id,
@@ -87,12 +99,6 @@ export async function POST(
     });
     return noStoreJson({ error: FORUM_CONTENT_BLOCKED_ERROR }, 422);
   }
-
-  const ip = await clientIp();
-  if (forumPostLimited(ip, active.user.id)) {
-    return noStoreJson({ error: "Çok fazla yorum. Biraz sonra dene." }, 429);
-  }
-  noteForumPostAttempt(ip, active.user.id);
 
   const post = createPost({
     topicId: topic.id,

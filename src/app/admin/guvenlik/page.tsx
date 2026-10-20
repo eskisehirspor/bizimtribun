@@ -201,9 +201,11 @@ export default function AdminSecurityPage() {
           className="mt-4 border-[3px] border-black bg-[#FFFEFA] p-4 space-y-3"
         >
           <h3 className="font-anton text-[22px]">2FA KAPAT</h3>
-          <p className="font-mono text-[12px]">Parola + TOTP veya kurtarma kodu gerekir.</p>
+          <p className="font-mono text-[12px]">
+            TOTP veya kurtarma kodu gerekir. Hesabında parola varsa onu da yaz; yalnızca SMS ile giriyorsan boş bırak.
+          </p>
           <label className="block">
-            <span className="font-mono text-[10px]">PAROLA</span>
+            <span className="font-mono text-[10px]">PAROLA (VARSA)</span>
             <input
               type="password"
               value={password}

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getDb } from "@/lib/db";
+import { getSettings } from "@/lib/site-settings";
 import { noStoreJson, readJsonBody } from "@/lib/http";
 import { verifyOtp } from "@/lib/auth-otp";
 import { parseTrPhone, PHONE_FORMAT_ERROR, requestIpKey } from "@/lib/otp-http";
@@ -72,6 +73,10 @@ export async function POST(req: Request) {
 
   if (phoneHoldActive(db, phoneNorm)) {
     return noStoreJson({ error: PHONE_HOLD_ERROR }, 409);
+  }
+  // Say so now rather than after the member has filled in the sign-up form.
+  if (!getSettings().features.signupsOpen) {
+    return noStoreJson({ error: "Yeni üyelik şu an kapalı. Daha sonra tekrar dene." }, 403);
   }
 
   const ticket = issueSignupTicket(db, phoneNorm);

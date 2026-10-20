@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
+import TeamBoardGate, { isTeamBoardCode } from "@/components/forum/TeamBoardGate";
 import TeamMark from "@/components/TeamMark";
 import { FORUM_BODY_MAX, FORUM_POST_MAX, FORUM_TITLE_MAX, FORUM_TITLE_MIN } from "@/lib/policy";
 import {
@@ -60,6 +61,7 @@ export default function KonuPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [gated, setGated] = useState(false);
   const [busy, setBusy] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -81,10 +83,12 @@ export default function KonuPage() {
       });
       const data = await res.json();
       if (!res.ok) {
+        setGated(isTeamBoardCode(data.code));
         setLoadError(data.error || "Konu bulunamadı.");
         setTopic(null);
         return;
       }
+      setGated(false);
       setTopic(data.topic);
       setPosts(data.posts ?? []);
       setTotal(data.total ?? 0);
@@ -95,9 +99,11 @@ export default function KonuPage() {
     }
   }, [topicId, page]);
 
+  const viewerId = user?.id;
   useEffect(() => {
     void Promise.resolve().then(load);
-  }, [load]);
+    // Reload when the viewer signs in or out: team tribunes depend on who is looking.
+  }, [load, viewerId]);
 
   const team = topic?.teamId ? catalog.getTeam(topic.teamId) : undefined;
   const boardHref = !topic
@@ -243,6 +249,10 @@ export default function KonuPage() {
         <p className="font-mono text-[13px]">Yükleniyor…</p>
       </ForumShell>
     );
+  }
+
+  if (gated) {
+    return <TeamBoardGate title="Takım tribünü" next={`/forum/konu/${topicId}`} />;
   }
 
   if (loadError || !topic) {

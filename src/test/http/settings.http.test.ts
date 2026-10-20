@@ -101,7 +101,8 @@ test("feature flags close boards, likes and sign-ups", async () => {
   assert.equal((await invoke(listGeneral, { path: "/api/forum/genel/topics" })).status, 404);
   const liked = await invoke(like, { method: "POST", path: "/api/forum/likes", cookie: other.cookie, body: { type: "topic", id, liked: true } });
   assert.equal(liked.status, 403);
-  await assert.rejects(member(), /signup 403/);
+  // Refused at the code check, before the sign-up form.
+  await assert.rejects(member(), /otp verify 403/);
 
   // Content is kept: reopening the board brings it back.
   assert.equal((await put(sup.cookie, "features", { ...flags, generalBoardOpen: true })).status, 200);
