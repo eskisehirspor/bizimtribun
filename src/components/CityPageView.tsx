@@ -9,7 +9,7 @@ import type { CityTeamRow } from "@/lib/city-rank";
 import type { CityHistoryPoint } from "@/lib/city-stats";
 import CityShare from "@/components/CityShare";
 import TeamColors from "@/components/TeamColors";
-import { useTeamCatalog } from "@/components/useTeamCatalog";
+import { getCatalogTeam as getTeam } from "@/lib/team-catalog";
 
 type Props = {
   city: CityRecord;
@@ -31,7 +31,6 @@ function fmt(iso: string) {
 }
 
 export default function CityPageView({ city, total, rows, history, lastVoteAt, generatedAt }: Props) {
-  const { getTeam } = useTeamCatalog();
   const locative = cityLocative(city.name);
   const headline = `${locative} tribün dağılımı`;
   const topVotes = rows[0]?.votes ?? 0;
