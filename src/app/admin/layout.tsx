@@ -4,7 +4,9 @@ import { requireAdmin } from "@/lib/admin";
 import { permissionsFor, ROLE_LABELS } from "@/lib/permissions";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const gate = await requireAdmin();
+  // security.self is the one staff permission that works before 2FA is on,
+  // so a new admin can reach /admin/guvenlik to set it up.
+  const gate = await requireAdmin(undefined, "security.self");
   if (!gate.ok) {
     if (gate.status === 401) redirect("/giris?next=/admin");
     return (
@@ -29,6 +31,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         roleLabel: ROLE_LABELS[role] ?? role,
         permissions: permissionsFor(role),
       }}
+      needs2fa={Number(gate.user.totp_enabled) !== 1}
     >
       {children}
     </AdminShell>

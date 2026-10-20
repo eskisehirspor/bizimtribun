@@ -64,7 +64,11 @@ test("requireAdmin kapısı korunur", () => {
   const denied = evaluateAdminGate(user);
   assert.equal(denied.ok, false);
   if (!denied.ok) assert.equal(denied.status, 403);
-  const admin = { ...user, role: "admin" };
+  // Without TOTP an admin only reaches their own security settings.
+  const no2fa = { ...user, role: "admin", totp_enabled: 0 };
+  assert.equal(evaluateAdminGate(no2fa).ok, false);
+  assert.equal(evaluateAdminGate(no2fa, "security.self").ok, true);
+  const admin = { ...user, role: "admin", totp_enabled: 1 };
   assert.equal(evaluateAdminGate(admin).ok, true);
   const bannedAdmin = {
     ...admin,

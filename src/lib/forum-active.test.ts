@@ -125,6 +125,13 @@ test("Tribün Lideri yeni aktif takımlarda çalışıyor", () => {
       deleted_at TEXT,
       held_at TEXT
     );
+    CREATE TABLE forum_likes (
+      user_id INTEGER NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, target_type, target_id)
+    );
     CREATE TABLE forum_posts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       topic_id INTEGER NOT NULL REFERENCES forum_topics(id),

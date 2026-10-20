@@ -187,7 +187,7 @@ export default function AdminUserDetailPage() {
             onClick={() =>
               ask({
                 title: "OYU İPTAL ET",
-                body: "Oy sayımdan çıkar, başka takıma taşınmaz ve geri alınamaz. Üye yeniden oy veremez. İşlem denetim kaydına yazılır.",
+                body: "Oy sayımdan çıkar ve başka takıma taşınmaz. Üye yeniden oy veremez; yanlışlıkla iptal edildiyse yalnızca süper admin geri alabilir. İşlem denetim kaydına yazılır.",
                 confirmLabel: "İPTAL ET",
                 onConfirm: async (reason) => {
                   await adminJson(`/api/admin/users/${user.id}/vote`, {
@@ -200,6 +200,28 @@ export default function AdminUserDetailPage() {
             }
           >
             OYU İPTAL ET
+          </button>
+        )}
+        {can("votes.restore") && user.vote?.status === "void" && !user.deleted && (
+          <button
+            type="button"
+            className={btnSecondary}
+            onClick={() =>
+              ask({
+                title: "İPTALİ GERİ AL",
+                body: "Oy, ilk verildiği takım ve ille aynen sayıma geri döner. Başka takıma taşınamaz. İşlem denetim kaydına yazılır.",
+                confirmLabel: "GERİ AL",
+                onConfirm: async (reason) => {
+                  await adminJson(`/api/admin/users/${user.id}/vote`, {
+                    method: "POST",
+                    body: JSON.stringify({ reason }),
+                  });
+                  await load();
+                },
+              })
+            }
+          >
+            İPTALİ GERİ AL
           </button>
         )}
         {can("roles.manage") && !user.deleted && (

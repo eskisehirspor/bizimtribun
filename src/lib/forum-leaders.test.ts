@@ -60,6 +60,13 @@ function openDb() {
       deleted_at TEXT,
       held_at TEXT
     );
+    CREATE TABLE forum_likes (
+      user_id INTEGER NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, target_type, target_id)
+    );
     CREATE TABLE forum_posts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       topic_id INTEGER NOT NULL REFERENCES forum_topics(id),
@@ -77,6 +84,8 @@ function openDb() {
       year INTEGER NOT NULL,
       month INTEGER NOT NULL,
       post_count INTEGER NOT NULL,
+      active_days INTEGER,
+      like_count INTEGER,
       created_at TEXT NOT NULL,
       UNIQUE (team_id, year, month)
     );
@@ -166,7 +175,7 @@ function sepLeader(db: Database.Database, teamId: string) {
   return getMonthlyForumLeader(teamId, 2026, 9, db, NOW_ISO);
 }
 
-test("en çok geçerli post sahibi lider", () => {
+test("en çok gün aktif olan lider", () => {
   const db = openDb();
   const a = addUser(db, "ali");
   const b = addUser(db, "berk");
@@ -366,5 +375,72 @@ test("mevcut ay badge doğru kullanıcıda görünür", () => {
   const leaderId = getCurrentForumLeaderUserId("fenerbahce", db, NOW);
   assert.equal(leaderId, a);
   assert.notEqual(leaderId, b);
+  db.close();
+});
+
+function addLike(db: Database.Database, userId: number, type: "topic" | "post", id: number, createdAt: string) {
+  db.prepare(`INSERT INTO forum_likes (user_id, target_type, target_id, created_at) VALUES (?, ?, ?, ?)`).run(
+    userId,
+    type,
+    id,
+    createdAt,
+  );
+}
+
+function lastPostId(db: Database.Database) {
+  return (db.prepare(`SELECT MAX(id) as id FROM forum_posts`).get() as { id: number }).id;
+}
+
+test("tek günde yığılan yazı, düzenli katılımı geçemez", () => {
+  const db = openDb();
+  const flood = addUser(db, "flood");
+  const steady = addUser(db, "steady");
+  const topic = addTopic(db, "galatasaray", addUser(db, "acan"), "mac");
+  for (let h = 0; h < 10; h++) addPost(db, topic, flood, at(2026, 9, 1, 9 + h));
+  addPost(db, topic, steady, at(2026, 9, 1));
+  addPost(db, topic, steady, at(2026, 9, 2));
+  const leader = sepLeader(db, "galatasaray");
+  assert.equal(leader?.userId, steady);
+  assert.equal(leader?.activeDays, 2);
+  db.close();
+});
+
+test("beğeni puan katar; aynı kişinin beğenisi en çok 3 kez sayılır, kendi beğenisi sayılmaz", () => {
+  const db = openDb();
+  const a = addUser(db, "ali");
+  const b = addUser(db, "berk");
+  const fan = addUser(db, "fan");
+  const fan2 = addUser(db, "fan2");
+  const topic = addTopic(db, "galatasaray", addUser(db, "acan"), "mac");
+  addPost(db, topic, a, at(2026, 9, 1));
+  addPost(db, topic, a, at(2026, 9, 2));
+  addPost(db, topic, b, at(2026, 9, 1));
+  const bPost = lastPostId(db);
+  for (let i = 0; i < 5; i++) {
+    addPost(db, topic, b, at(2026, 9, 1, 13 + i));
+    const id = lastPostId(db);
+    addLike(db, fan, "post", id, at(2026, 9, 2));
+    addLike(db, b, "post", id, at(2026, 9, 2));
+  }
+  // b: 1 day (3) + 3 capped likes = 6; a: 2 days = 6, but more active days wins the tie.
+  assert.equal(sepLeader(db, "galatasaray")?.userId, a);
+  addLike(db, fan2, "post", bPost, at(2026, 9, 2));
+  const leader = sepLeader(db, "galatasaray");
+  assert.equal(leader?.userId, b);
+  assert.equal(leader?.likeCount, 4);
+  assert.equal(leader?.score, 7);
+  db.close();
+});
+
+test("lider kaydı aktif gün ve beğeniyi saklar", () => {
+  const db = openDb();
+  const a = addUser(db, "ali");
+  const topic = addTopic(db, "fenerbahce", a, "mac");
+  addPost(db, topic, a, at(2026, 8, 10));
+  addPost(db, topic, a, at(2026, 8, 11));
+  saveForumLeader("fenerbahce", 2026, 8, db, NOW_ISO);
+  const [row] = getForumLeaderHistory("fenerbahce", db, 12, NOW);
+  assert.equal(row.activeDays, 2);
+  assert.equal(row.likeCount, 0);
   db.close();
 });

@@ -78,15 +78,16 @@ async function user(ip: string, team: string | null = "galatasaray") {
 
 async function adminCookie(ip: string) {
   const u = await user(ip);
-  getDb()
-    .prepare(`UPDATE users SET role = 'admin' WHERE id = ?`)
-    .run(u.id);
   const logged = await invoke(login, {
     method: "POST",
     path: "/api/auth/login",
     body: { login: u.username, password: TEST_PASSWORD },
     ip,
   });
+  // Promoted after sign-in; the panel needs 2FA switched on.
+  getDb()
+    .prepare(`UPDATE users SET role = 'admin', totp_enabled = 1 WHERE id = ?`)
+    .run(u.id);
   return sessionCookie(logged.res);
 }
 
@@ -156,7 +157,7 @@ test("HTTP team tribune: guests and rival fans locked out, own fans and staff in
 
   // Moderators read every team tribune but write only in their own.
   const mod = await user("203.0.113.153", "fenerbahce");
-  getDb().prepare(`UPDATE users SET role = 'moderator' WHERE id = ?`).run(mod.id);
+  getDb().prepare(`UPDATE users SET role = 'moderator', totp_enabled = 1 WHERE id = ?`).run(mod.id);
   assert.equal((await list(mod.cookie)).status, 200);
   assert.equal((await topic(mod.cookie)).status, 200);
   const modReply = await invoke(createPost, {

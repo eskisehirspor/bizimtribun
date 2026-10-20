@@ -87,6 +87,11 @@ function seqPhone() {
   return phoneN;
 }
 
+/** Staff need 2FA for the panel; tests flip the flag after signing in. */
+function markTotpOn(userId: number) {
+  getDb().prepare(`UPDATE users SET totp_enabled = 1 WHERE id = ?`).run(userId);
+}
+
 async function promoteAdmin(userId: number) {
   getDb()
     .prepare(`UPDATE users SET role = 'admin', updated_at = ? WHERE id = ?`)
@@ -156,6 +161,7 @@ test("HTTP auth: banned user login 403 ve mevcut session mutation 403", async ()
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.24",
   });
+  markTotpOn(admin.json.user.id);
   const ban = await invoke(adminBan, {
     method: "POST",
     path: `/api/admin/users/${u.json.user.id}/ban`,
@@ -196,6 +202,7 @@ test("HTTP admin: unauthenticated 401, user 403, admin 200", async () => {
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.27",
   });
+  markTotpOn(admin.json.user.id);
   const adminCookie = sessionCookie(adminLogin.res);
 
   for (const route of ADMIN_GETS) {
@@ -223,6 +230,7 @@ test("HTTP admin IDOR: olmayan kullanıcı 404", async () => {
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.28",
   });
+  markTotpOn(admin.json.user.id);
   const cookie = sessionCookie(adminLogin.res);
   const missing = await invoke(adminUser, {
     path: "/api/admin/users/999999",

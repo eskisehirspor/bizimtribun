@@ -19,7 +19,12 @@ export const SIGNUP_PER_IP_HOUR = 5;
  * long. Only a keyed HMAC of the number is kept, and it is purged afterwards.
  * Without this, delete + re-register would let one phone switch teams.
  */
+/** Re-registration hold after deleting an account that never voted. */
 export const PHONE_HOLD_MS = 30 * 24 * 60 * 60 * 1000;
+/** Hold after deleting an account that cast a vote: a new vote with the same number waits a year. */
+export const PHONE_HOLD_VOTED_MS = 365 * 24 * 60 * 60 * 1000;
+/** Accounts deleted while banned: the number stays closed (no automatic release). */
+export const PHONE_HOLD_PERMANENT_UNTIL = "9999-12-31T00:00:00.000Z";
 export const TERMS_VERSION = "2026-10-19";
 export const ACCOUNT_DELETE_PER_USER_HOUR = 3;
 export const FAN_VOTE_PER_USER_HOUR = 10;

@@ -519,6 +519,55 @@ CREATE INDEX IF NOT EXISTS idx_users_public_profile ON users(updated_at) WHERE p
       if (!cols.has("totp_last_step")) db.exec(`ALTER TABLE users ADD COLUMN totp_last_step INTEGER`);
     },
   },
+  {
+    id: "009_fan_vote_restore",
+    up(db) {
+      // A super admin can undo a mistaken void. The vote comes back as the
+      // same row (same team, province and cast time), never as a new or moved
+      // vote, and only with a restore record written in the same transaction.
+      // Votes of deleted or unverified accounts can't be restored.
+      db.exec(`
+CREATE TABLE IF NOT EXISTS fan_vote_restores (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  vote_id INTEGER NOT NULL REFERENCES fan_votes(id),
+  actor_user_id INTEGER NOT NULL REFERENCES users(id),
+  reason TEXT NOT NULL,
+  voided_at TEXT,
+  void_reason TEXT,
+  voided_by_user_id INTEGER,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_fan_vote_restores_vote ON fan_vote_restores(vote_id);
+ALTER TABLE fan_votes ADD COLUMN restored_at TEXT;
+
+DROP TRIGGER IF EXISTS fan_votes_void_once;
+CREATE TRIGGER fan_votes_void_once
+BEFORE UPDATE ON fan_votes
+WHEN OLD.status = 'void' AND NOT (
+  NEW.status = 'active'
+  AND NEW.restored_at IS NOT NULL
+  AND EXISTS (SELECT 1 FROM fan_vote_restores r WHERE r.vote_id = OLD.id AND r.created_at = NEW.restored_at)
+  AND EXISTS (
+    SELECT 1 FROM users u
+    WHERE u.id = OLD.user_id AND u.deleted_at IS NULL AND u.phone_verified_at IS NOT NULL
+  )
+)
+BEGIN
+  SELECT RAISE(ABORT, 'VOTE_IMMUTABLE');
+END;
+`);
+    },
+  },
+  {
+    id: "010_forum_leader_activity",
+    up(db) {
+      // Tribune leaders are picked by active days and likes, not raw post
+      // count; older records keep only post_count.
+      const cols = new Set((db.prepare(`PRAGMA table_info(forum_leaders)`).all() as { name: string }[]).map((c) => c.name));
+      if (!cols.has("active_days")) db.exec(`ALTER TABLE forum_leaders ADD COLUMN active_days INTEGER`);
+      if (!cols.has("like_count")) db.exec(`ALTER TABLE forum_leaders ADD COLUMN like_count INTEGER`);
+    },
+  },
 ];
 
 export function appliedMigrationIds(db: Database.Database) {

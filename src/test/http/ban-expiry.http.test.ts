@@ -52,15 +52,16 @@ async function verifiedUser(ip: string) {
 
 async function adminCookie(ip: string) {
   const u = await verifiedUser(ip);
-  getDb()
-    .prepare(`UPDATE users SET role = 'admin' WHERE id = ?`)
-    .run(u.id);
   const logged = await invoke(login, {
     method: "POST",
     path: "/api/auth/login",
     body: { login: u.username, password: TEST_PASSWORD },
     ip,
   });
+  // Promoted after sign-in; the panel needs 2FA switched on.
+  getDb()
+    .prepare(`UPDATE users SET role = 'admin', totp_enabled = 1 WHERE id = ?`)
+    .run(u.id);
   return { cookie: sessionCookie(logged.res), id: u.id };
 }
 

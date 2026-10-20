@@ -26,6 +26,8 @@ export async function GET(
     period: formatForumLeaderPeriod(row.year, row.month),
     username: row.username,
     postCount: row.postCount,
+    activeDays: row.activeDays,
+    likeCount: row.likeCount,
   }));
 
   return noStoreJson({

@@ -26,7 +26,7 @@ async function member(role: "user" | "moderator" | "admin" | "super_admin" = "us
     ip: `198.51.100.${n % 250}`,
   });
   if (role !== "user") {
-    getDb().prepare(`UPDATE users SET role = ? WHERE id = ?`).run(role, u.id);
+    getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
   }
   return u;
 }

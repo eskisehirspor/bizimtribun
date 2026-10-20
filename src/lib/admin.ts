@@ -1,7 +1,7 @@
 import { recordSecurityEvent } from "./admin-2fa";
 import { getSessionUser } from "./auth";
 import { getDb } from "./db";
-import { evaluateAdminGate } from "./admin-gate";
+import { ADMIN_2FA_REQUIRED_ERROR, evaluateAdminGate } from "./admin-gate";
 import type { Permission } from "./permissions";
 import { isAdmin, type UserRow } from "./users";
 
@@ -23,7 +23,7 @@ export async function requireAdmin(
 ): Promise<AdminGate> {
   const user = await getSessionUser(req);
   const gate = evaluateAdminGate(user, permission);
-  if (!gate.ok && user && gate.status === 403) {
+  if (!gate.ok && user && gate.status === 403 && gate.error !== ADMIN_2FA_REQUIRED_ERROR) {
     // Signed-in member reaching for a staff action: kept for the security page.
     recordSecurityEvent(getDb(), { userId: user.id, action: `admin_denied:${permission}`, success: false });
   }

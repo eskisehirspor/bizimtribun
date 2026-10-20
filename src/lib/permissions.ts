@@ -12,6 +12,7 @@ export const PERMISSIONS = [
   "users.pii",
   "roles.manage",
   "votes.void",
+  "votes.restore",
   "teams.manage",
   "team_requests.manage",
   "dashboard.view",
@@ -45,7 +46,7 @@ const ADMIN: Permission[] = [
   "content.manage",
 ];
 
-const SUPER_ADMIN: Permission[] = [...ADMIN, "roles.manage", "settings.manage"];
+const SUPER_ADMIN: Permission[] = [...ADMIN, "roles.manage", "settings.manage", "votes.restore"];
 
 const TABLE: Record<string, ReadonlySet<Permission>> = {
   moderator: new Set(MODERATOR),

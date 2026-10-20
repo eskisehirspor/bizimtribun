@@ -14,6 +14,8 @@ type LeaderRow = {
   period: string;
   username: string;
   postCount: number;
+  activeDays: number | null;
+  likeCount: number | null;
 };
 
 export default function TeamForumPage() {
@@ -76,10 +78,16 @@ export default function TeamForumPage() {
             {leaders.length > 0 ? (
               <div className="mt-4 border-[3px] border-black bg-white p-3">
                 <p className="font-anton text-[15px]">TRİBÜN LİDERLERİ</p>
+                <p className="font-mono text-[11px] opacity-70">
+                  Her ay en çok günde katılan ve beğeni alan taraftar seçilir.
+                </p>
                 <ul className="mt-1 font-mono text-[12px] space-y-0.5">
                   {leaders.map((row) => (
                     <li key={`${row.period}-${row.username}`}>
-                      {row.period} — {row.username} ({row.postCount} yazı)
+                      {row.period} — {row.username}{" "}
+                      {row.activeDays != null
+                        ? `(${row.activeDays} aktif gün • ${row.likeCount ?? 0} beğeni)`
+                        : `(${row.postCount} yazı)`}
                     </li>
                   ))}
                 </ul>

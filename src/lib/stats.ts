@@ -22,10 +22,11 @@ function dataVersion() {
   const v = db
     .prepare(
       `SELECT (SELECT COUNT(*) FROM fan_votes WHERE status = 'active') as active,
-              (SELECT COALESCE(MAX(id), 0) FROM fan_votes) as maxId,
+              (SELECT COALESCE(MAX(id), 0) FROM fan_votes) || ':' ||
+                (SELECT COUNT(*) FROM fan_vote_restores) as maxId,
               (SELECT COUNT(*) || ':' || COALESCE(MAX(admin_edited_at), '') FROM teams) as teams`,
     )
-    .get() as { active: number; maxId: number; teams: string };
+    .get() as { active: number; maxId: string; teams: string };
   return `${v.active}:${v.maxId}:${v.teams}`;
 }
 

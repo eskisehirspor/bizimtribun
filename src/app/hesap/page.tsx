@@ -93,8 +93,8 @@ function Account() {
         <h2 className="font-anton text-[20px] text-[#C8102E]">HESABI SİL</h2>
         <p className="font-mono text-[12px] leading-[1.45]">
           Hesabını silersen telefonun, e-postan ve profil bilgilerin silinir; oyun sayımdan
-          düşer. Forum yazıların &quot;Silinmiş üye&quot; adıyla kalır. Aynı numarayla 30 gün
-          boyunca yeni hesap açılamaz. Ayrıntılar{" "}
+          düşer. Forum yazıların &quot;Silinmiş üye&quot; adıyla kalır. Aynı numarayla oy
+          verdiysen 1 yıl, vermediysen 30 gün boyunca yeni hesap açılamaz. Ayrıntılar{" "}
           <Link className="underline" href="/kvkk">aydınlatma metninde</Link>.
         </p>
         <label className="block">

@@ -74,8 +74,10 @@ export default function KvkkPage() {
         </li>
         <li>
           Silmenin ardından aynı numarayla hemen yeni hesap açılıp ikinci kez oy verilmesini
-          önlemek için numaranın geri döndürülemez anahtarlı özeti <strong>30 gün</strong>{" "}
-          tutulur ve süre sonunda silinir.
+          önlemek için numaranın kendisi değil, geri döndürülemez anahtarlı özeti tutulur: oy
+          vermemiş hesaplarda <strong>30 gün</strong>, oy vermiş hesaplarda <strong>1 yıl</strong>.
+          Süre sonunda özet silinir. Topluluk kuralları nedeniyle banlıyken silinen hesaplarda bu
+          özet süresiz tutulur ve o numarayla yeni hesap açılamaz.
         </li>
         <li>SMS kodları en geç 2 gün, kötüye kullanım sayaçları en geç 2 gün içinde silinir.</li>
         <li>Site içi bildirimler 90 gün sonra silinir. Hesap silinince bildirimlerin, rozetlerin ve profil bilgilerin de silinir.</li>

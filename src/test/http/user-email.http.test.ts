@@ -252,15 +252,15 @@ test("resend cooldown, rate limit, verified skip", async () => {
 test("banned + unverified forum error is ban, not email", async () => {
   const u = await registerUnverified("203.0.113.207");
   const admin = await registerUnverified("203.0.113.208");
-  getDb()
-    .prepare(`UPDATE users SET role = 'admin' WHERE id = ?`)
-    .run(admin.id);
   const adminLogin = await invoke(login, {
     method: "POST",
     path: "/api/auth/login",
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.208",
   });
+  getDb()
+    .prepare(`UPDATE users SET role = 'admin', totp_enabled = 1 WHERE id = ?`)
+    .run(admin.id);
   const ban = await invoke(adminBan, {
     method: "POST",
     path: `/api/admin/users/${u.id}/ban`,

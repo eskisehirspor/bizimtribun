@@ -2,9 +2,15 @@ import type Database from "better-sqlite3";
 import { hmac, identityPhoneHash, newToken } from "./crypto";
 import { writeAudit } from "./audit";
 import { castFanVote, findFanVote, voidFanVote } from "./fan-votes";
-import { PHONE_HOLD_MS, SIGNUP_TICKET_TTL_MS, TERMS_VERSION } from "./policy";
+import {
+  PHONE_HOLD_MS,
+  PHONE_HOLD_PERMANENT_UNTIL,
+  PHONE_HOLD_VOTED_MS,
+  SIGNUP_TICKET_TTL_MS,
+  TERMS_VERSION,
+} from "./policy";
 import { isProvince } from "./provinces";
-import { isUsername, normalizeUsername, type UserRow } from "./users";
+import { isUserBanned, isUsername, normalizeUsername, type UserRow } from "./users";
 import { isReservedName } from "./name";
 
 function ticketHash(raw: string) {
@@ -40,7 +46,7 @@ export function phoneHoldActive(db: Database.Database, phoneNorm: string) {
 }
 
 export const PHONE_HOLD_ERROR =
-  "Bu numarayla yakın zamanda silinmiş bir hesap var. Yeni hesap için bekleme süresi dolmadı.";
+  "Bu numarayla silinmiş bir hesap var ve bu numarayla yeni hesap açma süresi henüz dolmadı.";
 
 export function issueSignupTicket(db: Database.Database, phoneNorm: string) {
   const raw = newToken();
@@ -256,8 +262,10 @@ export function bindVerifiedPhone(
  * - name, e-mail, phone, birth date, city, password and 2FA secrets are erased,
  *   the username becomes `silinmis_<id>`;
  * - forum posts stay, shown under "Silinmiş üye";
- * - a keyed HMAC of the phone is held for PHONE_HOLD_MS so the same number
- *   cannot immediately open a new account and vote again; then it is purged.
+ * - a keyed HMAC of the phone is held so the same number cannot open a new
+ *   account and vote again right away: 30 days without a vote, a year after a
+ *   vote, and with no end date when the account was banned at deletion (so a
+ *   ban can't be escaped by deleting). Expired holds are purged.
  */
 export function deleteAccount(
   db: Database.Database,
@@ -289,14 +297,18 @@ export function deleteAccount(
       });
     }
     if (user.phone_norm && user.phone_verified_at) {
+      const banned = isUserBanned(user);
+      const releaseAt = banned
+        ? PHONE_HOLD_PERMANENT_UNTIL
+        : new Date(now.getTime() + (vote ? PHONE_HOLD_VOTED_MS : PHONE_HOLD_MS)).toISOString();
+      const reason = banned ? "account_deleted_banned" : vote ? "account_deleted_voted" : "account_deleted";
+      // A longer hold already on the number is never shortened.
       db.prepare(
-        `INSERT INTO phone_holds (phone_hash, reason, release_at, created_at) VALUES (?, 'account_deleted', ?, ?)
-         ON CONFLICT(phone_hash) DO UPDATE SET release_at = excluded.release_at`,
-      ).run(
-        identityPhoneHash(user.phone_norm),
-        new Date(now.getTime() + PHONE_HOLD_MS).toISOString(),
-        nowIso,
-      );
+        `INSERT INTO phone_holds (phone_hash, reason, release_at, created_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(phone_hash) DO UPDATE SET
+           release_at = MAX(release_at, excluded.release_at),
+           reason = CASE WHEN excluded.release_at > release_at THEN excluded.reason ELSE reason END`,
+      ).run(identityPhoneHash(user.phone_norm), reason, releaseAt, nowIso);
     }
     const anon = `silinmis_${user.id}`;
     db.prepare(

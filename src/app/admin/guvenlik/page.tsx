@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { AdminNotice, adminJson } from "@/components/admin/AdminUi";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -16,6 +17,7 @@ type Setup = {
 };
 
 export default function AdminSecurityPage() {
+  const router = useRouter();
   const [status, setStatus] = useState<Status | null>(null);
   const [setup, setSetup] = useState<Setup | null>(null);
   const [recovery, setRecovery] = useState<string[] | null>(null);
@@ -73,6 +75,8 @@ export default function AdminSecurityPage() {
       setSetup(null);
       setCode("");
       await load();
+      // The panel opens only once 2FA is on; refresh the layout's check.
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kod hatalı.");
     } finally {
@@ -93,6 +97,7 @@ export default function AdminSecurityPage() {
       setRecovery(null);
       setAskDisable(false);
       await load();
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kapatılamadı.");
     } finally {

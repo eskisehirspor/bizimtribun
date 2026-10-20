@@ -19,7 +19,7 @@ let n = 0;
 async function member(role: "user" | "moderator" | "admin" | "super_admin" = "user") {
   n += 1;
   const u = await smsSignup({ phone: trPhone(9100 + n), username: uniq("st").slice(0, 20), ip: `203.0.113.${n % 250}` });
-  if (role !== "user") getDb().prepare(`UPDATE users SET role = ? WHERE id = ?`).run(role, u.id);
+  if (role !== "user") getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
   return u;
 }
 

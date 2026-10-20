@@ -43,9 +43,15 @@
   becomes `silinmis_<id>`, display name "Silinmiş üye"; sessions are revoked;
 - clears bio, avatar and profile choices, and deletes the member's badges and notifications;
 - keeps forum posts, shown under "Silinmiş üye";
-- stores a keyed HMAC of the phone in `phone_holds` for **30 days** (`PHONE_HOLD_MS`) so the
-  same number cannot immediately re-register and vote again. After that it is deleted and the
-  number can open a new account whose vote counts once. This is disclosed in the KVKK text.
+- stores a keyed HMAC of the phone (never the number) in `phone_holds` so the same number
+  cannot re-register and vote again right away:
+  - **30 days** for an account that never voted (`PHONE_HOLD_MS`);
+  - **1 year** for an account that cast a vote (`PHONE_HOLD_VOTED_MS`);
+  - **no end date** for an account deleted while banned (`PHONE_HOLD_PERMANENT_UNTIL`), so a
+    ban can't be escaped by deleting and signing up again.
+  Expired holds are deleted, after which the number can open a new account whose vote counts
+  once. A longer hold already on a number is never shortened. All of this is disclosed in the
+  KVKK text; the permanent hold still needs the legal review the KVKK draft is waiting for.
 
 Admin accounts must be demoted before deletion.
 
@@ -91,7 +97,7 @@ builds are removed at boot; nothing seeds fans or votes any more.
 | Account data | while the account exists |
 | `auth_otps`, rate-limit counters | ≤ 2 days |
 | `signup_tickets` | 15 minutes (purged after expiry) |
-| `phone_holds` | 30 days after deletion |
+| `phone_holds` | 30 days after deletion; 1 year if the account voted; no end date if it was banned |
 | `notifications` | 90 days (read or not) |
 | `user_badges` | while the account exists |
 | `forum_reports` | kept with the moderation record |

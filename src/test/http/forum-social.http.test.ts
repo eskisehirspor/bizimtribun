@@ -27,7 +27,7 @@ async function member(role: "user" | "moderator" = "user") {
     username: uniq("s").slice(0, 20),
     ip: `192.0.2.${n % 250}`,
   });
-  if (role !== "user") getDb().prepare(`UPDATE users SET role = ? WHERE id = ?`).run(role, u.id);
+  if (role !== "user") getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
   return u;
 }
 

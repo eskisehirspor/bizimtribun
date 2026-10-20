@@ -10,7 +10,9 @@ There is no admin sign-up, no default admin and no known password.
      npm run admin:bootstrap -- <username>
    ```
 
-3. Sign in again and enable TOTP 2FA at `/admin/guvenlik`.
+3. Sign in again and enable TOTP 2FA at `/admin/guvenlik`. 2FA is mandatory for every
+   staff role: until it is on, the panel shows only that page and every other admin API
+   answers 403.
 4. Promote moderators and admins from `/admin/uyeler/<id>` (super admin only). See
    [admin.md](admin.md) for what each role can do.
 

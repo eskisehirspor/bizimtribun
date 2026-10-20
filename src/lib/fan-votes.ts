@@ -180,3 +180,48 @@ export function voidFanVote(
   });
   return { ok: true };
 }
+
+/**
+ * Undoes a void (super admins only, checked by the route). The same vote row
+ * becomes active again with its original team, province and cast time; the
+ * void details are kept in fan_vote_restores and the audit log. A trigger
+ * refuses the update without that record, and for deleted or unverified
+ * accounts.
+ */
+export function restoreFanVote(
+  db: Database.Database,
+  input: { userId: number; reason: string; actorUserId: number },
+): { ok: true } | { ok: false; error: string } {
+  const reason = input.reason.trim();
+  if (reason.length < 3) return { ok: false, error: "Gerekçe gerekli." };
+  const vote = findFanVote(db, input.userId);
+  if (!vote || vote.status !== "void") return { ok: false, error: "Geri alınacak iptal edilmiş oy yok." };
+  if (vote.void_reason === "account_deleted") {
+    return { ok: false, error: "Silinen hesabın oyu geri alınamaz." };
+  }
+  const now = new Date().toISOString();
+  try {
+    db.prepare(
+      `INSERT INTO fan_vote_restores (vote_id, actor_user_id, reason, voided_at, void_reason, voided_by_user_id, created_at)
+       SELECT id, ?, ?, voided_at, void_reason, voided_by_user_id, ? FROM fan_votes WHERE id = ?`,
+    ).run(input.actorUserId, reason.slice(0, 300), now, vote.id);
+    db.prepare(
+      `UPDATE fan_votes SET status = 'active', voided_at = NULL, void_reason = NULL, voided_by_user_id = NULL,
+         restored_at = ?
+       WHERE id = ? AND status = 'void'`,
+    ).run(now, vote.id);
+  } catch (err) {
+    if (errMessage(err).includes("VOTE_IMMUTABLE")) {
+      return { ok: false, error: "Bu oy geri alınamaz (hesap silinmiş ya da telefonu doğrulanmamış)." };
+    }
+    throw err;
+  }
+  writeAudit(db, {
+    actorUserId: input.actorUserId,
+    action: "admin_fan_vote_restore",
+    targetType: "user",
+    targetId: input.userId,
+    reason,
+  });
+  return { ok: true };
+}

@@ -41,13 +41,19 @@ export function useAdminViewer() {
 export default function AdminShell({
   children,
   viewer,
+  needs2fa = false,
 }: {
   children: React.ReactNode;
   viewer: AdminViewer;
+  /** Staff without TOTP may only use the security page (the API enforces this too). */
+  needs2fa?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const links = LINKS.filter((link) => viewer.permissions.includes(link.needs));
+  const links = LINKS.filter(
+    (link) => viewer.permissions.includes(link.needs) && (!needs2fa || link.needs === "security.self"),
+  );
+  const blocked = needs2fa && !pathname.startsWith("/admin/guvenlik");
   const isActive = (href: string) => (href === "/admin" ? pathname === "/admin" : pathname.startsWith(href));
   const current = links.find((l) => isActive(l.href))?.href ?? "/admin";
 
@@ -100,7 +106,25 @@ export default function AdminShell({
           </nav>
         </aside>
         <main className="min-w-0 flex-1">
-          <AdminViewerContext.Provider value={viewer}>{children}</AdminViewerContext.Provider>
+          {needs2fa && (
+            <div role="alert" className="mb-4 border-[4px] border-black bg-[#FFEA00] p-4 shadow-[6px_6px_0_black]">
+              <p className="font-anton text-[22px] leading-none">ÖNCE 2FA&apos;YI AÇ</p>
+              <p className="font-mono text-[13px] mt-2">
+                Yönetim paneli iki adımlı doğrulama olmadan açılmaz. Telefonuna bir doğrulama uygulaması (Google
+                Authenticator, Authy, 1Password…) kur, Güvenlik sayfasındaki anahtarı uygulamaya elle ekle ve uygulamanın verdiği 6 haneli
+                kodu yaz. Kurtarma kodlarını güvenli bir yere kaydet.
+              </p>
+              {blocked && (
+                <Link
+                  href="/admin/guvenlik"
+                  className="mt-3 inline-flex min-h-11 items-center border-[3px] border-black bg-black px-4 font-anton text-[15px] text-white"
+                >
+                  GÜVENLİK SAYFASINA GİT
+                </Link>
+              )}
+            </div>
+          )}
+          {!blocked && <AdminViewerContext.Provider value={viewer}>{children}</AdminViewerContext.Provider>}
         </main>
       </div>
     </div>

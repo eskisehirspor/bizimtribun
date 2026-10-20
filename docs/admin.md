@@ -11,6 +11,7 @@ role through any API: profile updates reject unknown fields, and role changes go
 | Member list and detail (phone masked), ban/unban ordinary members | ✓ | ✓ | ✓ |
 | Ban moderators (admins must be demoted first), see full phone / e-mail (`users.pii`) | | ✓ | ✓ |
 | Void a vote with a reason (`votes.void`) | | ✓ | ✓ |
+| Undo a mistaken void (`votes.restore`) | | | ✓ |
 | Teams, leagues, seasons, team requests | | ✓ | ✓ |
 | Dashboard, audit log | | ✓ | ✓ |
 | Site content: announcement, featured topics, home leagues, SEO texts, social links | | ✓ | ✓ |
@@ -20,9 +21,15 @@ Rules enforced on the server:
 
 - Nobody can change their own role; the last super admin cannot be demoted; a role change
   revokes the member's sessions and is audited.
+- Staff must turn on TOTP 2FA first. Without it only `/admin/guvenlik` (`security.self`)
+  works; every other admin page and API answers 403. Later staff logins ask for the TOTP
+  code after the SMS code, and a code can't be reused within its window.
 - There is no "log in as member" feature.
 - There is no way to move a vote to another team. A vote can only be voided, with a reason,
-  and that is audited; the account cannot vote again.
+  and that is audited; the account cannot vote again. A super admin can undo a mistaken
+  void: the same vote row comes back with its original team, province and cast time, the
+  undo is written to `fan_vote_restores` and `audit_log`, and a database trigger refuses
+  the change without that record. Votes of deleted accounts can't be restored.
 - Signed-in members who call a staff-only endpoint are recorded in `security_events`
   (`admin_denied:<permission>`) and counted on the dashboard.
 
@@ -45,6 +52,14 @@ topics is not counted as a member.
 | Yetkisiz yönetim denemesi | `admin_denied:*` security events in the last 24 h |
 | Başarısız yönetici girişi | Other failed security events (password / 2FA) in the last 24 h |
 | İptal edilen oy (30 gün) | Votes voided in the last 30 days |
+
+## Tribune leader
+
+Each month's leader of a team tribune is the member with the highest score on that board:
+active days (Istanbul calendar days with at least one public topic or reply) × 3, plus likes
+received that month from other members, at most 3 from any one liker. Ties go to more active
+days, then the earliest post. Removed or held content, banned accounts and the system
+account don't count. Records from before this rule show only their post count.
 
 ## Site settings (`/admin/ayarlar`)
 
