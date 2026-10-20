@@ -3,7 +3,7 @@ import {
   LEAGUE_LABEL,
   LEAGUE_ORDER,
   getTeam,
-  initials,
+  teamShort,
   leaguePaper,
   resolveTeamAlias,
   type LeagueId,
@@ -37,7 +37,7 @@ function toCatalogTeam(row: TeamRow): CatalogTeam {
   return {
     id: row.id,
     name: row.name,
-    short: initials(row.name),
+    short: teamShort(row.id, row.name),
     city: row.city ?? seed?.city ?? "",
     league,
     bleed: row.color_primary ?? seed?.bleed ?? "#111111",

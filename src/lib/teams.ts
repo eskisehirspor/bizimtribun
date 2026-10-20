@@ -178,15 +178,70 @@ const RAW: Row[] = [
 ];
 
 export function initials(name: string) {
-  const parts = name.replace(/FK|SK|A\.Ş\.?/gi, "").trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
+  const parts = name.replace(/\b(FK|SK|A\.Ş\.?)(?=\s|$)/gi, "").trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 3).toLocaleUpperCase("tr-TR");
   return parts
     .filter((p) => !/^\d+$/.test(p))
     .slice(0, 3)
     .map((p) => p[0])
     .join("")
-    .toUpperCase();
+    .toLocaleUpperCase("tr-TR");
 }
+
+/** Legal-form and club suffixes that say nothing about which team it is. */
+const SHORT_NOISE = /^(FK|SK|SFK|FSK|A\.?Ş\.?|\d+)$/i;
+
+/**
+ * Three-letter code shown in team badges. Hand-picked codes win (common
+ * broadcast usage, and no two catalog teams share one); otherwise the first
+ * three letters of a one-word name, or the initials of a longer one.
+ */
+export function teamShort(id: string, name: string) {
+  const fixed = SHORT_CODE[id];
+  if (fixed) return fixed;
+  const words = name.trim().split(/\s+/).filter((w) => !SHORT_NOISE.test(w));
+  if (words.length === 0) return name.slice(0, 3).toLocaleUpperCase("tr-TR");
+  const code =
+    words.length === 1
+      ? words[0].slice(0, 3)
+      : words.length === 2
+        ? words[0][0] + words[1].slice(0, 2)
+        : words.slice(0, 3).map((w) => w[0]).join("");
+  return code.toLocaleUpperCase("tr-TR");
+}
+
+const SHORT_CODE: Record<string, string> = {
+  eskisehirspor: "ESK",
+  "istanbul-basaksehir": "BŞK",
+  "caykur-rizespor": "RİZ",
+  "fatih-karagumruk": "FKG",
+  "adana-demirspor": "ADS",
+  "ankara-demirspor": "ADM",
+  keciorengucu: "KEÇ",
+  "mke-ankaragucu": "MKE",
+  galata: "GLT",
+  "1461-trabzon": "T61",
+  "alanya-1221": "ALY",
+  kastamonuspor: "KST",
+  "beykoz-anadoluspor": "BKA",
+  "corluspor-1947": "ÇRL",
+  "24-erzincanspor": "EZC",
+  "karacabey-belediyespor": "KRC",
+  "karakopru-belediyespor": "KKP",
+  altinordu: "AOR",
+  "karaman-fk": "KRM",
+  karsiyaka: "KSK",
+  "adana-01": "A01",
+  "68-aksaray": "AKS",
+  "arnavutkoy-belediyespor": "ARN",
+  ayvalikgucu: "AYV",
+  kirklarelispor: "KLR",
+  kirikkale: "KKL",
+  kirsehir: "KRŞ",
+  diyarbekirspor: "DYB",
+  "52-orduspor": "O52",
+  "1926-bulancakspor": "BLC",
+};
 
 const ACCENT: Record<string, string> = {
   galatasaray: "#FFD100",
@@ -320,7 +375,7 @@ function secondColor(id: string, bleed: string) {
 export const TEAMS: Team[] = RAW.map(([id, name, city, league, bleed]) => ({
   id,
   name,
-  short: initials(name),
+  short: teamShort(id, name),
   city,
   league,
   bleed,
