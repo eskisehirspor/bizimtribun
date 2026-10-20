@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AdminNotice, adminJson, formatWhen } from "@/components/admin/AdminUi";
 import { LEAGUE_LABEL, LEAGUE_ORDER } from "@/lib/teams";
+import { btnSmPrimary, checkLabelClass, checkboxClass, fieldClass, hintClass, labelClass } from "@/components/ui";
 
 type Settings = {
   announcement: { active: boolean; text: string; tone: "info" | "warning"; link: string };
@@ -22,7 +23,7 @@ type Settings = {
 type Key = keyof Settings;
 type Meta = { key: string; updatedAt: string; updatedBy: string | null };
 
-const input = "w-full border-[3px] border-black px-2 py-1 font-mono text-[13px] bg-white";
+const input = fieldClass;
 
 const FEATURE_LABELS: Record<keyof Settings["features"], string> = {
   signupsOpen: "Yeni üyelik açık",
@@ -50,7 +51,7 @@ export default function SettingsPage() {
     <div className="space-y-5">
       <div>
         <h2 className="font-anton text-[32px] leading-none">SİTE AYARLARI</h2>
-        <p className="font-mono text-[11px] mt-1 opacity-70">
+        <p className="font-mono text-[12px] mt-1 opacity-70">
           Her kayıt denetim kaydına yazılır. Metinler düz yazı olarak gösterilir; HTML veya kod çalışmaz.
         </p>
       </div>
@@ -146,7 +147,7 @@ export default function SettingsPage() {
           <Section k="maintenance" title="BAKIM MODU" initial={data.settings.maintenance} meta={meta("maintenance")} danger>
             {(v, set) => (
               <>
-                <p className="font-mono text-[11px]">
+                <p className="font-mono text-[12px]">
                   Açıkken site okunabilir kalır; üyeler kayıt olamaz, oy veremez, yazamaz ve beğenemez. Yetkililer
                   çalışmaya devam eder.
                 </p>
@@ -177,7 +178,7 @@ export default function SettingsPage() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="font-mono text-[10px]">{label}</span>
+      <span className={labelClass}>{label}</span>
       {children}
     </label>
   );
@@ -185,8 +186,8 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function Check({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
   return (
-    <label className="flex items-center gap-2 font-mono text-[12px]">
-      <input type="checkbox" checked={value} onChange={(e) => onChange(e.target.checked)} />
+    <label className={checkLabelClass}>
+      <input type="checkbox" className={checkboxClass} checked={value} onChange={(e) => onChange(e.target.checked)} />
       {label}
     </label>
   );
@@ -239,13 +240,13 @@ function Section<K extends Key>({
           type="button"
           disabled={busy}
           onClick={() => void save()}
-          className="font-anton text-[14px] border-[3px] border-black bg-black text-white px-3 py-1 disabled:opacity-50"
+          className={btnSmPrimary}
         >
           {busy ? "KAYDEDİLİYOR…" : "KAYDET"}
         </button>
-        {msg && <span className={`font-mono text-[11px] ${msg.ok ? "" : "text-[#C8102E]"}`}>{msg.text}</span>}
+        {msg && <span className={`font-mono text-[12px] ${msg.ok ? "" : "text-[#C8102E]"}`}>{msg.text}</span>}
         {saved && (
-          <span className="font-mono text-[10px] opacity-60">
+          <span className={hintClass}>
             Son değişiklik: {formatWhen(saved.updatedAt)} {saved.updatedBy ? `• ${saved.updatedBy}` : ""}
           </span>
         )}

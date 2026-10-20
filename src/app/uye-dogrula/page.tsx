@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import { btnAccent, btnPrimary } from "@/components/ui";
 
 function Panel() {
   const params = useSearchParams();
@@ -66,7 +67,7 @@ function Panel() {
   return (
     <main className="min-h-screen bg-[#F2EFE6] paper-bg flex items-center justify-center p-6">
       <div className="w-full max-w-[520px] bg-[#FFFEFA] border-[4px] border-black shadow-[12px_12px_0_black] p-7 -rotate-[0.5deg]">
-        <div className="font-mono text-[10px] tracking-[0.2em]">
+        <div className="font-mono text-[11px] tracking-[0.2em]">
           BİZİM TRİBÜN • ÜYELİK
         </div>
         <h1 className="font-anton text-[40px] leading-none mt-2">
@@ -82,7 +83,7 @@ function Panel() {
             </p>
             <Link
               href="/takimlar"
-              className="mt-5 inline-block font-anton border-[3px] border-black bg-[#FFEA00] px-4 py-2"
+              className={`mt-5 ${btnAccent}`}
             >
               TRİBÜNLERE GİT
             </Link>
@@ -101,7 +102,7 @@ function Panel() {
               type="button"
               disabled={busy}
               onClick={() => void confirm()}
-              className="mt-5 font-anton text-[16px] border-[3px] border-black bg-black text-white px-4 py-2 disabled:bg-zinc-300"
+              className={`mt-5 ${btnPrimary}`}
             >
               {busy ? "…" : "DOĞRULA"}
             </button>
@@ -127,7 +128,7 @@ function Panel() {
                 type="button"
                 disabled={busy}
                 onClick={() => void resend()}
-                className="mt-5 font-anton text-[16px] border-[3px] border-black bg-[#FFEA00] px-4 py-2 disabled:opacity-50"
+                className={`mt-5 ${btnAccent}`}
               >
                 {busy ? "…" : "YENİ DOĞRULAMA MAİLİ"}
               </button>

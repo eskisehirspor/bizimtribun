@@ -9,6 +9,7 @@ import {
   useConfirmAction,
 } from "@/components/admin/AdminUi";
 import { PROVINCES } from "@/lib/provinces";
+import { btnDanger, btnPrimary, btnSecondary, btnSm, fieldClass, inputClass, labelClass } from "@/components/ui";
 
 type Item = {
   id: number;
@@ -116,11 +117,11 @@ export default function AdminTeamRequestsPage() {
               otomatik açılmaz.
             </p>
             <label className="block mt-3">
-              <span className="font-mono text-[10px]">NOT (OPSİYONEL)</span>
+              <span className={labelClass}>NOT (OPSİYONEL)</span>
               <textarea
                 value={approveReason}
                 onChange={(e) => setApproveReason(e.target.value)}
-                className="mt-1 w-full border-[3px] border-black p-2 font-mono text-[13px] min-h-[72px]"
+                className={`${inputClass} min-h-[72px]`}
               />
             </label>
             <div className="flex gap-2 mt-4">
@@ -133,7 +134,7 @@ export default function AdminTeamRequestsPage() {
                     setApproveBusy(false),
                   );
                 }}
-                className="font-anton text-[14px] bg-black text-white border-[3px] border-black px-3 py-2"
+                className={btnPrimary}
               >
                 {approveBusy ? "…" : "ONAYLA"}
               </button>
@@ -141,7 +142,7 @@ export default function AdminTeamRequestsPage() {
                 type="button"
                 disabled={approveBusy}
                 onClick={() => setApproveOpen(null)}
-                className="font-anton text-[14px] border-[3px] border-black px-3 py-2 bg-white"
+                className={btnSecondary}
               >
                 VAZGEÇ
               </button>
@@ -175,7 +176,7 @@ export default function AdminTeamRequestsPage() {
           setPage(1);
         }}
         placeholder="Ara"
-        className="mt-3 w-full max-w-[320px] border-[3px] border-black px-2 py-1 font-mono text-[13px]"
+        className={`mt-3 max-w-[320px] ${fieldClass}`}
       />
       <select
         value={city}
@@ -183,7 +184,7 @@ export default function AdminTeamRequestsPage() {
           setCity(e.target.value);
           setPage(1);
         }}
-        className="mt-3 ml-0 sm:ml-2 w-full max-w-[320px] border-[3px] border-black px-2 py-1 font-mono text-[13px] bg-white"
+        className={`mt-3 sm:ml-2 max-w-[320px] ${fieldClass}`}
       >
         <option value="">Tüm şehirler</option>
         {PROVINCES.map((name) => (
@@ -230,7 +231,7 @@ export default function AdminTeamRequestsPage() {
                   <td className="p-2">{row.requestCount}</td>
                   <td className="p-2 whitespace-nowrap">{formatWhen(row.firstAt)}</td>
                   <td className="p-2 whitespace-nowrap">{formatWhen(row.lastAt)}</td>
-                  <td className="p-2">{row.status}</td>
+                  <td className="p-2">{REQUEST_STATUS[row.status] ?? row.status}</td>
                   <td className="p-2">
                     <button
                       type="button"
@@ -261,12 +262,12 @@ export default function AdminTeamRequestsPage() {
             <div>
               <h3 className="font-anton text-[24px] leading-none">{detail.teamName}</h3>
               <p className="font-mono text-[12px] mt-1">
-                {detail.city} • {detail.status} • {detail.requestCount} talep
+                {detail.city} • {REQUEST_STATUS[detail.status] ?? detail.status} • {detail.requestCount} talep
               </p>
             </div>
             <button
               type="button"
-              className="font-anton border-[2px] border-black px-2 py-1 bg-white"
+              className={btnSm}
               onClick={() => setDetail(null)}
             >
               KAPAT
@@ -275,7 +276,7 @@ export default function AdminTeamRequestsPage() {
           <ul className="mt-3 space-y-3">
             {detail.requests.map((row) => (
               <li key={row.id} className="border-[2px] border-black p-2">
-                <p className="font-mono text-[11px] opacity-70">
+                <p className="font-mono text-[12px] opacity-70">
                   {row.username} • {formatWhen(row.createdAt)}
                 </p>
                 <p className="font-mono text-[13px] mt-1 whitespace-pre-wrap">{row.message}</p>
@@ -286,7 +287,7 @@ export default function AdminTeamRequestsPage() {
             <div className="flex gap-2 mt-4">
               <button
                 type="button"
-                className="font-anton border-[3px] border-black bg-black text-white px-3 py-2"
+                className={btnPrimary}
                 onClick={() => {
                   setApproveReason("");
                   setApproveOpen(detail);
@@ -296,7 +297,7 @@ export default function AdminTeamRequestsPage() {
               </button>
               <button
                 type="button"
-                className="font-anton border-[3px] border-black bg-[#C8102E] text-white px-3 py-2"
+                className={btnDanger}
                 onClick={() =>
                   ask({
                     title: "REDDET",
@@ -315,3 +316,9 @@ export default function AdminTeamRequestsPage() {
     </div>
   );
 }
+
+const REQUEST_STATUS: Record<string, string> = {
+  pending: "bekliyor",
+  approved: "onaylandı",
+  rejected: "reddedildi",
+};

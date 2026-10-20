@@ -10,6 +10,7 @@ import { ROLE_LABELS, isStaffRole } from "@/lib/permissions";
 import { AVATAR_EMOJI, getPublicProfile, listProfileActivity, XP_PER_LIKE } from "@/lib/profiles";
 import { getCatalogTeam } from "@/lib/team-catalog";
 import { initials } from "@/lib/teams";
+import { btnAccent, btnSm, labelClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -60,7 +61,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           <p className="font-mono text-[13px] mt-2">Bu profil yalnızca üyelere açık.</p>
           <Link
             href={`/giris?next=${encodeURIComponent(`/u/${username}`)}`}
-            className="mt-4 inline-block font-anton text-[15px] bg-[#FFEA00] border-[3px] border-black px-4 py-2"
+            className={`mt-4 ${btnAccent}`}
           >
             GİRİŞ YAP
           </Link>
@@ -88,10 +89,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             {p.avatar ? <span className="text-[38px]">{AVATAR_EMOJI[p.avatar]}</span> : initials(p.username)}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="font-mono text-[10px] tracking-[0.2em]">BİZİM TRİBÜN • ÜYE</p>
+            <p className="font-mono text-[11px] tracking-[0.2em]">BİZİM TRİBÜN • ÜYE</p>
             <h1 className="font-anton text-[34px] sm:text-[42px] leading-[0.9] break-words">@{p.username}</h1>
             {p.displayName && <p className="font-mono text-[13px] mt-1">{p.displayName}</p>}
-            <p className="font-mono text-[11px] mt-2 flex flex-wrap gap-x-3 gap-y-1">
+            <p className="font-mono text-[12px] mt-2 flex flex-wrap gap-x-3 gap-y-1">
               {team ? (
                 <Link href={`/takim/${team.id}`} className="underline font-bold">
                   {team.name}
@@ -109,7 +110,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           {isSelf && (
             <Link
               href="/hesap#profil"
-              className="w-full sm:w-auto text-center font-anton text-[13px] border-[3px] border-black bg-white px-3 py-2"
+              className={`w-full sm:w-auto ${btnSm}`}
             >
               PROFİLİ DÜZENLE
             </Link>
@@ -126,16 +127,16 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
             ["KATKI PUANI", p.xp],
           ].map(([label, value]) => (
             <div key={label} className="p-3 border-[1.5px] border-black bg-white">
-              <dt className="font-mono text-[10px]">{label}</dt>
+              <dt className={labelClass}>{label}</dt>
               <dd className="font-anton text-[26px] leading-none">{value}</dd>
             </div>
           ))}
         </dl>
-        <p className="px-5 -mt-3 font-mono text-[11px]">
+        <p className="px-5 -mt-3 font-mono text-[12px]">
           Seviye: <b>{p.level.label}</b>
           {p.level.next ? ` • ${p.level.next.label} için ${p.level.next.min - p.xp} puan daha` : ""}
         </p>
-        <p className="px-5 font-mono text-[10px] opacity-60">
+        <p className="px-5 font-mono text-[12px] opacity-60">
           Katkı puanı yalnızca forum katkısını gösterir (günde en fazla 10 yazma puanı, her beğeni {XP_PER_LIKE}{" "}
           puan); taraftar sayımını ve takım sıralamasını etkilemez.
         </p>
@@ -149,7 +150,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
               {p.badges.map((b) => (
                 <li key={b.key} title={b.description} className="border-[3px] border-black bg-[#FFEA00] px-2 py-1">
                   <span className="font-anton text-[13px]">{b.label.toLocaleUpperCase("tr")}</span>
-                  <span className="block font-mono text-[10px]">{b.description}</span>
+                  <span className={`block ${labelClass}`}>{b.description}</span>
                 </li>
               ))}
             </ul>

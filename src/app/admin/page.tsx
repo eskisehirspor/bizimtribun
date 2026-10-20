@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAdminCan } from "@/components/admin/AdminShell";
 import { AdminCard, AdminNotice, adminJson, formatWhen } from "@/components/admin/AdminUi";
+import { btnAccent, btnSecondary, btnSm, btnSmAccent, hintClass } from "@/components/ui";
 
 type Dashboard = {
   totalMembers: number;
@@ -67,10 +68,10 @@ function ModeratorHome() {
         banlayabilirsin. Rol, oy ve site ayarları yöneticilere açık.
       </p>
       <div className="flex flex-wrap gap-2 mt-4">
-        <Link href="/admin/moderasyon" className="font-anton border-[3px] border-black px-3 py-2 bg-[#FFEA00]">
+        <Link href="/admin/moderasyon" className={btnAccent}>
           MODERASYON KUYRUĞU
         </Link>
-        <Link href="/admin/forum" className="font-anton border-[3px] border-black px-3 py-2 bg-white">
+        <Link href="/admin/forum" className={btnSecondary}>
           FORUM
         </Link>
       </div>
@@ -93,13 +94,13 @@ function Distribution({
     <div className="border-[3px] border-black bg-[#FFFEFA] p-3">
       <h4 className="font-anton text-[16px]">{title}</h4>
       {rows.length === 0 ? (
-        <p className="font-mono text-[11px] opacity-70 mt-1">Henüz geçerli oy yok.</p>
+        <p className="font-mono text-[12px] opacity-70 mt-1">Henüz geçerli oy yok.</p>
       ) : (
         <ul className="mt-2 space-y-1">
           {rows.map((r) => {
             const pct = total ? Math.round((r.votes / total) * 1000) / 10 : 0;
             return (
-              <li key={r.key} className="font-mono text-[11px]">
+              <li key={r.key} className="font-mono text-[12px]">
                 <div className="flex justify-between gap-2">
                   <span className="truncate">{r.label}</span>
                   <span className="tabular-nums">
@@ -114,7 +115,7 @@ function Distribution({
           })}
         </ul>
       )}
-      {footnote && <p className="font-mono text-[10px] opacity-60 mt-2">{footnote}</p>}
+      {footnote && <p className={`mt-2 ${hintClass}`}>{footnote}</p>}
     </div>
   );
 }
@@ -135,7 +136,7 @@ function DashboardView() {
   return (
     <div>
       <h2 className="font-anton text-[32px] leading-none">DASHBOARD</h2>
-      <p className="font-mono text-[11px] mt-1 opacity-60">
+      <p className="font-mono text-[12px] mt-1 opacity-60">
         Canlı veritabanı sayıları. Silinmiş hesaplar ve kaldırılmış içerik sayılmaz.
       </p>
       <h3 className="font-anton text-[20px] mt-5">ÜYELER VE OYLAR</h3>
@@ -162,10 +163,10 @@ function DashboardView() {
         <AdminCard title="ONAY BEKLEYEN" value={data.heldItems} hint="Otomatik incelemeye düşen konu ve yorum" />
       </div>
       <div className="flex flex-wrap gap-2 mt-3">
-        <Link href="/admin/moderasyon" className="font-anton text-[13px] border-[3px] border-black px-3 py-1 bg-[#FFEA00]">
+        <Link href="/admin/moderasyon" className={btnSmAccent}>
           MODERASYON KUYRUĞU
         </Link>
-        <Link href="/admin/bildirimler" className="font-anton text-[13px] border-[3px] border-black px-3 py-1 bg-white">
+        <Link href="/admin/bildirimler" className={btnSm}>
           ÜYE BİLDİRİMLERİ
         </Link>
       </div>
@@ -211,7 +212,7 @@ function DashboardView() {
           ))}
         </ul>
       )}
-      <Link href="/admin/denetim" className="inline-block mt-2 font-mono text-[11px] underline">
+      <Link href="/admin/denetim" className="inline-block mt-2 font-mono text-[12px] underline">
         Tüm denetim kaydı
       </Link>
 

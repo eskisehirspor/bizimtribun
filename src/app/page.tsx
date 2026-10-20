@@ -45,7 +45,6 @@ export default function Home() {
       recentTopics={recentPublicTopics(8)}
       featuredTopics={featuredPublicTopics(settings.featuredTopics.ids)}
       homeLeagueIds={settings.homeLeagues.ids}
-      socialLinks={settings.socialLinks}
       generatedAt={new Date().toISOString()}
     />
   );

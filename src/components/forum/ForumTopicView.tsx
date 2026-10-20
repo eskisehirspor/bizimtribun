@@ -18,8 +18,28 @@ import {
 import { useTeamCatalog } from "@/components/useTeamCatalog";
 import { formatForumDate, forumApiError } from "@/lib/forum-ui";
 import ForumAuthorName from "@/components/ForumAuthorName";
-import { BlockButton, LikeButton, ReportButton } from "@/components/forum/ForumActions";
+import {
+  BlockButton,
+  LikeButton,
+  ReportButton,
+  type LikeViewer,
+} from "@/components/forum/ForumActions";
 import { citySlug } from "@/lib/cities";
+import BackLink from "@/components/BackLink";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import Pager from "@/components/Pager";
+import {
+  btnPrimary,
+  btnSecondary,
+  btnSm,
+  btnSmDanger,
+  btnSmPrimary,
+  chipClass,
+  fieldClass,
+  hintClass,
+  inputClass,
+  labelClass,
+} from "@/components/ui";
 
 type Author = { id: number; username: string; isTribunLeader?: boolean };
 type Topic = {
@@ -72,6 +92,10 @@ export default function KonuPage() {
   const [editCategory, setEditCategory] = useState<ForumCategory>("gundem");
   const [editPostId, setEditPostId] = useState<number | null>(null);
   const [editPostBody, setEditPostBody] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
+  /** Pending delete: the topic itself or one of the viewer's comments. */
+  const [deleting, setDeleting] = useState<{ kind: "topic" } | { kind: "post"; id: number } | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const limit = 20;
 
   const load = useCallback(async () => {
@@ -114,7 +138,7 @@ export default function KonuPage() {
         ? `/forum/il/${citySlug(topic.province)}`
         : "/forum/genel";
   const boardLabel = !topic
-    ? "Forum"
+    ? "Tribün"
     : team
       ? tribunTitle(team.name)
       : topic.board === "city" && topic.province
@@ -126,9 +150,26 @@ export default function KonuPage() {
   const locked = Boolean(topic?.lockedAt);
   const draftOk =
     draft.trim().replace(/\s/g, "").length > 0 && draft.length <= FORUM_POST_MAX;
+  const topicPath = `/forum/konu/${topicId}`;
+  const likeViewer = (authorId: number | undefined): LikeViewer =>
+    !user
+      ? loading
+        ? "none"
+        : "guest"
+      : banned
+        ? "none"
+        : !user.phoneVerified
+          ? "unverified"
+          : user.id === authorId
+            ? "author"
+            : "can";
 
   async function sendReply() {
-    if (!draftOk || sending) return;
+    if (sending) return;
+    if (!draftOk) {
+      setPostError("Yorum boş olamaz. Bir şeyler yaz.");
+      return;
+    }
     setSending(true);
     setPostError(null);
     try {
@@ -161,8 +202,15 @@ export default function KonuPage() {
   async function saveTopic() {
     const title = editTitle.replace(/\s+/g, " ").trim();
     const content = editBody.trim();
-    if (title.length < FORUM_TITLE_MIN || title.length > FORUM_TITLE_MAX) return;
-    if (!content.replace(/\s/g, "").length) return;
+    if (title.length < FORUM_TITLE_MIN || title.length > FORUM_TITLE_MAX) {
+      setEditError(`Başlık ${FORUM_TITLE_MIN}–${FORUM_TITLE_MAX} karakter olmalı.`);
+      return;
+    }
+    if (!content.replace(/\s/g, "").length) {
+      setEditError("Yazı boş olamaz.");
+      return;
+    }
+    setEditError(null);
     setSending(true);
     setPostError(null);
     try {
@@ -173,29 +221,32 @@ export default function KonuPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setPostError(forumApiError(res.status, data.error));
+        setEditError(forumApiError(res.status, data.error));
         return;
       }
       setTopic(data.topic);
       setEditing(false);
     } catch {
-      setPostError("Bağlantı kopuk.");
+      setEditError("Bağlantı kopuk.");
     } finally {
       setSending(false);
     }
   }
 
   async function deleteTopic() {
-    if (!confirm("Konuyu silmek istiyor musun?")) return;
     setSending(true);
+    setDeleteError(null);
     try {
       const res = await fetch(`/api/forum/topics/${topicId}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
-        setPostError(forumApiError(res.status, data.error));
+        setDeleteError(forumApiError(res.status, data.error));
         return;
       }
+      setDeleting(null);
       router.push(boardHref);
+    } catch {
+      setDeleteError("Bağlantı kopuk.");
     } finally {
       setSending(false);
     }
@@ -203,7 +254,11 @@ export default function KonuPage() {
 
   async function savePost(id: number) {
     const content = editPostBody.trim();
-    if (!content.replace(/\s/g, "").length) return;
+    if (!content.replace(/\s/g, "").length) {
+      setEditError("Yorum boş olamaz.");
+      return;
+    }
+    setEditError(null);
     setSending(true);
     setPostError(null);
     try {
@@ -214,30 +269,33 @@ export default function KonuPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setPostError(forumApiError(res.status, data.error));
+        setEditError(forumApiError(res.status, data.error));
         return;
       }
       setPosts((prev) => prev.map((p) => (p.id === id ? data.post : p)));
       setEditPostId(null);
     } catch {
-      setPostError("Bağlantı kopuk.");
+      setEditError("Bağlantı kopuk.");
     } finally {
       setSending(false);
     }
   }
 
   async function deletePost(id: number) {
-    if (!confirm("Yorumu silmek istiyor musun?")) return;
     setSending(true);
+    setDeleteError(null);
     try {
       const res = await fetch(`/api/forum/posts/${id}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) {
-        setPostError(forumApiError(res.status, data.error));
+        setDeleteError(forumApiError(res.status, data.error));
         return;
       }
+      setDeleting(null);
       setPosts((prev) => prev.filter((p) => p.id !== id));
       setTotal((n) => Math.max(0, n - 1));
+    } catch {
+      setDeleteError("Bağlantı kopuk.");
     } finally {
       setSending(false);
     }
@@ -246,75 +304,98 @@ export default function KonuPage() {
   if (busy && !topic) {
     return (
       <ForumShell>
-        <p className="font-mono text-[13px]">Yükleniyor…</p>
+        <p className="font-mono text-[14px]" aria-busy="true">
+          Konu yükleniyor…
+        </p>
       </ForumShell>
     );
   }
 
   if (gated) {
-    return <TeamBoardGate title="Takım tribünü" next={`/forum/konu/${topicId}`} />;
+    return <TeamBoardGate title="Takım tribünü" next={topicPath} />;
   }
 
   if (loadError || !topic) {
     return (
       <ForumShell>
         <h1 className="font-anton text-[32px]">KONU YOK</h1>
-        <p className="font-mono text-[13px] mt-2">{loadError}</p>
-        <Link href="/forum" className="mt-4 inline-block font-anton border-[3px] border-black px-3 py-2">
-          FORUM
+        <p className="font-mono text-[14px] mt-2">{loadError}</p>
+        <Link href="/forum" className={`mt-4 ${btnSecondary}`}>
+          ← TRİBÜNE DÖN
         </Link>
       </ForumShell>
     );
   }
 
+  const deletingPost = deleting?.kind === "post" ? deleting.id : null;
+
   return (
     <ForumShell>
-      <Link href={boardHref} className="font-mono text-[11px] underline inline-flex items-center gap-2">
+      <BackLink href={boardHref}>
         {team ? <TeamMark team={team} size={22} /> : null}
         {boardLabel}
-      </Link>
+      </BackLink>
 
-      <article className="mt-4 border-[4px] border-black bg-[#FFFEFA] shadow-[6px_6px_0_black] p-4 sm:p-5">
+      <article className="mt-3 border-[4px] border-black bg-[#FFFEFA] shadow-[6px_6px_0_black] p-4 sm:p-5">
         {editing ? (
-          <div className="space-y-2">
-            <input
-              value={editTitle}
-              onChange={(e) => setEditTitle(e.target.value.slice(0, FORUM_TITLE_MAX))}
-              className="w-full border-[3px] border-black px-2 py-1 font-anton text-[22px]"
-            />
-            <div className="flex flex-wrap gap-2">
-              {FORUM_CATEGORIES.map((key) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setEditCategory(key)}
-                  className={`font-anton text-[11px] px-2 py-1 border-[2px] border-black ${
-                    editCategory === key ? "bg-black text-[#FFEA00]" : "bg-white"
-                  }`}
-                >
-                  {FORUM_CATEGORY_META[key].tab}
-                </button>
-              ))}
+          <div className="space-y-3">
+            <label className="block">
+              <span className={labelClass}>
+                BAŞLIK ({FORUM_TITLE_MIN}–{FORUM_TITLE_MAX} karakter)
+              </span>
+              <input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value.slice(0, FORUM_TITLE_MAX))}
+                className={`mt-1 ${titleField}`}
+              />
+            </label>
+            <div>
+              <span className={labelClass}>KATEGORİ</span>
+              <div className="mt-1 flex flex-wrap gap-2" role="group" aria-label="Kategori">
+                {FORUM_CATEGORIES.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={editCategory === key}
+                    onClick={() => setEditCategory(key)}
+                    className={chipClass(editCategory === key)}
+                  >
+                    {FORUM_CATEGORY_META[key].tab}
+                  </button>
+                ))}
+              </div>
             </div>
-            <textarea
-              value={editBody}
-              onChange={(e) => setEditBody(e.target.value.slice(0, FORUM_BODY_MAX))}
-              rows={8}
-              className="w-full border-[3px] border-black px-2 py-2 font-mono text-[14px]"
-            />
-            <div className="flex gap-2">
+            <label className="block">
+              <span className={labelClass}>YAZI</span>
+              <textarea
+                value={editBody}
+                onChange={(e) => setEditBody(e.target.value.slice(0, FORUM_BODY_MAX))}
+                rows={8}
+                className={inputClass}
+              />
+            </label>
+            {editError && (
+              <p role="alert" className="font-mono text-[13px] border-[2px] border-dashed border-black p-2 bg-[#C8102E]/10">
+                {editError}
+              </p>
+            )}
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 disabled={sending}
+                aria-busy={sending || undefined}
                 onClick={() => void saveTopic()}
-                className="font-anton border-[3px] border-black bg-black text-white px-3 py-1"
+                className={btnPrimary}
               >
-                KAYDET
+                {sending ? "KAYDEDİLİYOR…" : "KAYDET"}
               </button>
               <button
                 type="button"
-                onClick={() => setEditing(false)}
-                className="font-anton border-[3px] border-black px-3 py-1 bg-white"
+                onClick={() => {
+                  setEditing(false);
+                  setEditError(null);
+                }}
+                className={btnSecondary}
               >
                 VAZGEÇ
               </button>
@@ -322,15 +403,15 @@ export default function KonuPage() {
           </div>
         ) : (
           <>
-            <h1 className="font-anton text-[28px] sm:text-[36px] leading-[0.9]">
+            <h1 className="font-anton text-[28px] sm:text-[36px] leading-[0.95]">
               {topic.isPinned ? (
-                <span className="mr-2 font-mono text-[10px] bg-[#FFEA00] border-[2px] border-black px-1 align-middle">
+                <span className="mr-2 font-mono text-[11px] bg-[#FFEA00] border-[2px] border-black px-1 align-middle">
                   SABİT
                 </span>
               ) : null}{" "}
               {topic.title}
             </h1>
-            <p className="font-mono text-[11px] opacity-70 mt-2">
+            <p className="font-mono text-[12px] opacity-75 mt-2">
               {isForumCategory(topic.category)
                 ? FORUM_CATEGORY_META[topic.category].label
                 : "Gündem"}{" "}
@@ -346,16 +427,17 @@ export default function KonuPage() {
               {topic.editedAt ? " • düzenlendi" : ""}
               {locked ? " • KİLİTLİ" : ""}
             </p>
-            <div className="font-mono text-[14px] mt-4 whitespace-pre-wrap leading-[1.5]">
+            <div className="font-mono text-[15px] mt-4 whitespace-pre-wrap leading-[1.55]">
               {topic.content}
             </div>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
               <LikeButton
                 type="topic"
                 id={topic.id}
                 count={topic.likeCount}
                 liked={topic.likedByMe}
-                canLike={canWrite && !isOwner}
+                viewer={likeViewer(topic.author?.id)}
+                loginNext={topicPath}
               />
               {canWrite && !isOwner && <ReportButton type="topic" id={topic.id} />}
               {canWrite && !isOwner && topic.author && (
@@ -367,7 +449,7 @@ export default function KonuPage() {
               )}
             </div>
             {isOwner && user?.phoneVerified && (
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 pt-3 border-t-[2px] border-dashed border-black flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -376,19 +458,23 @@ export default function KonuPage() {
                     setEditCategory(
                       isForumCategory(topic.category) ? topic.category : "gundem",
                     );
+                    setEditError(null);
                     setEditing(true);
                   }}
-                  className="font-anton text-[12px] border-[2px] border-black px-2 py-1 bg-white"
+                  className={btnSm}
                 >
                   DÜZENLE
                 </button>
                 <button
                   type="button"
                   disabled={sending}
-                  onClick={() => void deleteTopic()}
-                  className="font-anton text-[12px] border-[2px] border-black px-2 py-1 bg-[#C8102E] text-white"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleting({ kind: "topic" });
+                  }}
+                  className={`${btnSmDanger} ml-auto`}
                 >
-                  SİL
+                  KONUYU SİL
                 </button>
               </div>
             )}
@@ -399,170 +485,196 @@ export default function KonuPage() {
       <h2 className="font-anton text-[22px] mt-6">YORUMLAR ({total})</h2>
       <div className="mt-2 border-[3px] border-black bg-white divide-y-[2px] divide-black">
         {posts.length === 0 ? (
-          <p className="p-4 font-mono text-[13px]">Henüz yorum yok.</p>
+          <p className="p-4 font-mono text-[14px]">Henüz yorum yok. İlk yorumu sen yaz.</p>
         ) : (
-          posts.map((p) => (
-            <div key={p.id} id={`yorum-${p.id}`} className="p-3 sm:p-4">
-              <p className="font-mono text-[11px] opacity-70">
-                <ForumAuthorName
-                  link
-                  username={p.author.username}
-                  isTribunLeader={p.author.isTribunLeader}
-                />{" "}
-                • {formatForumDate(p.createdAt)}
-                {p.editedAt ? " • düzenlendi" : ""}
-              </p>
-              {editPostId === p.id ? (
-                <div className="mt-2 space-y-2">
-                  <textarea
-                    value={editPostBody}
-                    onChange={(e) => setEditPostBody(e.target.value.slice(0, FORUM_POST_MAX))}
-                    rows={4}
-                    className="w-full border-[3px] border-black px-2 py-2 font-mono text-[14px]"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={sending}
-                      onClick={() => void savePost(p.id)}
-                      className="font-anton text-[12px] border-[2px] border-black px-2 py-1 bg-black text-white"
-                    >
-                      KAYDET
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditPostId(null)}
-                      className="font-anton text-[12px] border-[2px] border-black px-2 py-1"
-                    >
-                      VAZGEÇ
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p className="font-mono text-[14px] mt-1 whitespace-pre-wrap">{p.content}</p>
-              )}
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <LikeButton
-                  type="post"
-                  id={p.id}
-                  count={p.likeCount ?? 0}
-                  liked={Boolean(p.likedByMe)}
-                  canLike={canWrite && user?.id !== p.author.id}
-                />
-                {canWrite && user?.id !== p.author.id && <ReportButton type="post" id={p.id} />}
-                {canWrite && user?.id !== p.author.id && (
-                  <BlockButton
-                    userId={p.author.id}
+          posts.map((p) => {
+            const mine = Boolean(user && user.id === p.author.id);
+            return (
+              <div key={p.id} id={`yorum-${p.id}`} className="p-3 sm:p-4 scroll-mt-4">
+                <p className="font-mono text-[12px] opacity-75">
+                  <ForumAuthorName
+                    link
                     username={p.author.username}
-                    onBlocked={() => void load()}
-                  />
+                    isTribunLeader={p.author.isTribunLeader}
+                  />{" "}
+                  • {formatForumDate(p.createdAt)}
+                  {p.editedAt ? " • düzenlendi" : ""}
+                </p>
+                {editPostId === p.id ? (
+                  <div className="mt-2 space-y-2">
+                    <label className="block">
+                      <span className="sr-only">Yorumu düzenle</span>
+                      <textarea
+                        value={editPostBody}
+                        onChange={(e) => setEditPostBody(e.target.value.slice(0, FORUM_POST_MAX))}
+                        rows={4}
+                        className={inputClass}
+                      />
+                    </label>
+                    {editError && (
+                      <p role="alert" className="font-mono text-[13px] text-[#C8102E]">
+                        {editError}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={sending}
+                        aria-busy={sending || undefined}
+                        onClick={() => void savePost(p.id)}
+                        className={btnSmPrimary}
+                      >
+                        {sending ? "KAYDEDİLİYOR…" : "KAYDET"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditPostId(null);
+                          setEditError(null);
+                        }}
+                        className={btnSm}
+                      >
+                        VAZGEÇ
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="font-mono text-[15px] mt-1 whitespace-pre-wrap leading-[1.5]">{p.content}</p>
                 )}
-              </div>
-              {user && user.phoneVerified && user.id === p.author.id && editPostId !== p.id && (
-                <div className="mt-2 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditPostId(p.id);
-                      setEditPostBody(p.content);
-                    }}
-                    className="font-anton text-[11px] underline"
-                  >
-                    Düzenle
-                  </button>
-                  <button
-                    type="button"
-                    disabled={sending}
-                    onClick={() => void deletePost(p.id)}
-                    className="font-anton text-[11px] underline"
-                  >
-                    Sil
-                  </button>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <LikeButton
+                    type="post"
+                    id={p.id}
+                    count={p.likeCount ?? 0}
+                    liked={Boolean(p.likedByMe)}
+                    viewer={likeViewer(p.author.id)}
+                    loginNext={`${topicPath}#yorum-${p.id}`}
+                  />
+                  {canWrite && !mine && <ReportButton type="post" id={p.id} />}
+                  {canWrite && !mine && (
+                    <BlockButton
+                      userId={p.author.id}
+                      username={p.author.username}
+                      onBlocked={() => void load()}
+                    />
+                  )}
+                  {mine && user?.phoneVerified && editPostId !== p.id && (
+                    <span className="ml-auto flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditPostId(p.id);
+                          setEditPostBody(p.content);
+                          setEditError(null);
+                        }}
+                        className={btnSm}
+                      >
+                        DÜZENLE
+                      </button>
+                      <button
+                        type="button"
+                        disabled={sending}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleting({ kind: "post", id: p.id });
+                        }}
+                        className={btnSmDanger}
+                      >
+                        SİL
+                      </button>
+                    </span>
+                  )}
                 </div>
-              )}
-            </div>
-          ))
+              </div>
+            );
+          })
         )}
       </div>
 
-      {pages > 1 && (
-        <div className="mt-3 flex items-center justify-center gap-2 font-anton">
-          <button
-            type="button"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => p - 1)}
-            className="border-[3px] border-black px-3 py-1 bg-white disabled:opacity-40"
-          >
-            ←
-          </button>
-          <span className="font-mono text-[12px]">
-            {page} / {pages}
-          </span>
-          <button
-            type="button"
-            disabled={page >= pages}
-            onClick={() => setPage((p) => p + 1)}
-            className="border-[3px] border-black px-3 py-1 bg-white disabled:opacity-40"
-          >
-            →
-          </button>
-        </div>
-      )}
+      <Pager page={page} pages={pages} onPage={setPage} />
 
       <div className="mt-5 border-[4px] border-black bg-[#FFFEFA] p-4">
         {locked ? (
-          <p className="font-anton text-[18px]">BU KONU KİLİTLİ</p>
+          <p className="font-anton text-[18px]">BU KONU KİLİTLİ. YENİ YORUM YAZILAMAZ.</p>
         ) : banned ? (
-          <p className="font-mono text-[13px]">{message || "Hesabın askıda. Yorum yazamazsın."}</p>
+          <p className="font-mono text-[14px]">{message || "Hesabın askıda. Yorum yazamazsın."}</p>
         ) : !user && !loading ? (
-          <p className="font-mono text-[13px]">
-            Yorum yazmak için{" "}
-            <Link
-              className="underline font-anton"
-              href={`/giris?next=${encodeURIComponent(`/forum/konu/${topicId}`)}`}
-            >
-              giriş yap
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="font-mono text-[14px]">Yorum yazmak için giriş yap.</p>
+            <Link className={btnPrimary} href={`/giris?next=${encodeURIComponent(topicPath)}`}>
+              GİRİŞ YAP
             </Link>
-            .
-          </p>
+          </div>
         ) : user && !user.phoneVerified ? (
-          <p className="font-mono text-[13px]">
-            Yorum yazmak için{" "}
-            <Link href="/takim-sec" className="underline font-anton">
-              telefonunu doğrula
+          <div className="flex flex-wrap items-center gap-3">
+            <p className="font-mono text-[14px]">Yorum yazmak için telefonunu bir kez doğrula.</p>
+            <Link href="/takim-sec" className={btnPrimary}>
+              TELEFONUNU DOĞRULA
             </Link>
-            .
-          </p>
+          </div>
         ) : (
-          <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void sendReply();
+            }}
+          >
             <label className="block">
-              <span className="font-mono text-[10px]">YORUM (MAX {FORUM_POST_MAX})</span>
+              <span className={labelClass}>YORUMUN</span>
               <textarea
                 value={draft}
-                onChange={(e) => setDraft(e.target.value.slice(0, FORUM_POST_MAX))}
+                onChange={(e) => {
+                  setDraft(e.target.value.slice(0, FORUM_POST_MAX));
+                  if (postError) setPostError(null);
+                }}
                 rows={4}
-                className="mt-1 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] outline-none"
+                aria-describedby="yorum-sayac"
+                className={inputClass}
               />
-              <span className="font-mono text-[10px] opacity-60">
-                {draft.length}/{FORUM_POST_MAX}
-              </span>
             </label>
+            <p id="yorum-sayac" className={`${hintClass} mt-1`}>
+              {draft.length}/{FORUM_POST_MAX} karakter
+            </p>
             {postError && (
-              <p className="mt-2 font-mono text-[12px] border-[2px] border-dashed border-black p-2 bg-[#C8102E]/10">
+              <p
+                role="alert"
+                className="mt-2 font-mono text-[13px] border-[2px] border-dashed border-black p-2 bg-[#C8102E]/10"
+              >
                 {postError}
               </p>
             )}
             <button
-              type="button"
-              disabled={sending || !draftOk || !user}
-              onClick={() => void sendReply()}
-              className="mt-2 font-anton text-[16px] px-4 py-2 border-[3px] border-black bg-black text-white disabled:bg-zinc-300 disabled:text-zinc-500"
+              type="submit"
+              disabled={sending || !user}
+              aria-busy={sending || undefined}
+              className={`mt-2 ${btnPrimary}`}
             >
               {sending ? "GÖNDERİLİYOR…" : "YORUMU GÖNDER"}
             </button>
-          </>
+          </form>
         )}
       </div>
+
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        title={deleting?.kind === "topic" ? "KONU SİLİNSİN Mİ?" : "YORUM SİLİNSİN Mİ?"}
+        body={
+          deleting?.kind === "topic"
+            ? "Konu ve altındaki yorumlar tribünden kalkar. Bu işlem geri alınamaz."
+            : "Yorumun tribünden kalkar. Bu işlem geri alınamaz."
+        }
+        confirmLabel="SİL"
+        busyLabel="SİLİNİYOR…"
+        busy={sending}
+        error={deleteError}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          if (deleting?.kind === "topic") void deleteTopic();
+          else if (deletingPost != null) void deletePost(deletingPost);
+        }}
+      />
     </ForumShell>
   );
 }
+
+const titleField = fieldClass.replace("font-mono text-base sm:text-[14px]", "font-anton text-[20px]");

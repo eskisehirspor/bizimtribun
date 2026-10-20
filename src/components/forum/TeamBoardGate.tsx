@@ -13,7 +13,7 @@ export function isTeamBoardCode(code: unknown): code is (typeof TEAM_BOARD_CODES
 /** Shown instead of a team tribune to visitors who are not that team's fans. */
 export default function TeamBoardGate({ title, next }: { title: string; next: string }) {
   const { user } = useAuth();
-  const ownBoard = user?.teamId ? `/takim/${user.teamId}/forum` : null;
+  const ownBoard = user?.voteTeamId ? `/takim/${user.voteTeamId}/forum` : null;
   return (
     <ForumShell>
       <div className="max-w-[560px] bg-white border-[4px] border-black shadow-[6px_6px_0_black] p-5">

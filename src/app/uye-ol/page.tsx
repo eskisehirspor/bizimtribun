@@ -9,6 +9,7 @@ import PhoneOtpStep from "@/components/auth/PhoneOtpStep";
 import TeamPicker from "@/components/auth/TeamPicker";
 import { errorText, inputClass, Notice, postJson, primaryButton } from "@/components/auth/ui";
 import { safeNextPath } from "@/lib/forum-ui";
+import { hintClass, labelClass } from "@/components/ui";
 
 type Step = "phone" | "profile" | "team";
 
@@ -150,7 +151,7 @@ function Flow() {
             </Notice>
           )}
           <label className="block">
-            <span className="font-mono text-[10px]">KULLANICI ADI</span>
+            <span className={labelClass}>KULLANICI ADI</span>
             <input
               required
               value={username}
@@ -160,12 +161,12 @@ function Flow() {
               maxLength={20}
               aria-describedby="u-help"
             />
-            <span id="u-help" className="font-mono text-[10px] opacity-70">
+            <span id="u-help" className={hintClass}>
               Forumda ve profilinde görünen tek kimliğin. 3–20 karakter: a-z, 0-9, _
             </span>
           </label>
           <label className="block">
-            <span className="font-mono text-[10px]">GÖRÜNEN AD (İSTEĞE BAĞLI)</span>
+            <span className={labelClass}>GÖRÜNEN AD (İSTEĞE BAĞLI)</span>
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -220,7 +221,7 @@ export default function UyeOlPage() {
   return (
     <ForumShell>
       <div className="max-w-[560px] mx-auto bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black] p-5 sm:p-6">
-        <p className="font-mono text-[10px] tracking-[0.2em]">BİZİM TRİBÜN • ÜYELİK</p>
+        <p className="font-mono text-[11px] tracking-[0.2em]">BİZİM TRİBÜN • ÜYELİK</p>
         <h1 className="font-anton text-[40px] leading-[0.85] mt-2 mb-5">
           TRİBÜNE
           <br />

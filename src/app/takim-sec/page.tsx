@@ -79,7 +79,7 @@ export default function TakimSecPage() {
   return (
     <ForumShell>
       <div className="max-w-[560px] mx-auto bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black] p-5 sm:p-6">
-        <p className="font-mono text-[10px] tracking-[0.2em]">BİZİM TRİBÜN • SAYIM</p>
+        <p className="font-mono text-[11px] tracking-[0.2em]">BİZİM TRİBÜN • SAYIM</p>
         <h1 className="font-anton text-[40px] leading-[0.85] mt-2 mb-5">
           TAKIMINI
           <br />

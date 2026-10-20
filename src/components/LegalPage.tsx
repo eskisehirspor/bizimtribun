@@ -12,9 +12,9 @@ export default function LegalPage({
   return (
     <main className="min-h-screen bg-[#F2EFE6] paper-bg px-4 py-10">
       <article className="max-w-[760px] mx-auto bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black] p-5 md:p-8">
-        <p className="font-mono text-[10px] tracking-[0.2em]">{kicker}</p>
+        <p className="font-mono text-[11px] tracking-[0.2em]">{kicker}</p>
         <h1 className="font-anton text-[32px] md:text-[36px] leading-[0.9] mt-2">{title}</h1>
-        <p className="mt-3 font-mono text-[11px] border-[2px] border-dashed border-black bg-[#FFEA00]/50 p-2">
+        <p className="mt-3 font-mono text-[12px] border-[2px] border-dashed border-black bg-[#FFEA00]/50 p-2">
           Teknik taslak: Bu metin henüz hukuki incelemeden geçmemiştir.
         </p>
         <div className="font-mono text-[13px] leading-[1.55] mt-5 space-y-4 [&_h2]:font-anton [&_h2]:text-[18px] [&_h2]:mt-6">

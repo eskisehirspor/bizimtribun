@@ -8,7 +8,7 @@ export default function GeneralForumPage() {
       apiPath="/api/forum/genel/topics"
       newTopicPath="/forum/genel/yeni"
       backHref="/forum"
-      backLabel="Tüm forumlar"
+      backLabel="Tüm tribünler"
       active
       header={(total) => (
         <div className="mt-3">
@@ -17,7 +17,7 @@ export default function GeneralForumPage() {
             Takım ayırmadan futbol: lig gündemi, hakem, milli takım, Avrupa kupaları. Her takımdan
             doğrulanmış taraftar yazabilir.
           </p>
-          <p className="font-mono text-[11px] opacity-60 mt-1">{total} konu</p>
+          <p className="font-mono text-[12px] opacity-70 mt-1">{total} konu</p>
         </div>
       )}
     />

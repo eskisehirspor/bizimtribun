@@ -9,6 +9,7 @@ import {
   formatWhen,
   useConfirmAction,
 } from "@/components/admin/AdminUi";
+import { btnSmAccent, chipClass } from "@/components/ui";
 
 type Item = {
   userId: number | null;
@@ -57,7 +58,8 @@ export default function AdminBansPage() {
       <div className="flex gap-2 mt-3">
         <button
           type="button"
-          className={`font-anton border-[3px] border-black px-3 py-1 ${state === "active" ? "bg-[#FFEA00]" : "bg-white"}`}
+          aria-pressed={state === "active"}
+          className={chipClass(state === "active")}
           onClick={() => {
             setState("active");
             setPage(1);
@@ -67,7 +69,8 @@ export default function AdminBansPage() {
         </button>
         <button
           type="button"
-          className={`font-anton border-[3px] border-black px-3 py-1 ${state === "all" ? "bg-[#FFEA00]" : "bg-white"}`}
+          aria-pressed={state === "all"}
+          className={chipClass(state === "all")}
           onClick={() => {
             setState("all");
             setPage(1);
@@ -87,12 +90,12 @@ export default function AdminBansPage() {
           <table className="w-full text-left font-mono text-[12px]">
             <thead className="bg-black text-[#FFEA00]">
               <tr>
-                <th className="p-2">Username</th>
+                <th className="p-2">Kullanıcı adı</th>
                 <th className="p-2">Gerekçe</th>
                 <th className="p-2">Başlangıç</th>
                 <th className="p-2">Bitiş</th>
                 <th className="p-2">Süre</th>
-                <th className="p-2">Admin</th>
+                <th className="p-2">Yetkili</th>
                 <th className="p-2">Kaldırıldı</th>
                 <th className="p-2"></th>
               </tr>
@@ -119,7 +122,7 @@ export default function AdminBansPage() {
                     {row.userId && !row.lifted && (
                       <button
                         type="button"
-                        className="border-[2px] border-black px-2 bg-[#FFEA00]"
+                        className={btnSmAccent}
                         onClick={() =>
                           ask({
                             title: "BAN KALDIR",

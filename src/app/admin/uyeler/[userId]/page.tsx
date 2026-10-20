@@ -11,6 +11,7 @@ import {
   formatWhen,
   useConfirmAction,
 } from "@/components/admin/AdminUi";
+import { btnAccent, btnDanger, btnSecondary } from "@/components/ui";
 
 type Detail = {
   id: number;
@@ -91,7 +92,7 @@ export default function AdminUserDetailPage() {
   return (
     <div>
       {dialog}
-      <Link href="/admin/uyeler" className="font-mono text-[11px] underline">
+      <Link href="/admin/uyeler" className="font-mono text-[12px] underline">
         ← üyeler
       </Link>
       <h2 className="font-anton text-[32px] leading-none mt-2">{user.username}</h2>
@@ -128,7 +129,7 @@ export default function AdminUserDetailPage() {
           ["Ban gerekçe", user.banReason || "—"],
         ].map(([k, v]) => (
           <div key={k} className="border-[2px] border-black bg-[#FFFEFA] p-2">
-            <div className="opacity-50 text-[10px]">{k}</div>
+            <div className="opacity-50 text-[12px]">{k}</div>
             <div>{v}</div>
           </div>
         ))}
@@ -138,7 +139,7 @@ export default function AdminUserDetailPage() {
         {!user.banned && !user.deleted && canBanRole(viewer.role, user.role) && (
           <button
             type="button"
-            className="font-anton border-[3px] border-black bg-[#C8102E] text-white px-3 py-2"
+            className={btnDanger}
             onClick={() =>
               ask({
                 title: "BANLA",
@@ -160,7 +161,7 @@ export default function AdminUserDetailPage() {
         {user.banned && canBanRole(viewer.role, user.role) && (
           <button
             type="button"
-            className="font-anton border-[3px] border-black bg-[#FFEA00] px-3 py-2"
+            className={btnAccent}
             onClick={() =>
               ask({
                 title: "BAN KALDIR",
@@ -182,7 +183,7 @@ export default function AdminUserDetailPage() {
         {can("votes.void") && user.vote?.status === "active" && (
           <button
             type="button"
-            className="font-anton border-[3px] border-black bg-white px-3 py-2"
+            className={btnSecondary}
             onClick={() =>
               ask({
                 title: "OYU İPTAL ET",

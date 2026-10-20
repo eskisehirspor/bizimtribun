@@ -9,6 +9,7 @@ import {
   formatWhen,
   useConfirmAction,
 } from "@/components/admin/AdminUi";
+import { btnSm, btnSmAccent, chipClass } from "@/components/ui";
 
 type Item = {
   id: number;
@@ -95,7 +96,8 @@ export default function AdminReportsPage() {
               setStatus(s);
               setPage(1);
             }}
-            className={`font-anton border-[3px] border-black px-3 py-1 ${status === s ? "bg-[#FFEA00]" : "bg-white"}`}
+            aria-pressed={status === s}
+          className={chipClass(status === s)}
           >
             {s === "open" ? "AÇIK" : "KAPANMIŞ"}
           </button>
@@ -135,10 +137,10 @@ export default function AdminReportsPage() {
                 )}
                 {r.status === "open" ? (
                   <>
-                    <button type="button" className="font-anton border-[2px] border-black px-2 bg-[#FFEA00]" onClick={() => close(r, "resolved")}>
+                    <button type="button" className={btnSmAccent} onClick={() => close(r, "resolved")}>
                       İŞLEM YAPILDI
                     </button>
-                    <button type="button" className="font-anton border-[2px] border-black px-2 bg-white" onClick={() => close(r, "dismissed")}>
+                    <button type="button" className={btnSm} onClick={() => close(r, "dismissed")}>
                       REDDET
                     </button>
                   </>

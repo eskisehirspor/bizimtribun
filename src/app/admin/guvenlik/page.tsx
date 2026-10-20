@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminNotice, adminJson } from "@/components/admin/AdminUi";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import { btnAccent, btnDanger, btnPrimary, inputClass, labelClass } from "@/components/ui";
 
 type Status = {
   enabled: boolean;
@@ -22,6 +24,7 @@ export default function AdminSecurityPage() {
   const [disableCode, setDisableCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [askDisable, setAskDisable] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
@@ -77,9 +80,7 @@ export default function AdminSecurityPage() {
     }
   }
 
-  async function disable(e: React.FormEvent) {
-    e.preventDefault();
-    if (!window.confirm("2FA kapatılacak. Devam edilsin mi?")) return;
+  async function disable() {
     setBusy(true);
     setError(null);
     try {
@@ -90,6 +91,7 @@ export default function AdminSecurityPage() {
       setPassword("");
       setDisableCode("");
       setRecovery(null);
+      setAskDisable(false);
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Kapatılamadı.");
@@ -129,7 +131,7 @@ export default function AdminSecurityPage() {
               type="button"
               disabled={busy}
               onClick={() => void startSetup()}
-              className="mt-3 font-anton border-[3px] border-black bg-[#FFEA00] px-3 py-2"
+              className={`mt-3 ${btnAccent}`}
             >
               2FA KUR
             </button>
@@ -147,34 +149,34 @@ export default function AdminSecurityPage() {
             Uygulamada manuel anahtar veya provisioning URI kullan. İlk kod doğrulanmadan 2FA açılmaz.
           </p>
           <label className="block">
-            <span className="font-mono text-[10px]">SECRET</span>
+            <span className={labelClass}>SECRET</span>
             <input
               readOnly
               value={groupedSecret}
-              className="mt-1 w-full border-[3px] border-black px-2 py-2 font-mono text-[13px]"
+              className={inputClass}
             />
           </label>
           <label className="block">
-            <span className="font-mono text-[10px]">OTPAuth URI</span>
+            <span className={labelClass}>OTPAuth URI</span>
             <textarea
               readOnly
               value={setup.otpauthUrl}
-              className="mt-1 w-full border-[3px] border-black px-2 py-2 font-mono text-[11px] min-h-[72px]"
+              className={`${inputClass} min-h-[72px]`}
             />
           </label>
           <label className="block">
-            <span className="font-mono text-[10px]">UYGULAMA KODU</span>
+            <span className={labelClass}>UYGULAMA KODU</span>
             <input
               value={code}
               onChange={(e) => setCode(e.target.value)}
               inputMode="numeric"
               autoComplete="one-time-code"
-              className="mt-1 w-full border-[3px] border-black px-2 py-2 font-mono text-[16px]"
+              className={inputClass}
             />
           </label>
           <button
             disabled={busy}
-            className="font-anton border-[3px] border-black bg-black text-white px-3 py-2"
+            className={btnPrimary}
           >
             DOĞRULA VE AKTİF ET
           </button>
@@ -197,7 +199,11 @@ export default function AdminSecurityPage() {
 
       {status?.enabled && (
         <form
-          onSubmit={(e) => void disable(e)}
+          onSubmit={(e) => {
+            e.preventDefault();
+            setError(null);
+            setAskDisable(true);
+          }}
           className="mt-4 border-[3px] border-black bg-[#FFFEFA] p-4 space-y-3"
         >
           <h3 className="font-anton text-[22px]">2FA KAPAT</h3>
@@ -205,30 +211,41 @@ export default function AdminSecurityPage() {
             TOTP veya kurtarma kodu gerekir. Hesabında parola varsa onu da yaz; yalnızca SMS ile giriyorsan boş bırak.
           </p>
           <label className="block">
-            <span className="font-mono text-[10px]">PAROLA (VARSA)</span>
+            <span className={labelClass}>PAROLA (VARSA)</span>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full border-[3px] border-black px-2 py-2 font-mono"
+              className={inputClass}
             />
           </label>
           <label className="block">
-            <span className="font-mono text-[10px]">TOTP VEYA KURTARMA KODU</span>
+            <span className={labelClass}>TOTP VEYA KURTARMA KODU</span>
             <input
               value={disableCode}
               onChange={(e) => setDisableCode(e.target.value)}
-              className="mt-1 w-full border-[3px] border-black px-2 py-2 font-mono"
+              className={inputClass}
             />
           </label>
           <button
             disabled={busy}
-            className="font-anton border-[3px] border-black bg-[#C8102E] text-white px-3 py-2"
+            className={btnDanger}
           >
             2FA KAPAT
           </button>
         </form>
       )}
+      <ConfirmDialog
+        open={askDisable}
+        title="2FA KAPATILSIN MI?"
+        body="Hesabın yalnızca SMS veya parola ile korunur. İstediğin zaman yeniden açabilirsin."
+        confirmLabel="2FA KAPAT"
+        busyLabel="KAPATILIYOR…"
+        busy={busy}
+        error={askDisable ? error : null}
+        onCancel={() => setAskDisable(false)}
+        onConfirm={() => void disable()}
+      />
     </div>
   );
 }

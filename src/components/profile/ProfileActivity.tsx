@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { formatForumDate } from "@/lib/forum-ui";
+import { btnSecondary, hintClass } from "@/components/ui";
 
 type Item = {
   type: "topic" | "post";
@@ -57,7 +58,7 @@ export default function ProfileActivity({
               href={item.type === "topic" ? `/forum/konu/${item.topicId}` : `/forum/konu/${item.topicId}#yorum-${item.id}`}
               className="block p-3 hover:bg-[#FFEA00]/30"
             >
-              <p className="font-mono text-[10px] opacity-70">
+              <p className={hintClass}>
                 {item.type === "topic" ? "KONU AÇTI" : "YORUM YAZDI"} • {formatForumDate(item.createdAt)}
               </p>
               <p className="font-anton text-[16px] leading-tight">{item.title}</p>
@@ -72,7 +73,7 @@ export default function ProfileActivity({
           type="button"
           disabled={busy}
           onClick={() => void more()}
-          className="mt-3 font-anton text-[14px] border-[3px] border-black bg-white px-3 py-2 disabled:opacity-50"
+          className={`mt-3 ${btnSecondary}`}
         >
           {busy ? "YÜKLENİYOR…" : "DAHA FAZLA"}
         </button>

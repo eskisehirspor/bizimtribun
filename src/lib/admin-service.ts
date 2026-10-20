@@ -415,6 +415,8 @@ export function getAdminUserDetail(id: number, viewerRole: string) {
     .all(id) as Array<{
     id: number;
     team_id: string;
+    board: string;
+    city: string | null;
     title: string;
     created_at: string;
     locked_at: string | null;
@@ -546,14 +548,26 @@ export type TopicListFilters = {
   limit: number;
 };
 
+/** Team id, or "board:general" / "board:city" for the open boards. */
+function pushBoardFilter(value: string | null, where: string[], params: unknown[]) {
+  if (!value) return;
+  if (value === "board:general") {
+    where.push(`t.board = 'general'`);
+    return;
+  }
+  if (value === "board:city") {
+    where.push(`t.board = 'city'`);
+    return;
+  }
+  where.push(`t.team_id = ?`);
+  params.push(value);
+}
+
 export function listAdminTopics(filters: TopicListFilters) {
   const db = getDb();
   const where: string[] = ["1=1"];
   const params: unknown[] = [];
-  if (filters.teamId) {
-    where.push(`t.team_id = ?`);
-    params.push(filters.teamId);
-  }
+  pushBoardFilter(filters.teamId, where, params);
   if (filters.q) {
     where.push(`t.title LIKE ?`);
     params.push(filters.q);
@@ -572,7 +586,7 @@ export function listAdminTopics(filters: TopicListFilters) {
 
   const rows = db
     .prepare(
-      `SELECT t.id, t.team_id, t.title, t.created_at, t.locked_at, t.deleted_at, t.held_at, t.user_id,
+      `SELECT t.id, t.team_id, t.board, t.city, t.title, t.created_at, t.locked_at, t.deleted_at, t.held_at, t.user_id,
               u.username,
               tm.name as team_name,
               (SELECT COUNT(*) FROM forum_posts p WHERE p.topic_id = t.id AND p.deleted_at IS NULL) as post_count
@@ -586,6 +600,8 @@ export function listAdminTopics(filters: TopicListFilters) {
     .all(...params, filters.limit, filters.offset) as Array<{
     id: number;
     team_id: string;
+    board: string;
+    city: string | null;
     title: string;
     created_at: string;
     locked_at: string | null;
@@ -603,6 +619,8 @@ export function listAdminTopics(filters: TopicListFilters) {
       id: row.id,
       teamId: row.team_id,
       teamName: row.team_name,
+      board: row.board,
+      city: row.city,
       title: row.title,
       createdAt: row.created_at,
       locked: Boolean(row.locked_at),
@@ -627,10 +645,7 @@ export function listAdminPosts(filters: PostListFilters) {
   const db = getDb();
   const where: string[] = ["1=1"];
   const params: unknown[] = [];
-  if (filters.teamId) {
-    where.push(`t.team_id = ?`);
-    params.push(filters.teamId);
-  }
+  pushBoardFilter(filters.teamId, where, params);
   if (filters.topicId) {
     where.push(`p.topic_id = ?`);
     params.push(filters.topicId);
@@ -659,7 +674,7 @@ export function listAdminPosts(filters: PostListFilters) {
   const rows = db
     .prepare(
       `SELECT p.id, p.topic_id, p.content, p.created_at, p.deleted_at, p.held_at, p.user_id,
-              u.username, t.title as topic_title, t.team_id, tm.name as team_name
+              u.username, t.title as topic_title, t.team_id, t.board, t.city, tm.name as team_name
        FROM forum_posts p
        JOIN forum_topics t ON t.id = p.topic_id
        JOIN users u ON u.id = p.user_id
@@ -679,6 +694,8 @@ export function listAdminPosts(filters: PostListFilters) {
     username: string;
     topic_title: string;
     team_id: string;
+    board: string;
+    city: string | null;
     team_name: string | null;
   }>;
 
@@ -690,6 +707,8 @@ export function listAdminPosts(filters: PostListFilters) {
       topicTitle: row.topic_title,
       teamId: row.team_id,
       teamName: row.team_name,
+      board: row.board,
+      city: row.city,
       content: row.content.slice(0, 400),
       createdAt: row.created_at,
       deleted: Boolean(row.deleted_at),

@@ -1,6 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useId, useState } from "react";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import {
+  btnGhost,
+  btnSm,
+  btnSmPrimary,
+  inputClass,
+  labelClass,
+} from "@/components/ui";
 import { forumApiError } from "@/lib/forum-ui";
 
 const REASONS: [string, string][] = [
@@ -23,30 +32,66 @@ async function post(path: string, body: unknown) {
   return data;
 }
 
+const likeBase =
+  "inline-flex min-h-10 items-center justify-center gap-1.5 px-3 font-anton text-[14px] border-[3px] border-black disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFEA00]";
+
+/** Who is looking at a like button. */
+export type LikeViewer = "can" | "author" | "guest" | "unverified" | "none";
+
 export function LikeButton({
   type,
   id,
   count,
   liked,
-  canLike,
+  viewer,
+  loginNext,
 }: {
   type: "topic" | "post";
   id: number;
   count: number;
   liked: boolean;
-  /** False for guests, unverified accounts and the author. */
-  canLike: boolean;
+  /** "can": verified member who is not the author. Others see a count or a sign-in link. */
+  viewer: LikeViewer;
+  /** Page to come back to after signing in. */
+  loginNext?: string;
 }) {
   const [state, setState] = useState({ count, liked });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const label = `👏 ${state.liked ? "Alkışladın" : "Alkışla"} · ${state.count}`;
+
+  if (viewer === "author" || viewer === "none") {
+    return (
+      <span className="inline-flex min-h-10 items-center font-mono text-[13px]" aria-label={`${state.count} alkış`}>
+        👏 {state.count} alkış
+      </span>
+    );
+  }
+  if (viewer === "guest") {
+    return (
+      <Link
+        href={`/giris?next=${encodeURIComponent(loginNext ?? "/")}`}
+        className={`${likeBase} bg-white hover:bg-[#FFEA00]/40`}
+        title="Alkışlamak için giriş yap"
+      >
+        👏 Alkışla · {state.count}
+      </Link>
+    );
+  }
+  if (viewer === "unverified") {
+    return (
+      <Link href="/takim-sec" className={`${likeBase} bg-white hover:bg-[#FFEA00]/40`} title="Alkışlamak için telefonunu doğrula">
+        👏 Alkışla · {state.count}
+      </Link>
+    );
+  }
   return (
-    <span className="inline-flex items-center gap-1">
+    <span className="inline-flex flex-wrap items-center gap-2">
       <button
         type="button"
-        disabled={!canLike || busy}
+        disabled={busy}
         aria-pressed={state.liked}
-        title={canLike ? (state.liked ? "Beğeniyi geri al" : "Beğen") : "Beğenmek için doğrulanmış hesapla giriş yap"}
+        aria-busy={busy || undefined}
         onClick={async () => {
           setBusy(true);
           setError(null);
@@ -59,13 +104,15 @@ export function LikeButton({
             setBusy(false);
           }
         }}
-        className={`font-anton text-[11px] border-[2px] border-black px-2 py-0.5 ${
-          state.liked ? "bg-[#FFEA00]" : "bg-white"
-        } disabled:opacity-60`}
+        className={`${likeBase} ${state.liked ? "bg-[#FFEA00]" : "bg-white hover:bg-[#FFEA00]/40"}`}
       >
-        👏 {state.count}
+        {label}
       </button>
-      {error && <span className="font-mono text-[10px]">{error}</span>}
+      {error && (
+        <span role="alert" className="font-mono text-[12px]">
+          {error}
+        </span>
+      )}
     </span>
   );
 }
@@ -75,59 +122,89 @@ export function ReportButton({ type, id }: { type: "topic" | "post" | "user"; id
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [done, setDone] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const fieldId = useId();
 
-  if (done) return <span className="font-mono text-[10px]">{done}</span>;
+  if (done) {
+    return (
+      <span role="status" className="inline-flex min-h-10 items-center font-mono text-[13px]">
+        {done}
+      </span>
+    );
+  }
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="font-mono text-[10px] underline">
+      <button type="button" onClick={() => setOpen(true)} className={btnGhost} aria-expanded={false}>
         Bildir
       </button>
     );
   }
   return (
-    <span className="flex flex-wrap items-center gap-1 font-mono text-[11px]">
-      <select
-        value={reason}
-        onChange={(e) => setReason(e.target.value)}
-        className="border-[2px] border-black bg-white px-1"
-        aria-label="Bildirim sebebi"
-      >
-        <option value="">Sebep seç</option>
-        {REASONS.map(([v, l]) => (
-          <option key={v} value={v}>
-            {l}
-          </option>
-        ))}
-      </select>
-      <input
-        value={note}
-        onChange={(e) => setNote(e.target.value.slice(0, 500))}
-        placeholder="not (isteğe bağlı)"
-        className="border-[2px] border-black px-1 w-[150px]"
-      />
-      <button
-        type="button"
-        disabled={!reason || busy}
-        onClick={async () => {
-          setBusy(true);
-          try {
-            await post("/api/forum/reports", { type, id, reason, note: note || undefined });
-            setDone("Bildirildi. Moderatörler inceleyecek.");
-          } catch (err) {
-            setDone(err instanceof Error ? err.message : "Gönderilemedi.");
-          } finally {
-            setBusy(false);
-          }
-        }}
-        className="font-anton border-[2px] border-black px-2 bg-black text-white disabled:opacity-50"
-      >
-        GÖNDER
-      </button>
-      <button type="button" onClick={() => setOpen(false)} className="underline">
-        vazgeç
-      </button>
-    </span>
+    <div className="basis-full w-full max-w-[460px] border-[3px] border-black bg-white p-3 space-y-2">
+      <p className="font-anton text-[16px]">BU İÇERİĞİ BİLDİR</p>
+      <label className="block" htmlFor={`${fieldId}-r`}>
+        <span className={labelClass}>Sebep</span>
+        <select
+          id={`${fieldId}-r`}
+          value={reason}
+          onChange={(e) => {
+            setReason(e.target.value);
+            setError(null);
+          }}
+          className={inputClass}
+        >
+          <option value="">Sebep seç</option>
+          {REASONS.map(([v, l]) => (
+            <option key={v} value={v}>
+              {l}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="block" htmlFor={`${fieldId}-n`}>
+        <span className={labelClass}>Not (isteğe bağlı)</span>
+        <input
+          id={`${fieldId}-n`}
+          value={note}
+          onChange={(e) => setNote(e.target.value.slice(0, 500))}
+          className={inputClass}
+        />
+      </label>
+      {error && (
+        <p role="alert" className="font-mono text-[13px] text-[#C8102E]">
+          {error}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          aria-busy={busy || undefined}
+          onClick={async () => {
+            if (!reason) {
+              setError("Bir sebep seç.");
+              return;
+            }
+            setBusy(true);
+            try {
+              await post("/api/forum/reports", { type, id, reason, note: note || undefined });
+              setDone("Bildirildi. Moderatörler inceleyecek.");
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Gönderilemedi.");
+            } finally {
+              setBusy(false);
+            }
+          }}
+          className={btnSmPrimary}
+        >
+          {busy ? "GÖNDERİLİYOR…" : "BİLDİRİMİ GÖNDER"}
+        </button>
+        <button type="button" onClick={() => setOpen(false)} className={btnSm}>
+          VAZGEÇ
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -140,19 +217,39 @@ export function BlockButton({
   username: string;
   onBlocked?: () => void;
 }) {
+  const [asking, setAsking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
     <>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={async () => {
-          if (!confirm(`@${username} engellensin mi? Yazılarını görmezsin, sana bildirim gönderemez.`)) return;
+      <button type="button" onClick={() => setAsking(true)} className={btnGhost}>
+        Engelle
+      </button>
+      <ConfirmDialog
+        open={asking}
+        title={`@${username} ENGELLENSİN Mİ?`}
+        body={
+          <>
+            <p>Yazılarını görmezsin, sana bildirim gönderemez.</p>
+            <p className="mt-2 opacity-80">
+              Engellemeyi Hesabım → Engellediklerim bölümünden kaldırabilirsin.
+            </p>
+          </>
+        }
+        confirmLabel="ENGELLE"
+        busyLabel="ENGELLENİYOR…"
+        busy={busy}
+        error={error}
+        onCancel={() => {
+          setAsking(false);
+          setError(null);
+        }}
+        onConfirm={async () => {
           setBusy(true);
           setError(null);
           try {
             await post("/api/account/blocks", { userId, blocked: true });
+            setAsking(false);
             onBlocked?.();
           } catch (err) {
             setError(err instanceof Error ? err.message : "Olmadı.");
@@ -160,11 +257,7 @@ export function BlockButton({
             setBusy(false);
           }
         }}
-        className="font-mono text-[10px] underline"
-      >
-        Engelle
-      </button>
-      {error && <span className="font-mono text-[10px]">{error}</span>}
+      />
     </>
   );
 }

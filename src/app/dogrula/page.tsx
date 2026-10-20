@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { btnSecondary } from "@/components/ui";
 
 /** Old e-mail census links land here. That census is closed; see docs/data-policy.md. */
 export default function DogrulaPage() {
@@ -15,7 +16,7 @@ export default function DogrulaPage() {
           <Link href="/uye-ol" className="font-anton bg-black text-white px-4 py-2">
             ÜYE OL
           </Link>
-          <Link href="/sil-verilerim" className="font-anton border-[3px] border-black px-4 py-2">
+          <Link href="/sil-verilerim" className={btnSecondary}>
             ESKİ KAYDIMI SİL
           </Link>
         </div>

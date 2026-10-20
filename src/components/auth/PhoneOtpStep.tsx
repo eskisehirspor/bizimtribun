@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { formatTrMobileInput } from "@/lib/phone";
 import Turnstile, { turnstileEnabled } from "./Turnstile";
 import { errorText, inputClass, Notice, postJson, primaryButton, secondaryButton } from "./ui";
+import { fieldClass, hintClass, labelClass } from "@/components/ui";
 
 type Props = {
   requestUrl: string;
@@ -74,9 +75,9 @@ export default function PhoneOtpStep({ requestUrl, verifyUrl, onVerified, submit
       noValidate
     >
       <label className="block">
-        <span className="font-mono text-[10px]">CEP TELEFONU</span>
+        <span className={labelClass}>CEP TELEFONU</span>
         <div className="flex items-stretch">
-          <span className="mt-1 border-[3px] border-r-0 border-black px-2 py-2 font-mono text-[14px] bg-[#F2EFE6]">
+          <span className="mt-1 inline-flex items-center border-[3px] border-r-0 border-black px-2 py-2 font-mono text-base sm:text-[14px] bg-[#F2EFE6]">
             +90
           </span>
           <input
@@ -97,20 +98,20 @@ export default function PhoneOtpStep({ requestUrl, verifyUrl, onVerified, submit
             aria-describedby="phone-help"
           />
         </div>
-        <span id="phone-help" className="font-mono text-[10px] opacity-70">
+        <span id="phone-help" className={`block mt-1 ${hintClass}`}>
           Numaran herkese açık profilde gösterilmez.
         </span>
       </label>
 
       {sent && (
         <label className="block">
-          <span className="font-mono text-[10px]">SMS KODU</span>
+          <span className={labelClass}>SMS KODU</span>
           <input
             required
             autoFocus
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            className={`${inputClass} tracking-[0.4em] text-[18px]`}
+            className={`mt-1 ${fieldClass.replace("text-base sm:text-[14px]", "text-[20px]")} tracking-[0.4em]`}
             inputMode="numeric"
             autoComplete="one-time-code"
             pattern="\d{6}"

@@ -19,6 +19,18 @@ import {
   FORUM_TITLE_MIN,
 } from "@/lib/policy";
 import { forumApiError } from "@/lib/forum-ui";
+import BackLink from "@/components/BackLink";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import {
+  btnAccent,
+  btnPrimary,
+  btnSecondary,
+  chipClass,
+  fieldClass,
+  hintClass,
+  inputClass,
+  labelClass,
+} from "@/components/ui";
 
 type Props = {
   apiPath: string;
@@ -39,6 +51,8 @@ export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, acti
   const [category, setCategory] = useState<ForumCategory>(FORUM_CATEGORY_DEFAULT);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tried, setTried] = useState(false);
+  const [leaving, setLeaving] = useState(false);
 
   const forumPath = boardPath;
   const yeniPath = `${boardPath}/yeni?category=${category}`;
@@ -63,9 +77,38 @@ export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, acti
     const t = content.trim();
     return t.replace(/\s/g, "").length > 0 && t.length <= FORUM_BODY_MAX;
   }, [content]);
+  const titleLength = title.replace(/\s+/g, " ").trim().length;
+  const titleHint =
+    titleLength < FORUM_TITLE_MIN
+      ? `Başlık en az ${FORUM_TITLE_MIN} karakter olmalı (${FORUM_TITLE_MIN - titleLength} karakter daha).`
+      : null;
+  const bodyHint = bodyOk ? null : "Yazı boş olamaz.";
+  const dirty = Boolean(title.trim() || content.trim());
+
+  // Warn before a reload or tab close throws the draft away.
+  useEffect(() => {
+    if (!dirty || busy) return;
+    const onUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => window.removeEventListener("beforeunload", onUnload);
+  }, [dirty, busy]);
+
+  function leave(e?: React.MouseEvent) {
+    if (!dirty) return;
+    e?.preventDefault();
+    setLeaving(true);
+  }
 
   async function publish() {
-    if (!titleOk || !bodyOk || busy) return;
+    if (busy) return;
+    setTried(true);
+    if (!titleOk || !bodyOk) {
+      setError(titleHint ?? bodyHint ?? "Başlık ve yazı gerekli.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -102,7 +145,9 @@ export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, acti
   if (loading) {
     return (
       <ForumShell>
-        <p className="font-mono text-[13px]">…</p>
+        <p className="font-mono text-[14px]" aria-busy="true">
+          Yükleniyor…
+        </p>
       </ForumShell>
     );
   }
@@ -111,9 +156,9 @@ export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, acti
     return (
       <ForumShell>
         <h1 className="font-anton text-[32px]">YAZAMAZSIN</h1>
-        <p className="font-mono text-[13px] mt-2">{message || "Hesabın askıya alınmış."}</p>
-        <Link href={forumPath} className="mt-4 inline-block font-anton border-[3px] border-black px-3 py-2">
-          TRİBÜNE DÖN
+        <p className="font-mono text-[14px] mt-2">{message || "Hesabın askıya alınmış."}</p>
+        <Link href={forumPath} className={`mt-4 ${btnSecondary}`}>
+          ← TRİBÜNE DÖN
         </Link>
       </ForumShell>
     );
@@ -127,7 +172,7 @@ export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, acti
     );
   }
 
-  if (teamId && user.teamId !== teamId) {
+  if (teamId && user.voteTeamId !== teamId) {
     return <TeamBoardGate title={boardTitle} next={boardPath} />;
   }
 
@@ -135,94 +180,140 @@ export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, acti
     return (
       <ForumShell>
         <h1 className="font-anton text-[32px]">TELEFON DOĞRULAMASI GEREKLİ</h1>
-        <p className="font-mono text-[13px] mt-2">
-          Forumda yazabilmek için telefon numaranı SMS koduyla bir kez doğrulaman gerekiyor.
+        <p className="font-mono text-[14px] mt-2">
+          Tribünde yazabilmek için telefon numaranı SMS koduyla bir kez doğrulaman gerekiyor.
         </p>
-        <Link
-          href="/takim-sec"
-          className="mt-4 inline-block font-anton border-[3px] border-black bg-[#FFEA00] px-3 py-2"
-        >
-          DOĞRULA
-        </Link>
-        <Link href={forumPath} className="mt-4 ml-2 inline-block font-anton border-[3px] border-black px-3 py-2">
-          TRİBÜNE DÖN
-        </Link>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/takim-sec" className={btnAccent}>
+            TELEFONUNU DOĞRULA
+          </Link>
+          <Link href={forumPath} className={btnSecondary}>
+            ← TRİBÜNE DÖN
+          </Link>
+        </div>
       </ForumShell>
     );
   }
 
   return (
     <ForumShell>
-      <Link href={forumPath} className="font-mono text-[11px] underline">
-        ← {boardTitle}
-      </Link>
-      <div className="mt-3 flex items-center gap-3">
+      <span onClickCapture={leave}>
+        <BackLink href={forumPath}>{boardTitle}</BackLink>
+      </span>
+      <div className="mt-2 flex items-center gap-3">
         {mark}
         <h1 className="font-anton text-[32px] leading-[0.85]">YENİ KONU</h1>
       </div>
 
-      <div className="mt-5 bg-[#FFFEFA] border-[4px] border-black shadow-[6px_6px_0_black] p-4 sm:p-5 space-y-3">
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          void publish();
+        }}
+        className="mt-5 bg-[#FFFEFA] border-[4px] border-black shadow-[6px_6px_0_black] p-4 sm:p-5 space-y-4"
+      >
         <div>
-          <span className="font-mono text-[10px]">KATEGORİ</span>
-          <div className="mt-1 flex flex-wrap gap-2">
+          <span className={labelClass} id="kategori-baslik">
+            KATEGORİ
+          </span>
+          <div className="mt-1 flex flex-wrap gap-2" role="group" aria-labelledby="kategori-baslik">
             {FORUM_CATEGORIES.map((key) => (
               <button
                 key={key}
                 type="button"
+                aria-pressed={category === key}
                 onClick={() => setCategory(key)}
-                className={`font-anton text-[12px] px-3 py-2 border-[3px] border-black ${
-                  category === key ? "bg-black text-[#FFEA00]" : "bg-white"
-                }`}
+                className={chipClass(category === key)}
               >
                 {FORUM_CATEGORY_META[key].tab}
               </button>
             ))}
           </div>
-          <p className="font-mono text-[11px] mt-2 opacity-70">
-            {FORUM_CATEGORY_META[category].blurb}
-          </p>
+          <p className={`${hintClass} mt-2`}>{FORUM_CATEGORY_META[category].blurb}</p>
         </div>
         <label className="block">
-          <span className="font-mono text-[10px]">BAŞLIK ({FORUM_TITLE_MIN}–{FORUM_TITLE_MAX})</span>
+          <span className={labelClass}>
+            BAŞLIK ({FORUM_TITLE_MIN}–{FORUM_TITLE_MAX} karakter)
+          </span>
           <input
             value={title}
-            onChange={(e) => setTitle(e.target.value.slice(0, FORUM_TITLE_MAX))}
-            className="mt-1 w-full border-[3px] border-black px-3 py-2 font-anton text-[18px] outline-none"
+            onChange={(e) => {
+              setTitle(e.target.value.slice(0, FORUM_TITLE_MAX));
+              setError(null);
+            }}
+            aria-invalid={tried && !titleOk ? true : undefined}
+            aria-describedby="baslik-ipucu"
+            className={`mt-1 ${titleField}`}
           />
-          <span className="font-mono text-[10px] opacity-60">{title.trim().length}/{FORUM_TITLE_MAX}</span>
+          <span id="baslik-ipucu" className="font-mono text-[12px] mt-1 flex flex-wrap justify-between gap-2">
+            <span className={tried && titleHint ? "text-[#C8102E] font-bold" : "opacity-70"}>
+              {titleHint ?? "Başlık uygun."}
+            </span>
+            <span className="tabular-nums opacity-70">
+              {titleLength}/{FORUM_TITLE_MAX}
+            </span>
+          </span>
         </label>
         <label className="block">
-          <span className="font-mono text-[10px]">YAZI (MAX {FORUM_BODY_MAX})</span>
+          <span className={labelClass}>YAZI (en çok {FORUM_BODY_MAX} karakter)</span>
           <textarea
             value={content}
-            onChange={(e) => setContent(e.target.value.slice(0, FORUM_BODY_MAX))}
+            onChange={(e) => {
+              setContent(e.target.value.slice(0, FORUM_BODY_MAX));
+              setError(null);
+            }}
             rows={10}
-            className="mt-1 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] outline-none resize-y min-h-[180px]"
+            aria-invalid={tried && !bodyOk ? true : undefined}
+            aria-describedby="yazi-ipucu"
+            className={`${inputClass} resize-y min-h-[180px]`}
           />
-          <span className="font-mono text-[10px] opacity-60">{content.length}/{FORUM_BODY_MAX}</span>
+          <span id="yazi-ipucu" className="font-mono text-[12px] mt-1 flex flex-wrap justify-between gap-2">
+            <span className={tried && bodyHint ? "text-[#C8102E] font-bold" : "opacity-70"}>{bodyHint ?? ""}</span>
+            <span className="tabular-nums opacity-70">
+              {content.length}/{FORUM_BODY_MAX}
+            </span>
+          </span>
         </label>
         {error && (
-          <p className="font-mono text-[12px] border-[2px] border-dashed border-black p-2 bg-[#C8102E]/10">
+          <p
+            role="alert"
+            className="font-mono text-[13px] border-[2px] border-dashed border-black p-2 bg-[#C8102E]/10"
+          >
             {error}
           </p>
         )}
-        <div className="flex gap-2">
+        <div className="flex flex-col-reverse sm:flex-row gap-2">
+          <Link href={forumPath} onClick={leave} className={btnSecondary}>
+            İPTAL
+          </Link>
           <button
-            type="button"
-            disabled={busy || !titleOk || !bodyOk}
-            onClick={() => void publish()}
-            className="flex-1 font-anton text-[16px] py-3 border-[3px] border-black bg-black text-white disabled:bg-zinc-300 disabled:text-zinc-500"
+            type="submit"
+            disabled={busy}
+            aria-busy={busy || undefined}
+            className={`${btnPrimary} sm:flex-1`}
           >
             {busy ? "YAYINLANIYOR…" : "YAYINLA"}
           </button>
-          <Link
-            href={forumPath}
-            className="font-anton text-[16px] py-3 px-4 border-[3px] border-black bg-white grid place-items-center"
-          >
-            İPTAL
-          </Link>
         </div>
-      </div>
+      </form>
+
+      <ConfirmDialog
+        open={leaving}
+        title="TASLAK SİLİNSİN Mİ?"
+        body="Yazdıkların kaydedilmedi. Çıkarsan başlık ve yazı kaybolur."
+        confirmLabel="TASLAĞI SİL VE ÇIK"
+        cancelLabel="YAZMAYA DEVAM ET"
+        onCancel={() => setLeaving(false)}
+        onConfirm={() => {
+          setLeaving(false);
+          setTitle("");
+          setContent("");
+          router.push(forumPath);
+        }}
+      />
     </ForumShell>
   );
 }
+
+const titleField = fieldClass.replace("font-mono text-base sm:text-[14px]", "font-anton text-[20px]");

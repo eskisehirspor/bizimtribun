@@ -9,6 +9,7 @@ import {
   formatWhen,
   useConfirmAction,
 } from "@/components/admin/AdminUi";
+import { btnAccent, btnSm, btnSmAccent, btnSmDanger, fieldClass } from "@/components/ui";
 
 type AuditItem = {
   id: number;
@@ -137,7 +138,7 @@ export default function AdminModerationPage() {
               key={`${item.kind}-${item.id}`}
               className="border-[3px] border-black bg-[#FFFEFA] p-3 shadow-[4px_4px_0_black]"
             >
-              <div className="flex flex-wrap items-center gap-2 font-mono text-[11px]">
+              <div className="flex flex-wrap items-center gap-2 font-mono text-[12px]">
                 <span className="bg-black text-[#FFEA00] px-2 py-1">
                   {item.kind === "topic" ? "KONU" : "YORUM"}
                 </span>
@@ -154,7 +155,7 @@ export default function AdminModerationPage() {
               <p className="font-mono text-[13px] mt-2 whitespace-pre-wrap max-h-[140px] overflow-y-auto">
                 {item.content}
               </p>
-              <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1 font-mono text-[11px] opacity-80">
+              <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1 font-mono text-[12px] opacity-80">
                 <div>kategori: {item.category || "—"}</div>
                 <div>severity: {item.severity || "—"}</div>
                 <div>rule: {item.ruleId || "—"}</div>
@@ -166,7 +167,7 @@ export default function AdminModerationPage() {
               <div className="flex flex-wrap gap-2 mt-3">
                 <button
                   type="button"
-                  className="font-anton text-[13px] border-[3px] border-black bg-[#FFEA00] px-3 py-1"
+                  className={btnSmAccent}
                   onClick={() =>
                     ask({
                       title: "YAYINLA",
@@ -181,7 +182,7 @@ export default function AdminModerationPage() {
                 </button>
                 <button
                   type="button"
-                  className="font-anton text-[13px] border-[3px] border-black bg-white px-3 py-1"
+                  className={btnSm}
                   onClick={() =>
                     ask({
                       title: "SİL",
@@ -195,7 +196,7 @@ export default function AdminModerationPage() {
                 </button>
                 <button
                   type="button"
-                  className="font-anton text-[13px] border-[3px] border-black bg-[#C8102E] text-white px-3 py-1"
+                  className={btnSmDanger}
                   onClick={() =>
                     ask({
                       title: "KULLANICIYI BANLA",
@@ -236,7 +237,7 @@ export default function AdminModerationPage() {
             setAction(e.target.value);
             setPage(1);
           }}
-          className="border-[3px] border-black px-2 py-2 font-mono text-[12px]"
+          className={fieldClass}
         >
           <option value="">işlem: hepsi</option>
           <option value="ban_user">ban_user</option>
@@ -255,27 +256,27 @@ export default function AdminModerationPage() {
           value={moderator}
           onChange={(e) => setModerator(e.target.value)}
           placeholder="moderator username/id"
-          className="border-[3px] border-black px-2 py-2 font-mono text-[12px]"
+          className={fieldClass}
         />
         <input
           value={user}
           onChange={(e) => setUser(e.target.value)}
           placeholder="hedef user id"
-          className="border-[3px] border-black px-2 py-2 font-mono text-[12px]"
+          className={fieldClass}
         />
         <input
           type="date"
           value={from}
           onChange={(e) => setFrom(e.target.value)}
-          className="border-[3px] border-black px-2 py-2 font-mono text-[12px]"
+          className={fieldClass}
         />
         <input
           type="date"
           value={to}
           onChange={(e) => setTo(e.target.value)}
-          className="border-[3px] border-black px-2 py-2 font-mono text-[12px]"
+          className={fieldClass}
         />
-        <button type="submit" className="font-anton border-[3px] border-black bg-[#FFEA00]">
+        <button type="submit" className={btnAccent}>
           FİLTRELE
         </button>
       </form>

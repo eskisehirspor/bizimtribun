@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { PROVINCES } from "@/lib/provinces";
 import { LEAGUE_LABEL, LEAGUE_ORDER, foldTr, type LeagueId } from "@/lib/teams";
 import { inputClass, Notice, primaryButton, secondaryButton } from "./ui";
+import { checkboxClass, chipClass, hintClass, labelClass } from "@/components/ui";
 
 export type PickerTeam = { id: string; name: string; league: LeagueId };
 
@@ -77,14 +78,14 @@ export default function TeamPicker({
     return (
       <div className="space-y-4">
         <div className="border-[4px] border-black bg-[#FFEA00] p-4 shadow-[4px_4px_0_black]">
-          <p className="font-mono text-[10px]">SEÇİMİN</p>
+          <p className={labelClass}>SEÇİMİN</p>
           <p className="font-anton text-[30px] leading-none mt-1">{chosen.name}</p>
-          <p className="font-mono text-[11px] mt-1">
+          <p className="font-mono text-[13px] mt-1">
             {labels[chosen.league]}
             {city ? ` • ${city}` : " • il belirtilmedi"}
           </p>
         </div>
-        <div className="border-[3px] border-black bg-white p-3 font-mono text-[12px] leading-[1.45]">
+        <div className="border-[3px] border-black bg-white p-3 font-mono text-[13px] leading-[1.45]">
           <p className="font-anton text-[18px]">BU SEÇİM KALICIDIR</p>
           <p className="mt-1">
             Onayladığında oyun {chosen.name} için sayılır ve hesabın bu takıma kilitlenir. Daha
@@ -97,16 +98,19 @@ export default function TeamPicker({
             <p className="mt-1">İl seçmediğin için oyun yalnızca Türkiye genelinde sayılır.</p>
           )}
         </div>
-        <label className="flex items-start gap-2 font-mono text-[12px]">
+        <label className="flex min-h-11 items-center gap-3 font-mono text-[13px] border-[3px] border-black bg-[#FFFEFA] p-3">
           <input
             type="checkbox"
             checked={ack}
             onChange={(e) => setAck(e.target.checked)}
-            className="mt-0.5 w-4 h-4"
+            className={checkboxClass}
           />
           <span>Takım seçimimin kalıcı olduğunu ve değiştirilemeyeceğini anladım.</span>
         </label>
         {error && <Notice tone="error">{error}</Notice>}
+        {!ack && (
+          <p className={hintClass}>Onaylamak için yukarıdaki kutuyu işaretle.</p>
+        )}
         <button
           type="button"
           disabled={busy || !ack}
@@ -139,32 +143,31 @@ export default function TeamPicker({
             type="button"
             aria-pressed={league === id}
             onClick={() => setLeague(id)}
-            className={`font-anton text-[12px] px-2 py-1 border-[2px] border-black ${
-              league === id ? "bg-black text-[#FFEA00]" : "bg-white"
-            }`}
+            className={chipClass(league === id)}
           >
             {id === "all" ? "TÜMÜ" : labels[id].toLocaleUpperCase("tr")}
           </button>
         ))}
       </div>
       <label className="block">
-        <span className="font-mono text-[10px]">TAKIM ARA</span>
+        <span className={labelClass}>TAKIM ARA</span>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Takım adı…"
+          type="search"
           className={inputClass}
         />
       </label>
       <div
         role="radiogroup"
         aria-label="Takımlar"
-        className="max-h-[280px] overflow-auto border-[3px] border-black divide-y-[2px] divide-black bg-white"
+        className="max-h-[50vh] md:max-h-[320px] overflow-auto overscroll-contain border-[3px] border-black divide-y-[2px] divide-black bg-white"
       >
         {shown.map((t) => (
           <label
             key={t.id}
-            className={`flex items-center gap-2 px-3 py-2 cursor-pointer ${
+            className={`flex min-h-11 items-center gap-3 px-3 py-2 cursor-pointer ${
               t.id === teamId ? "bg-[#FFEA00]" : ""
             }`}
           >
@@ -174,33 +177,35 @@ export default function TeamPicker({
               value={t.id}
               checked={t.id === teamId}
               onChange={() => setTeamId(t.id)}
+              className={checkboxClass}
             />
             <span className="font-anton text-[15px] flex-1">{t.name}</span>
-            <span className="font-mono text-[10px] opacity-70">{labels[t.league]}</span>
+            <span className="font-mono text-[12px] opacity-70">{labels[t.league]}</span>
           </label>
         ))}
-        {shown.length === 0 && <p className="p-3 font-mono text-[12px]">Eşleşen takım yok.</p>}
+        {shown.length === 0 && <p className="p-3 font-mono text-[13px]">Eşleşen takım yok.</p>}
       </div>
       <label className="block">
-        <span className="font-mono text-[10px]">YAŞADIĞIN İL (İSTEĞE BAĞLI)</span>
+        <span className={labelClass}>YAŞADIĞIN İL (İSTEĞE BAĞLI)</span>
         <select value={city} onChange={(e) => setCity(e.target.value)} className={inputClass}>
           <option value="">Belirtmek istemiyorum</option>
           {PROVINCES.map((p) => (
             <option key={p}>{p}</option>
           ))}
         </select>
-        <span className="font-mono text-[10px] opacity-70">
+        <span className={`block mt-1 ${hintClass}`}>
           İlini konumundan tahmin etmeyiz; sen seçersen il haritasında sayılırsın.
         </span>
       </label>
       {error && <Notice tone="error">{error}</Notice>}
+      {!chosen && <p className={hintClass}>Devam etmek için listeden takımını seç.</p>}
       <button
         type="button"
         disabled={!chosen}
         onClick={() => setReviewing(true)}
         className={primaryButton}
       >
-        DEVAM ET
+        {chosen ? `DEVAM ET: ${chosen.name.toLocaleUpperCase("tr")}` : "DEVAM ET"}
       </button>
     </div>
   );

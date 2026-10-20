@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AdminNotice, AdminPager, adminJson, formatWhen } from "@/components/admin/AdminUi";
+import { btnSmAccent } from "@/components/ui";
 
 type Item = {
   id: number;
@@ -63,7 +64,7 @@ export default function AdminAuditPage() {
           placeholder="işlem (ör. ban_user)"
           className="border-[3px] border-black px-2 py-1 font-mono text-[12px] bg-white"
         />
-        <button className="font-anton border-[3px] border-black px-3 py-1 bg-[#FFEA00]">
+        <button className={btnSmAccent}>
           FİLTRELE
         </button>
       </form>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminNotice, adminJson, formatWhen, useConfirmAction } from "@/components/admin/AdminUi";
+import { checkboxClass, checkLabelClass } from "@/components/ui";
 import { PROVINCES } from "@/lib/provinces";
 import { foldTr } from "@/lib/teams";
 
@@ -27,8 +28,9 @@ type Season = {
 };
 type Res = { teams: Team[]; leagues: League[]; seasons: Season[]; currentSeason: string | null };
 
-const input = "border-[3px] border-black px-2 py-1 font-mono text-[12px] bg-white";
-const button = "font-anton border-[3px] border-black px-3 py-1";
+const input = "min-h-11 border-[3px] border-black px-2 py-1 font-mono text-base sm:text-[13px] bg-white";
+const button =
+  "inline-flex min-h-10 items-center justify-center font-anton text-[13px] border-[3px] border-black px-3 disabled:opacity-50 disabled:cursor-not-allowed";
 
 export default function AdminTeamsPage() {
   const { ask, dialog } = useConfirmAction();
@@ -309,13 +311,13 @@ function TeamEditor({
           <input type="color" value={secondary} onChange={(e) => setSecondary(e.target.value)} className="block" />
         </label>
       </div>
-      <label className="flex gap-2 items-center">
-        <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
+      <label className={checkLabelClass}>
+        <input type="checkbox" className={checkboxClass} checked={active} onChange={(e) => setActive(e.target.checked)} />
         Yeni oy alabilir
       </label>
-      <label className="flex gap-2 items-center">
-        <input type="checkbox" checked={forum} onChange={(e) => setForum(e.target.checked)} />
-        Forum tribünü açık
+      <label className={checkLabelClass}>
+        <input type="checkbox" className={checkboxClass} checked={forum} onChange={(e) => setForum(e.target.checked)} />
+        Takım tribünü açık
       </label>
       <div className="sm:col-span-2 flex gap-2">
         <button
@@ -410,9 +412,9 @@ function SeasonForm({
         Bitiş
         <input type="date" className={`${input} block`} value={endsOn} onChange={(e) => setEndsOn(e.target.value)} />
       </label>
-      <label className="flex gap-1 items-center">
-        <input type="checkbox" checked={makeCurrent} onChange={(e) => setMakeCurrent(e.target.checked)} />
-        aktif sezon yap
+      <label className={checkLabelClass}>
+        <input type="checkbox" className={checkboxClass} checked={makeCurrent} onChange={(e) => setMakeCurrent(e.target.checked)} />
+        Aktif sezon yap
       </label>
       <button disabled={busy} className={`${button} bg-[#FFEA00]`}>
         SEZON AÇ

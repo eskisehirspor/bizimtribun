@@ -15,6 +15,10 @@ import {
 import PitchDecor from "@/components/PitchDecor";
 import TurkeyMap from "@/components/TurkeyMap";
 import TeamColors from "@/components/TeamColors";
+import { btnSm, chipClass, fieldClass } from "@/components/ui";
+
+/** Rows shown on phones before "Tümünü göster"; desktop scrolls inside the box. */
+const MOBILE_ROWS = 10;
 
 type TeamStat = Team & { votes: number };
 type CityLeader = { teamId: string; votes: number; tied: boolean; coLeaderIds: string[] };
@@ -31,11 +35,9 @@ type Props = {
   featuredTopics: RecentTopic[];
   /** Leagues an admin chose to show as filters on the home page. */
   homeLeagueIds: string[];
-  socialLinks: { x: string; instagram: string; youtube: string; tiktok: string };
   generatedAt: string;
 };
 
-const SOCIAL_LABEL = { x: "X", instagram: "Instagram", youtube: "YouTube", tiktok: "TikTok" } as const;
 
 export default function HomeClient({
   initialTeams,
@@ -47,7 +49,6 @@ export default function HomeClient({
   recentTopics,
   featuredTopics,
   homeLeagueIds,
-  socialLinks,
   generatedAt,
 }: Props) {
   const { user } = useAuth();
@@ -74,6 +75,9 @@ export default function HomeClient({
     homeLeagueIds.includes("super") ? "super" : ((homeLeagueIds[0] as LeagueId | undefined) ?? "all"),
   );
   const [query, setQuery] = useState("");
+  const [showAllTeams, setShowAllTeams] = useState(false);
+  const [showAllTable, setShowAllTable] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const preview = { teams, total, cities, standings };
   const myTeamId = user?.voteTeamId ?? null;
 
@@ -104,6 +108,7 @@ export default function HomeClient({
   }, [ranked, league, query]);
 
   async function refresh() {
+    setRefreshing(true);
     try {
       const res = await fetch("/api/stats", { cache: "no-store" });
       if (!res.ok) return;
@@ -117,6 +122,8 @@ export default function HomeClient({
       if ("season" in data) setSeason(data.season ?? null);
     } catch {
       /* keep the last good numbers */
+    } finally {
+      setRefreshing(false);
     }
   }
 
@@ -134,7 +141,7 @@ export default function HomeClient({
       <header className="relative z-20 border-b-[4px] border-black bg-[#FFFEFA]">
         <div className="absolute top-0 left-0 w-full h-[6px] bg-[repeating-linear-gradient(90deg,black_0_20px,#FFEA00_20px_40px)]" />
         <div className="max-w-[1320px] mx-auto px-4 sm:px-5 md:px-8 pt-8 pb-5 md:py-8">
-          <div className="font-mono text-[9px] sm:text-[10px] tracking-[0.08em] sm:tracking-[0.16em] leading-tight mb-5 md:mb-4">
+          <div className="font-mono text-[11px] tracking-[0.08em] sm:tracking-[0.16em] leading-tight mb-5 md:mb-4">
             81 İL • {teams.length} TAKIM • {season ? `${season} SEZONU • ` : ""}VERİ:{" "}
             {new Date(asOf).toLocaleString("tr-TR", {
               day: "2-digit",
@@ -156,7 +163,7 @@ export default function HomeClient({
               Türkiye&apos;nin en gürültülü gerçek sayımı!
             </p>
             <div className="col-start-2 row-start-1 row-span-2 md:col-start-3 md:row-span-1 md:row-start-1 shrink-0 border-[3px] md:border-[4px] border-black bg-[#FFEA00] px-2.5 py-2 sm:p-3 md:p-4 shadow-[4px_4px_0_black] md:shadow-[6px_6px_0_black] rotate-1 md:-rotate-2 self-start md:self-end w-[112px] sm:w-[140px] md:w-auto mr-3 sm:mr-4 md:mr-1">
-              <div className="font-mono text-[8px] sm:text-[9px] md:text-[10px] leading-tight">
+              <div className="font-mono text-[10px] md:text-[11px] leading-tight">
                 DOĞRULANMIŞ
                 <br className="md:hidden" />
                 <span className="hidden md:inline"> </span>
@@ -165,7 +172,7 @@ export default function HomeClient({
               <div className="font-anton text-[28px] sm:text-[34px] md:text-[38px] leading-none tabular-nums mt-1">
                 {preview.total.toLocaleString("tr-TR")}
               </div>
-              <div className="font-mono text-[8px] sm:text-[9px] md:text-[10px] mt-1 leading-tight">
+              <div className="font-mono text-[10px] md:text-[11px] mt-1 leading-tight">
                 KİM ÖNDE?
                 <br className="md:hidden" />
                 <span className="hidden md:inline"> </span>
@@ -214,13 +221,12 @@ export default function HomeClient({
               </h2>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Lig">
               <button
                 type="button"
+                aria-pressed={league === "all"}
                 onClick={() => setLeague("all")}
-                className={`font-anton text-[13px] px-3 py-1 border-[3px] border-black ${
-                  league === "all" ? "bg-black text-[#FFEA00]" : "bg-white"
-                }`}
+                className={chipClass(league === "all")}
               >
                 TÜMÜ
               </button>
@@ -228,43 +234,57 @@ export default function HomeClient({
                 <button
                   key={id}
                   type="button"
+                  aria-pressed={league === id}
                   onClick={() => setLeague(id)}
-                  className={`font-anton text-[13px] px-3 py-1 border-[3px] border-black ${
-                    league === id ? "bg-black text-[#FFEA00]" : "bg-white"
-                  }`}
+                  className={chipClass(league === id)}
                 >
                   {leagueLabel[id].toLocaleUpperCase("tr")}
                 </button>
               ))}
             </div>
             <input
+              type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Takım, il veya kısaltma ara…"
-              className="mt-3 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] outline-none bg-white"
+              aria-label="Takım ara"
+              className={`mt-3 ${fieldClass}`}
             />
-            <div className="mt-2 font-mono text-[10px] opacity-70">
-              {filtered.length} takım{" "}
-              <button type="button" onClick={() => void refresh()} className="underline ml-2">
-                sayıları yenile
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="font-mono text-[13px] opacity-80" aria-live="polite">
+                {filtered.length} takım
+              </span>
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                disabled={refreshing}
+                aria-busy={refreshing || undefined}
+                className={btnSm}
+              >
+                {refreshing ? "YENİLENİYOR…" : "↻ SAYILARI YENİLE"}
               </button>
             </div>
 
-            <div className="mt-3 max-h-[420px] overflow-auto border-[3px] border-black divide-y-[2px] divide-black">
-              {filtered.map((team) => {
+            <div className="mt-3 md:max-h-[420px] md:overflow-auto border-[3px] border-black divide-y-[2px] divide-black">
+              {filtered.map((team, index) => {
                 return (
                   <div
                     key={team.id}
-                    className="flex flex-wrap items-center gap-3 p-2 md:p-3 bg-white"
+                    className={`flex flex-wrap items-center gap-3 p-2 md:p-3 bg-white ${
+                      !showAllTeams && index >= MOBILE_ROWS ? "max-md:hidden" : ""
+                    }`}
                   >
                     <div className="flex-1 min-w-[140px]">
-                      <div className="flex items-center gap-2">
-                        <span className="font-anton text-[16px] leading-none">
+                      <Link
+                        href={`/takim/${team.id}`}
+                        className="inline-flex min-h-10 items-center gap-2 hover:underline underline-offset-4"
+                      >
+                        <span className="font-anton text-[17px] leading-none">
                           {team.name}
                         </span>
                         <TeamColors team={team} />
-                      </div>
-                      <div className="font-mono text-[10px] mt-1">
+                      </Link>
+                      <div className="font-mono text-[12px] opacity-80">
                         {leagueLabel[team.league]} • {team.city}
                       </div>
                     </div>
@@ -289,9 +309,19 @@ export default function HomeClient({
                 );
               })}
               {filtered.length === 0 && (
-                <div className="p-4 font-mono text-[12px]">Eşleşme yok. Filtreyi gevşet.</div>
+                <div className="p-4 font-mono text-[14px]">Eşleşme yok. Aramayı ya da lig filtresini değiştir.</div>
               )}
             </div>
+            {filtered.length > MOBILE_ROWS && (
+              <button
+                type="button"
+                onClick={() => setShowAllTeams((v) => !v)}
+                aria-expanded={showAllTeams}
+                className={`md:hidden mt-2 w-full ${btnSm}`}
+              >
+                {showAllTeams ? "DAHA AZ GÖSTER" : `TÜMÜNÜ GÖSTER (${filtered.length})`}
+              </button>
+            )}
           </div>
 
           <div className="border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[6px_6px_0_black] rotate-[0.3deg]">
@@ -309,7 +339,7 @@ export default function HomeClient({
               ].map((m) => (
                 <div key={m.t} className="border-[3px] border-black p-3 relative">
                   <div className="font-anton text-[14px] leading-tight">{m.t}</div>
-                  <div className="font-mono text-[11px] mt-2 leading-[1.3]">{m.d}</div>
+                  <div className="font-mono text-[13px] mt-2 leading-[1.4]">{m.d}</div>
                 </div>
               ))}
             </div>
@@ -324,30 +354,45 @@ export default function HomeClient({
                 TABLO
               </span>
             </div>
-            <div className="mt-1 font-mono text-[10px] opacity-60">
+            <div className="mt-1 font-mono text-[12px] opacity-70">
               {preview.total.toLocaleString("tr-TR")} doğrulanmış taraftar • eşit oyda
               alfabetik
             </div>
-            <div className="mt-3 max-h-[420px] overflow-auto space-y-1 pr-1">
+            <ol className="mt-3 md:max-h-[420px] md:overflow-auto space-y-1 pr-1">
               {ranked.map((m, i) => (
-                <div
+                <li
                   key={m.id}
-                  className="flex items-center gap-2 border-b border-dashed border-white/20 pb-1.5"
+                  className={`flex items-center gap-2 border-b border-dashed border-white/20 pb-1 ${
+                    !showAllTable && i >= MOBILE_ROWS ? "max-md:hidden" : ""
+                  }`}
                 >
-                  <span className="font-anton text-[15px] w-[26px] opacity-80">{i + 1}.</span>
-                  <span className="font-anton text-[13px] flex-1 leading-tight inline-flex items-center gap-1.5 min-w-0">
+                  <span className="font-anton text-[15px] w-[30px] opacity-80">{i + 1}.</span>
+                  <Link
+                    href={`/takim/${m.id}`}
+                    className="font-anton text-[14px] flex-1 leading-tight inline-flex min-h-10 items-center gap-1.5 min-w-0 hover:underline underline-offset-4"
+                  >
                     <span className="truncate">{m.name}</span>
                     <TeamColors team={m} size={10} />
-                  </span>
-                  <span className="font-mono text-[9px] opacity-50 w-[72px] text-right shrink-0">
+                  </Link>
+                  <span className="font-mono text-[11px] opacity-60 w-[76px] text-right shrink-0 truncate">
                     {leagueLabel[m.league]}
                   </span>
-                  <span className="font-mono text-[11px] tabular-nums w-[28px] text-right shrink-0">
+                  <span className="font-mono text-[13px] tabular-nums min-w-[32px] text-right shrink-0">
                     {m.votes.toLocaleString("tr-TR")}
                   </span>
-                </div>
+                </li>
               ))}
-            </div>
+            </ol>
+            {ranked.length > MOBILE_ROWS && (
+              <button
+                type="button"
+                onClick={() => setShowAllTable((v) => !v)}
+                aria-expanded={showAllTable}
+                className={`md:hidden mt-3 w-full ${btnSm}`}
+              >
+                {showAllTable ? "DAHA AZ GÖSTER" : `TÜM TABLOYU GÖSTER (${ranked.length})`}
+              </button>
+            )}
           </div>
 
           {featuredTopics.length > 0 && (
@@ -358,7 +403,7 @@ export default function HomeClient({
                   <Link
                     key={row.id}
                     href={`/forum/konu/${row.id}`}
-                    className="flex items-center gap-2 font-mono text-[11px] md:text-[12px] border-b border-dashed border-black/30 pb-1.5 hover:bg-white/50"
+                    className="flex min-h-11 items-center gap-2 font-mono text-[13px] border-b border-dashed border-black/30 hover:bg-white/50"
                   >
                     <span className="min-w-0 flex-1 truncate font-bold">{row.title}</span>
                     <span className="shrink-0 opacity-70">@{row.authorUsername}</span>
@@ -369,11 +414,15 @@ export default function HomeClient({
           )}
 
           <div className="border-[4px] border-black bg-white p-4 shadow-[5px_5px_0_black]">
-            <h3 className="font-anton text-[22px]">FORUMDA SON KONULAR</h3>
+            <h3 className="font-anton text-[22px]">TRİBÜNDE SON KONULAR</h3>
             <div className="mt-3 space-y-2">
               {recentTopics.length === 0 && (
-                <p className="font-mono text-[11px]">
-                  Henüz konu açılmadı. İlk konuyu sen aç.
+                <p className="font-mono text-[13px]">
+                  Henüz konu açılmadı.{" "}
+                  <Link href="/forum/genel" className="underline underline-offset-4">
+                    İlk konuyu sen aç
+                  </Link>
+                  .
                 </p>
               )}
               {recentTopics.map((row) => {
@@ -384,12 +433,12 @@ export default function HomeClient({
                   <Link
                     key={row.id}
                     href={`/forum/konu/${row.id}`}
-                    className="flex items-center gap-2 font-mono text-[11px] md:text-[12px] border-b border-dashed border-black/20 pb-1.5 hover:bg-[#FFEA00]/40"
+                    className="flex min-h-11 items-center gap-2 font-mono text-[13px] border-b border-dashed border-black/20 hover:bg-[#FFEA00]/40"
                   >
                     {team ? (
                       <TeamColors team={team} size={10} />
                     ) : (
-                      <span className="shrink-0 border border-black px-1 text-[9px]">
+                      <span className="shrink-0 border border-black px-1 text-[11px]">
                         {row.board === "city" ? row.province : "GENEL"}
                       </span>
                     )}
@@ -403,44 +452,7 @@ export default function HomeClient({
         </aside>
       </main>
 
-      <footer className="relative z-10 border-t-[4px] border-black">
-        <div className="h-8 pitch-foot border-b-[4px] border-black" />
-        <div className="bg-[#111] text-[#F2EFE6] px-4 md:px-6 py-6">
-          <div className="max-w-[1320px] mx-auto flex flex-wrap justify-between gap-4">
-            <div>
-              <div className="font-anton text-[28px]">MANİFESTO — BODRUM KAT</div>
-              <p className="font-mono text-[12px] max-w-[640px] mt-2 opacity-80">
-                Takımının gerçek gücünü Bizim Tribün&apos;de göster. Sen varsan +1 kişi
-                fazlayız. Haydi katıl!
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 font-mono text-[11px] h-fit">
-              <Link href="/takimlar" className="border border-white/30 px-2 py-1">
-                Takım tribünleri
-              </Link>
-              <Link href="/kvkk" className="border border-white/30 px-2 py-1">
-                KVKK aydınlatma
-              </Link>
-              <Link href="/sil-verilerim" className="border border-white/30 px-2 py-1">
-                Verilerimi sil
-              </Link>
-              {(Object.keys(SOCIAL_LABEL) as (keyof typeof SOCIAL_LABEL)[])
-                .filter((key) => socialLinks[key])
-                .map((key) => (
-                  <a
-                    key={key}
-                    href={socialLinks[key]}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="border border-white/30 px-2 py-1"
-                  >
-                    {SOCIAL_LABEL[key]}
-                  </a>
-                ))}
-            </div>
-          </div>
-        </div>
-      </footer>
+
 
     </div>
   );

@@ -14,7 +14,7 @@ export default function CityForumPage() {
       apiPath={`/api/forum/il/${slug}/topics`}
       newTopicPath={`/forum/il/${slug}/yeni`}
       backHref="/forum"
-      backLabel="Tüm forumlar"
+      backLabel="Tüm tribünler"
       active={Boolean(city)}
       closedTitle="İL BULUNAMADI"
       closedBody="Böyle bir il tribünü yok."
@@ -28,9 +28,9 @@ export default function CityForumPage() {
               {city.name} taraftarlarının ortak alanı: yerel maçlar, deplasman buluşmaları, şehrin
               futbol gündemi. Konum bilgisi kullanılmaz; herkes istediği il tribününe yazabilir.
             </p>
-            <p className="font-mono text-[11px] opacity-60 mt-1">
+            <p className="font-mono text-[12px] opacity-70 mt-1">
               {total} konu •{" "}
-              <Link href={`/il/${city.slug}`} className="underline">
+              <Link href={`/il/${city.slug}`} className="underline underline-offset-4 inline-flex min-h-10 items-center">
                 {city.name} sayımı
               </Link>
             </p>

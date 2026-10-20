@@ -1,11 +1,14 @@
-export const inputClass =
-  "mt-1 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] outline-none bg-white focus-visible:ring-4 focus-visible:ring-[#FFEA00]";
+import { inputClass as sharedInputClass } from "@/components/ui";
 
-export const primaryButton =
-  "w-full font-anton text-[18px] py-3 border-[3px] border-black bg-black text-white disabled:bg-zinc-300 disabled:text-zinc-600 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-4 focus-visible:outline-[#FFEA00]";
+/** Text field style (16px on phones so iOS does not zoom). */
+export const inputClass = sharedInputClass;
 
-export const secondaryButton =
-  "w-full font-anton text-[16px] py-2 border-[3px] border-black bg-white disabled:opacity-50 focus-visible:outline focus-visible:outline-4 focus-visible:outline-[#FFEA00]";
+const focusRing =
+  "focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-[#FFEA00]";
+
+export const primaryButton = `w-full min-h-12 inline-flex items-center justify-center font-anton text-[18px] px-4 py-2 border-[3px] border-black bg-black text-white hover:bg-zinc-800 disabled:bg-zinc-300 disabled:text-zinc-600 disabled:cursor-not-allowed ${focusRing}`;
+
+export const secondaryButton = `w-full min-h-11 inline-flex items-center justify-center font-anton text-[16px] px-4 py-2 border-[3px] border-black bg-white hover:bg-[#FFEA00]/40 disabled:opacity-50 disabled:cursor-not-allowed ${focusRing}`;
 
 export function Notice({
   tone,

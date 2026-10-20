@@ -4,6 +4,18 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { errorText, inputClass, Notice, postJson, primaryButton } from "@/components/auth/ui";
 import { AVATAR_EMOJI, AVATARS, PROFILE_BIO_MAX, PROFILE_DISPLAY_NAME_MAX, type AvatarKey } from "@/lib/profile-options";
+import { btnSm, checkboxClass, hintClass, labelClass } from "@/components/ui";
+
+const AVATAR_NAME: Record<AvatarKey, string> = {
+  atki: "Atkı",
+  bayrak: "Bayrak",
+  davul: "Davul",
+  megafon: "Megafon",
+  top: "Top",
+  kupa: "Kupa",
+  yildiz: "Yıldız",
+  kartal: "Kartal",
+};
 
 type Settings = {
   displayName: string;
@@ -19,11 +31,24 @@ type Settings = {
 
 type Block = { id: number; username: string; createdAt: string };
 
-function Toggle({ checked, onChange, children }: { checked: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) {
+function Toggle({
+  checked,
+  onChange,
+  children,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  children: React.ReactNode;
+  hint?: string;
+}) {
   return (
-    <label className="flex items-start gap-2 font-mono text-[12px]">
-      <input type="checkbox" className="mt-[3px]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span>{children}</span>
+    <label className="flex min-h-11 items-center gap-3 font-mono text-[13px] py-1">
+      <input type="checkbox" className={checkboxClass} checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <span>
+        {children}
+        {hint && <span className={`block ${hintClass}`}>{hint}</span>}
+      </span>
     </label>
   );
 }
@@ -66,12 +91,15 @@ export default function ProfileSettingsForm({ username }: { username: string }) 
 
   return (
     <div className="space-y-3">
-      <p className="font-mono text-[11px]">
-        Profilin: <Link className="underline" href={`/u/${username}`}>/u/{username}</Link>. Kullanıcı adı ve takım
-        değiştirilemez.
+      <p className="font-mono text-[13px]">
+        Profilin:{" "}
+        <Link className="underline underline-offset-4" href={`/u/${username}`}>
+          /u/{username}
+        </Link>
+        . Kullanıcı adı ve takım değiştirilemez.
       </p>
       <label className="block">
-        <span className="font-mono text-[10px]">GÖRÜNEN AD (İSTEĞE BAĞLI)</span>
+        <span className={labelClass}>GÖRÜNEN AD (İSTEĞE BAĞLI)</span>
         <input
           className={inputClass}
           maxLength={PROFILE_DISPLAY_NAME_MAX}
@@ -80,7 +108,7 @@ export default function ProfileSettingsForm({ username }: { username: string }) 
         />
       </label>
       <label className="block">
-        <span className="font-mono text-[10px]">HAKKINDA ({s.bio.length}/{PROFILE_BIO_MAX})</span>
+        <span className={labelClass}>HAKKINDA ({s.bio.length}/{PROFILE_BIO_MAX})</span>
         <textarea
           className={`${inputClass} min-h-[80px]`}
           maxLength={PROFILE_BIO_MAX}
@@ -89,13 +117,16 @@ export default function ProfileSettingsForm({ username }: { username: string }) 
         />
       </label>
       <div>
-        <span className="font-mono text-[10px]">AVATAR</span>
-        <div className="mt-1 flex flex-wrap gap-2">
+        <span className={labelClass} id="avatar-baslik">
+          AVATAR
+        </span>
+        <div className="mt-1 flex flex-wrap gap-2" role="group" aria-labelledby="avatar-baslik">
           <button
             type="button"
             onClick={() => set("avatar", null)}
             className={`w-11 h-11 border-[3px] border-black font-anton text-[12px] ${s.avatar == null ? "bg-[#FFEA00]" : "bg-white"}`}
             aria-label="Baş harfler"
+            aria-pressed={s.avatar == null}
           >
             ABC
           </button>
@@ -105,7 +136,9 @@ export default function ProfileSettingsForm({ username }: { username: string }) 
               type="button"
               onClick={() => set("avatar", key)}
               className={`w-11 h-11 border-[3px] border-black text-[22px] ${s.avatar === key ? "bg-[#FFEA00]" : "bg-white"}`}
-              aria-label={key}
+              aria-label={AVATAR_NAME[key]}
+              aria-pressed={s.avatar === key}
+              title={AVATAR_NAME[key]}
             >
               {AVATAR_EMOJI[key]}
             </button>
@@ -113,16 +146,20 @@ export default function ProfileSettingsForm({ username }: { username: string }) 
         </div>
       </div>
       <fieldset className="space-y-1">
-        <legend className="font-mono text-[10px]">GİZLİLİK</legend>
-        <Toggle checked={s.visibility === "public"} onChange={(v) => set("visibility", v ? "public" : "members")}>
-          Profilim herkese açık olsun (arama motorlarında görünebilir). Kapalıyken yalnızca giriş yapmış üyeler görür.
+        <legend className={labelClass}>GİZLİLİK</legend>
+        <Toggle
+          checked={s.visibility === "public"}
+          onChange={(v) => set("visibility", v ? "public" : "members")}
+          hint="Arama motorlarında görünebilir. Kapalıyken yalnızca giriş yapmış üyeler görür."
+        >
+          Profilim herkese açık olsun
         </Toggle>
         <Toggle checked={s.showCity} onChange={(v) => set("showCity", v)}>
-          Profilimde ilimi göster.
+          Profilimde ilimi göster
         </Toggle>
       </fieldset>
       <fieldset className="space-y-1">
-        <legend className="font-mono text-[10px]">SİTE İÇİ BİLDİRİMLER</legend>
+        <legend className={labelClass}>SİTE İÇİ BİLDİRİMLER</legend>
         <Toggle checked={s.notifyReplies} onChange={(v) => set("notifyReplies", v)}>
           Konularıma yorum gelince
         </Toggle>
@@ -133,11 +170,15 @@ export default function ProfileSettingsForm({ username }: { username: string }) 
           Yazım beğenilince
         </Toggle>
         {s.notifyNewTopics != null && (
-          <Toggle checked={s.notifyNewTopics} onChange={(v) => set("notifyNewTopics", v)}>
-            Yönetici: herhangi bir tribünde yeni konu açılınca
+          <Toggle
+            checked={s.notifyNewTopics}
+            onChange={(v) => set("notifyNewTopics", v)}
+            hint="Yalnızca yöneticilere gösterilir."
+          >
+            Herhangi bir tribünde yeni konu açılınca
           </Toggle>
         )}
-        <p className="font-mono text-[10px] opacity-70">
+        <p className={hintClass}>
           Moderasyon, rozet ve hesap güvenliği bildirimleri her zaman gelir. SMS veya e-posta bildirimi gönderilmez.
         </p>
       </fieldset>
@@ -149,14 +190,14 @@ export default function ProfileSettingsForm({ username }: { username: string }) 
       <div className="pt-2">
         <h3 className="font-anton text-[16px]">ENGELLEDİKLERİM</h3>
         {blocks.length === 0 ? (
-          <p className="font-mono text-[12px] opacity-70">Kimseyi engellemedin.</p>
+          <p className="font-mono text-[13px] opacity-70">Kimseyi engellemedin.</p>
         ) : (
-          <ul className="font-mono text-[12px] space-y-1 mt-1">
+          <ul className="font-mono text-[13px] space-y-2 mt-1">
             {blocks.map((b) => (
-              <li key={b.id} className="flex items-center gap-2">
+              <li key={b.id} className="flex flex-wrap items-center gap-2">
                 <span>@{b.username}</span>
-                <button type="button" className="underline text-[11px]" onClick={() => void unblock(b.id)}>
-                  Engeli kaldır
+                <button type="button" className={btnSm} onClick={() => void unblock(b.id)}>
+                  ENGELİ KALDIR
                 </button>
               </li>
             ))}
