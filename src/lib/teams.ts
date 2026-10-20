@@ -188,6 +188,34 @@ export function initials(name: string) {
     .toLocaleUpperCase("tr-TR");
 }
 
+/** Badges drawn differently from the team colours, as the clubs are usually shown. */
+const BADGE_OVERRIDE: Record<string, { bg: string; fg: string; bar: [string, string] }> = {
+  besiktas: { bg: "#FFFFFF", fg: "#111111", bar: ["#FFFFFF", "#111111"] },
+  altay: { bg: "#FFFFFF", fg: "#111111", bar: ["#FFFFFF", "#111111"] },
+};
+
+function luminance(hex: string) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return 0;
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(m[1].slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Colours for the square team badge: background, a code colour that stays
+ * readable on it (dark teams used to get black text on black), and the
+ * two-colour bar along the bottom.
+ */
+export function teamBadge(team: Pick<Team, "id" | "bleed" | "accent">) {
+  const fixed = BADGE_OVERRIDE[team.id];
+  if (fixed) return fixed;
+  const fg = luminance(team.bleed) > 0.18 ? "#111111" : "#FFFFFF";
+  return { bg: team.bleed, fg, bar: [team.bleed, team.accent] as [string, string] };
+}
+
 /** Legal-form and club suffixes that say nothing about which team it is. */
 const SHORT_NOISE = /^(FK|SK|SFK|FSK|A\.?Ş\.?|\d+)$/i;
 
@@ -212,6 +240,8 @@ export function teamShort(id: string, name: string) {
 
 const SHORT_CODE: Record<string, string> = {
   eskisehirspor: "ESK",
+  trabzonspor: "TS",
+  besiktas: "BJK",
   "istanbul-basaksehir": "BŞK",
   "caykur-rizespor": "RİZ",
   "fatih-karagumruk": "FKG",

@@ -9,7 +9,7 @@ import { getDb } from "@/lib/db";
 import { ROLE_LABELS, isStaffRole } from "@/lib/permissions";
 import { AVATAR_EMOJI, getPublicProfile, listProfileActivity, XP_PER_LIKE } from "@/lib/profiles";
 import { getCatalogTeam } from "@/lib/team-catalog";
-import { initials } from "@/lib/teams";
+import { initials, teamBadge } from "@/lib/teams";
 import { btnAccent, btnSm, labelClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -84,7 +84,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           <div
             aria-hidden
             className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 border-[4px] border-black flex items-center justify-center font-anton text-[30px]"
-            style={{ background: team?.bleed ?? "#111", color: team?.ink || "#fff" }}
+            style={team ? { background: teamBadge(team).bg, color: teamBadge(team).fg } : { background: "#111", color: "#fff" }}
           >
             {p.avatar ? <span className="text-[38px]">{AVATAR_EMOJI[p.avatar]}</span> : initials(p.username)}
           </div>
