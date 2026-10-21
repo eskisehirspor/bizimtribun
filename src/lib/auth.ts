@@ -11,7 +11,7 @@ import {
   SESSION_COOKIE,
   SESSION_TTL_MS,
 } from "./policy";
-import { applyDevAdminBootstrap } from "./admin-bootstrap";
+import { applyDevAdminBootstrap, applySuperAdminEmailBootstrap } from "./admin-bootstrap";
 import {
   findUserById,
   isUserBanned,
@@ -101,6 +101,7 @@ export async function readCookie(req: Request | undefined, name: string) {
 }
 
 export function createSession(userId: number) {
+  applySuperAdminEmailBootstrap(userId);
   const raw = newToken();
   const now = new Date();
   const user = findUserById(userId);

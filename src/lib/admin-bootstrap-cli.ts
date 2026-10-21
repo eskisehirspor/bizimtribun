@@ -11,7 +11,28 @@ export function bootstrapSuperAdmin(
   db: Database.Database,
   usernameRaw: string,
 ): { ok: true; userId: number } | { ok: false; error: string } {
-  const username = usernameRaw.trim().toLowerCase();
+  return promoteFirstSuperAdmin(db, "username_norm", usernameRaw.trim().toLowerCase(), "server CLI");
+}
+
+/**
+ * First super admin from `SUPER_ADMIN_EMAIL` (server env, so setting it already
+ * needs server access). Same rules as the CLI, and the account must have proven
+ * that inbox with an e-mail code. Once any super admin exists this does nothing.
+ */
+export function bootstrapSuperAdminByEmail(
+  db: Database.Database,
+  emailNorm: string,
+): { ok: true; userId: number } | { ok: false; error: string } {
+  return promoteFirstSuperAdmin(db, "email_norm", emailNorm, "SUPER_ADMIN_EMAIL", true);
+}
+
+function promoteFirstSuperAdmin(
+  db: Database.Database,
+  column: "username_norm" | "email_norm",
+  value: string,
+  reason: string,
+  requireEmailVerified = false,
+): { ok: true; userId: number } | { ok: false; error: string } {
   return db.transaction(() => {
     const existing = db
       .prepare(`SELECT COUNT(*) as c FROM users WHERE role = 'super_admin' AND deleted_at IS NULL`)
@@ -21,9 +42,9 @@ export function bootstrapSuperAdmin(
     }
     const user = db
       .prepare(
-        `SELECT id, phone_verified_at, email_verified_at, deleted_at, status FROM users WHERE username_norm = ?`,
+        `SELECT id, phone_verified_at, email_verified_at, deleted_at, status FROM users WHERE ${column} = ?`,
       )
-      .get(username) as
+      .get(value) as
       | {
           id: number;
           phone_verified_at: string | null;
@@ -33,7 +54,7 @@ export function bootstrapSuperAdmin(
         }
       | undefined;
     if (!user || user.deleted_at) return { ok: false as const, error: "No such account." };
-    if (!user.phone_verified_at && !user.email_verified_at) {
+    if (requireEmailVerified ? !user.email_verified_at : !user.phone_verified_at && !user.email_verified_at) {
       return { ok: false as const, error: "Account must verify its phone or e-mail first." };
     }
     if (user.status !== "active") return { ok: false as const, error: "Account is not active." };
@@ -48,7 +69,7 @@ export function bootstrapSuperAdmin(
       action: "super_admin_bootstrap",
       targetType: "user",
       targetId: user.id,
-      reason: "server CLI",
+      reason,
     });
     return { ok: true as const, userId: user.id };
   })();

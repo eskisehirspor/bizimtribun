@@ -1,5 +1,23 @@
 import { getDb } from "./db";
 import { normalizeEmail } from "./crypto";
+import { bootstrapSuperAdminByEmail } from "./admin-bootstrap-cli";
+
+/**
+ * Production and development: when `SUPER_ADMIN_EMAIL` is set and no super admin
+ * exists yet, the account with that verified e-mail becomes super admin as it
+ * signs in. Runs before the new session is written, so the CLI's session revoke
+ * never logs anyone out mid-request. 2FA is still forced by the admin panel.
+ */
+export function applySuperAdminEmailBootstrap(userId: number) {
+  const emailRaw = process.env.SUPER_ADMIN_EMAIL?.trim();
+  if (!emailRaw) return;
+  const db = getDb();
+  const row = db.prepare(`SELECT email_norm FROM users WHERE id = ?`).get(userId) as
+    | { email_norm: string }
+    | undefined;
+  if (!row || row.email_norm !== normalizeEmail(emailRaw)) return;
+  bootstrapSuperAdminByEmail(db, row.email_norm);
+}
 
 function isProduction() {
   return process.env.NODE_ENV === "production";
