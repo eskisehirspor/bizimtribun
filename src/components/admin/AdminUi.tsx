@@ -1,18 +1,25 @@
 "use client";
 
 import { useState } from "react";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import Pager from "@/components/Pager";
+import { inputClass, labelClass } from "@/components/ui";
 
 export function AdminCard({
   title,
   value,
+  hint,
 }: {
   title: string;
   value: string | number;
+  /** How the number is counted. */
+  hint?: string;
 }) {
   return (
     <div className="border-[3px] border-black bg-[#FFFEFA] p-3 shadow-[4px_4px_0_black]">
-      <p className="font-mono text-[10px] tracking-wide opacity-60">{title}</p>
+      <p className="font-mono text-[12px] tracking-wide opacity-70">{title}</p>
       <p className="font-anton text-[32px] leading-none mt-1">{value}</p>
+      {hint && <p className="font-mono text-[11px] leading-tight opacity-70 mt-1">{hint}</p>}
     </div>
   );
 }
@@ -45,37 +52,16 @@ export function AdminPager({
 }) {
   const pages = Math.max(1, Math.ceil(total / limit));
   if (total === 0) return null;
-  return (
-    <div className="flex items-center justify-between gap-3 mt-3 font-mono text-[12px]">
-      <span>
-        {total} kayıt • sayfa {page}/{pages}
-      </span>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          disabled={page <= 1}
-          onClick={() => onPage(page - 1)}
-          className="border-[2px] border-black px-2 py-1 bg-white disabled:opacity-40"
-        >
-          ←
-        </button>
-        <button
-          type="button"
-          disabled={page >= pages}
-          onClick={() => onPage(page + 1)}
-          className="border-[2px] border-black px-2 py-1 bg-white disabled:opacity-40"
-        >
-          →
-        </button>
-      </div>
-    </div>
-  );
+  return <Pager page={page} pages={pages} onPage={onPage} summary={`${total} kayıt`} />;
 }
 
 type ConfirmState = {
   title: string;
   body: string;
   confirmLabel: string;
+  /** Verb shown while the action runs, e.g. "SİLİNİYOR…". */
+  busyLabel?: string;
+  tone?: "danger" | "primary";
   requireReason?: boolean;
   onConfirm: (reason: string) => Promise<void> | void;
 };
@@ -111,43 +97,31 @@ export function useConfirmAction() {
     }
   }
 
-  const dialog = open ? (
-    <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
-      <div className="w-full max-w-[440px] border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[8px_8px_0_black]">
-        <h3 className="font-anton text-[24px] leading-none">{open.title}</h3>
-        <p className="font-mono text-[12px] mt-2">{open.body}</p>
-        <label className="block mt-3">
-          <span className="font-mono text-[10px]">
-            {open.requireReason === false ? "GEREKÇE (isteğe bağlı)" : "GEREKÇE"}
-          </span>
-          <textarea
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="mt-1 w-full border-[3px] border-black p-2 font-mono text-[13px] min-h-[80px]"
-          />
-        </label>
-        {error && <p className="font-mono text-[12px] text-[#C8102E] mt-2">{error}</p>}
-        <div className="flex gap-2 mt-4">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void confirm()}
-            className="font-anton text-[14px] bg-[#C8102E] text-white border-[3px] border-black px-3 py-2"
-          >
-            {busy ? "…" : open.confirmLabel}
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => setOpen(null)}
-            className="font-anton text-[14px] border-[3px] border-black px-3 py-2 bg-white"
-          >
-            VAZGEÇ
-          </button>
-        </div>
-      </div>
-    </div>
-  ) : null;
+  const dialog = (
+    <ConfirmDialog
+      open={Boolean(open)}
+      title={open?.title ?? ""}
+      body={open?.body}
+      confirmLabel={open?.confirmLabel ?? "TAMAM"}
+      busyLabel={open?.busyLabel}
+      tone={open?.tone ?? "danger"}
+      busy={busy}
+      error={error}
+      onConfirm={() => void confirm()}
+      onCancel={() => setOpen(null)}
+    >
+      <label className="block">
+        <span className={labelClass}>
+          {open?.requireReason === false ? "GEREKÇE (isteğe bağlı)" : "GEREKÇE (en az 3 karakter)"}
+        </span>
+        <textarea
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          className={`${inputClass} min-h-[96px]`}
+        />
+      </label>
+    </ConfirmDialog>
+  );
 
   return { ask, dialog };
 }

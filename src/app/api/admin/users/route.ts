@@ -1,9 +1,11 @@
 import { likeQuery, parseAdminPage, requireAdminResponse } from "@/lib/admin-http";
 import { listAdminTeamOptions, listAdminUsers } from "@/lib/admin-service";
 import { noStoreJson } from "@/lib/http";
+import { can } from "@/lib/permissions";
+import { USER_ROLES } from "@/lib/users";
 
 export async function GET(req: Request) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "users.view");
   if (!gate.ok) return gate.res;
 
   const url = new URL(req.url);
@@ -12,7 +14,7 @@ export async function GET(req: Request) {
   const bannedRaw = url.searchParams.get("banned");
   const teamId = url.searchParams.get("team")?.trim() || null;
 
-  const role = roleRaw === "admin" || roleRaw === "user" ? roleRaw : null;
+  const role = USER_ROLES.find((r) => r === roleRaw) ?? null;
   const banned = bannedRaw === "1" ? true : bannedRaw === "0" ? false : null;
 
   const { total, items } = listAdminUsers({
@@ -20,6 +22,7 @@ export async function GET(req: Request) {
     role,
     banned,
     teamId,
+    pii: can(gate.user.role, "users.pii"),
     offset,
     limit,
   });

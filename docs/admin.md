@@ -1,0 +1,92 @@
+# Roles and admin panel
+
+Roles live in `users.role` and are checked on the server for every admin request
+(`src/lib/permissions.ts`). The client only hides buttons. A member cannot change their own
+role through any API: profile updates reject unknown fields, and role changes go through
+`/api/admin/users/<id>/role`, which only a super admin may call.
+
+| Permission | Moderator | Admin | Super admin |
+| --- | :-: | :-: | :-: |
+| Admin panel, forum moderation, held-content queue, member reports | ✓ | ✓ | ✓ |
+| Member list and detail (phone masked), ban/unban ordinary members | ✓ | ✓ | ✓ |
+| Ban moderators (admins must be demoted first), see full phone / e-mail (`users.pii`) | | ✓ | ✓ |
+| Void a vote with a reason (`votes.void`) | | ✓ | ✓ |
+| Undo a mistaken void (`votes.restore`) | | | ✓ |
+| Teams, leagues, seasons, team requests | | ✓ | ✓ |
+| Dashboard, audit log | | ✓ | ✓ |
+| Site content: announcement, featured topics, home leagues, SEO texts, social links | | ✓ | ✓ |
+| Roles (`roles.manage`), maintenance mode and feature flags (`settings.manage`) | | | ✓ |
+
+Rules enforced on the server:
+
+- Nobody can change their own role; the last super admin cannot be demoted; a role change
+  revokes the member's sessions and is audited.
+- Staff must turn on TOTP 2FA first. Without it only `/admin/guvenlik` (`security.self`)
+  works; every other admin page and API answers 403. Later staff logins ask for the TOTP
+  code after the SMS code, and a code can't be reused within its window.
+- There is no "log in as member" feature.
+- There is no way to move a vote to another team. A vote can only be voided, with a reason,
+  and that is audited; the account cannot vote again. A super admin can undo a mistaken
+  void: the same vote row comes back with its original team, province and cast time, the
+  undo is written to `fan_vote_restores` and `audit_log`, and a database trigger refuses
+  the change without that record. Votes of deleted accounts can't be restored.
+- Signed-in members who call a staff-only endpoint are recorded in `security_events`
+  (`admin_denied:<permission>`) and counted on the dashboard.
+
+## Dashboard figures
+
+All figures are plain counts over live rows; the system account that owns pinned starter
+topics is not counted as a member.
+
+| Card | Definition |
+| --- | --- |
+| Aktif hesap | Not deleted, not under an active ban |
+| Telefonu doğrulanmış | `phone_verified_at` set, not deleted |
+| Geçerli takım oyu | `fan_votes.status = 'active'` |
+| Yeni kayıt (24 saat / 7 / 30 gün) | Accounts created in the window, not deleted |
+| Eski sayım oyu | Old e-mail census ballots; not part of any public count |
+| Yeni konu / yorum (7 gün) | Live (not removed, not held) items created in the window |
+| Açık rapor / Onay bekleyen | Open `forum_reports` / auto-held topics and posts |
+| SMS kodu talebi, kilitlenen kod | `auth_otps` rows in the last 24 h / of those, locked by wrong guesses |
+| En yoğun saatte kayıt | Most sign-ups in one clock hour over the last 24 h |
+| Yetkisiz yönetim denemesi | `admin_denied:*` security events in the last 24 h |
+| Başarısız yönetici girişi | Other failed security events (password / 2FA) in the last 24 h |
+| İptal edilen oy (30 gün) | Votes voided in the last 30 days |
+
+## Haftanın Taraftarı (fan of the week)
+
+Each week (Monday to Sunday, Istanbul time) a team tribune's fan of the week is the member
+with the highest score on that board: active days (days with at least one public topic or
+reply) × 3, plus likes received that week from other members, at most 3 from any one liker.
+Ties go to more active days, then the earliest post. Removed or held content, banned
+accounts and the system account don't count. The winner is stored once the week is over
+(`fan_of_week`) and wears a small torch next to their nickname in that tribune for the
+following week. The old monthly `forum_leaders` records are kept but no longer shown.
+
+Province tribunes were removed. Their old topics stay in the database, hidden; old
+`/forum/il/...` links redirect to the province count page.
+
+## Forum rules that run on their own
+
+- **No editing.** Topics and replies can't be edited once published; authors can only delete them.
+- **Sub-forums.** Every tribune has the same ten categories (`src/lib/forum-category.ts`). Topics from
+  the old five categories were moved by migration `013_forum_categories_v2`; old `?category=` links map
+  to the new ones.
+- **Reports.** When 3 different members have an open report on the same topic or reply, it is held
+  (hidden) and shows up in the held-content queue as `auto:review:reports`. Staff texts and texts a
+  moderator already approved are never auto-held.
+- **Spam.** A member waits 15 seconds between two texts and can't send the same text again within 24
+  hours (`src/lib/forum-spam.ts`). Texts with more than 2 links, links from accounts younger than a
+  day, and betting/casino ads are held for a moderator.
+- **Profanity.** Clear profanity, threats and slurs are refused; milder words fans use loosely
+  (`şerefsiz`, `yavşak`, `mk`, …) are held for a moderator instead (`src/lib/moderation/rules.ts`).
+- **Blocking** is per member (nickname), never per topic: the blocker stops seeing that member's
+  topics and replies, and the blocked member can't reply to the blocker's topics or notify them.
+
+## Site settings (`/admin/ayarlar`)
+
+Each block is saved on its own and audited as `setting_<key>`. Text is stored as plain text
+(control characters and `<` `>` removed); links must be `https://` or a same-site path.
+Featured topic ids must point at live topics. Feature flags: new sign-ups, team requests,
+likes and the Milli Takım Tribünü (stored as the general board; `/forum/genel` redirects to `/forum/milli-takim`). Closing a board hides it and its topics
+(including from the sitemap) without deleting anything; reopening brings them back.

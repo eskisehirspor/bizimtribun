@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import { btnDanger, btnPrimary, fieldClass } from "@/components/ui";
 
 function Form() {
   const token = useSearchParams().get("token") || "";
@@ -51,7 +52,7 @@ function Form() {
             <button
               type="button"
               onClick={() => void confirm()}
-              className="mt-4 font-anton bg-[#C8102E] text-white px-4 py-2 border-[3px] border-black"
+              className={`mt-4 ${btnDanger}`}
             >
               SİLMEYİ ONAYLA
             </button>
@@ -63,17 +64,17 @@ function Form() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border-[3px] border-black px-3 py-2 font-mono"
+              className={fieldClass}
               placeholder="kayıtlı e-posta"
             />
-            <button className="font-anton bg-black text-white px-4 py-2 border-[3px] border-black">
+            <button className={btnPrimary}>
               SİLME LİNKİ GÖNDER
             </button>
           </form>
         )}
         {msg && <p className="font-mono text-[12px] mt-3">{msg}</p>}
         {devLink && (
-          <p className="font-mono text-[11px] mt-2 break-all">
+          <p className="font-mono text-[12px] mt-2 break-all">
             <a className="underline" href={devLink}>
               {devLink}
             </a>

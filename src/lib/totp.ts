@@ -66,15 +66,12 @@ export function totpAt(secretBase32: string, nowMs: number) {
   return hotp(secret, counter, TOTP_DIGITS);
 }
 
-export function verifyTotpCode(
-  secretBase32: string,
-  code: string,
-  nowMs = Date.now(),
-) {
+/** The time step a valid code belongs to (within the allowed skew), or null. */
+export function matchTotpStep(secretBase32: string, code: string, nowMs = Date.now()) {
   const trimmed = code.trim().replace(/\s+/g, "");
-  if (!/^\d{6}$/.test(trimmed)) return false;
+  if (!/^\d{6}$/.test(trimmed)) return null;
   const secret = decodeBase32(secretBase32);
-  if (!secret || secret.length < 10) return false;
+  if (!secret || secret.length < 10) return null;
   const counter = Math.floor(nowMs / 1000 / TOTP_PERIOD_SEC);
   const expected = Buffer.from(trimmed);
   for (let delta = -TOTP_SKEW_STEPS; delta <= TOTP_SKEW_STEPS; delta++) {
@@ -83,10 +80,18 @@ export function verifyTotpCode(
       candidate.length === expected.length &&
       timingSafeEqual(candidate, expected)
     ) {
-      return true;
+      return counter + delta;
     }
   }
-  return false;
+  return null;
+}
+
+export function verifyTotpCode(
+  secretBase32: string,
+  code: string,
+  nowMs = Date.now(),
+) {
+  return matchTotpStep(secretBase32, code, nowMs) != null;
 }
 
 export function totpOtpAuthUrl(input: {

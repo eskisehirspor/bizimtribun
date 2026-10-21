@@ -7,14 +7,14 @@ export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "users.view");
   if (!gate.ok) return gate.res;
 
   const { id: raw } = await ctx.params;
   const id = parseIdParam(raw);
   if (id == null) return noStoreJson({ error: "Kullanıcı bulunamadı." }, 404);
 
-  const user = getAdminUserDetail(id);
+  const user = getAdminUserDetail(id, gate.user.role);
   if (!user) return noStoreJson({ error: "Kullanıcı bulunamadı." }, 404);
   return noStoreJson({ ok: true, user });
 }

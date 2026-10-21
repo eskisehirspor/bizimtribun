@@ -1,3 +1,4 @@
+import { linkHits } from "../forum-spam";
 import { normalizeForumContent } from "./normalize";
 import { FORUM_CONTENT_RULES } from "./rules";
 import type {
@@ -169,7 +170,7 @@ export function mergeModerationResults(
 
 export function moderateForumContent(
   content: string,
-  _context: ForumModerationContext,
+  context: ForumModerationContext,
   options: ModerateForumOptions = {},
 ): ForumModerationResult {
   const folded = normalizeForumContent(content);
@@ -178,6 +179,7 @@ export function moderateForumContent(
   if (options.includeStructural !== false) {
     matchedRules.push(
       ...structuralHits(folded.normalized, folded.longestRepeat),
+      ...linkHits(content, Boolean(context.newAccount)),
     );
   }
 

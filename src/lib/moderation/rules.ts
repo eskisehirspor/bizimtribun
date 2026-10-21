@@ -61,7 +61,43 @@ export const FORUM_CONTENT_RULES: readonly ModerationRule[] = [
     "block",
     bounded(["gotune", "gotunu", "gotunden"]),
   ),
+  rule(
+    "profanity.dalyarak-kaltak",
+    "profanity",
+    "high",
+    "block",
+    leadingBounded(["dalyarak", "dalyarrak", "kaltak", "surtuk", "gotveren"]),
+  ),
+  rule("profanity.pic", "profanity", "high", "block", bounded(["pic", "picler", "picin", "pic kurusu"])),
+  // Masked spellings such as "s*ktir" or "s.keyim".
+  rule(
+    "profanity.sik-masked",
+    "profanity",
+    "high",
+    "block",
+    /(^|[^a-z0-9])s[^a-z0-9\s]{1,3}k(?:t[iı]r|[eı]y[iı]m|er[iı]m)/,
+  ),
   rule("profanity.amk", "profanity", "medium", "review", bounded(["amk", "aq"])),
+  // Words fans also use loosely: held for a moderator instead of refused.
+  rule("profanity.yavsak", "profanity", "medium", "review", bounded(["yavsak", "yavsaklar"])),
+  rule("profanity.got", "profanity", "medium", "review", bounded(["got", "gotlek"])),
+  rule("profanity.short", "profanity", "low", "review", bounded(["mk", "oc", "sg"])),
+  rule(
+    "spam.betting",
+    "spam",
+    "medium",
+    "review",
+    boundedPhrase([
+      ["deneme", "bonusu"],
+      ["bahis", "sitesi"],
+      ["canli", "bahis"],
+      ["kacak", "bahis"],
+      ["casino"],
+      ["freebet"],
+      ["bedava", "bahis"],
+    ]),
+  ),
+  rule("insult.serefsiz", "insult", "medium", "review", bounded(["serefsiz", "serefsizler"])),
   rule("profanity.sikko", "profanity", "medium", "review", bounded(["sikko"])),
 
   rule(

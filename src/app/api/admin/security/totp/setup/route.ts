@@ -11,7 +11,7 @@ export async function POST(req: Request) {
     return noStoreJson({ error: "Geçersiz kaynak." }, 400);
   }
 
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "security.self");
   if (!gate.ok) return gate.res;
 
   const result = startTotpSetup(getDb(), gate.user);

@@ -1,38 +1,34 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bizim Tribün
 
-Production SQLite disk, backup, restore, and env: [docs/production.md](docs/production.md).
+Türkiye'nin il bazında taraftar sayımı ve taraftar forumu. Next.js 16 + SQLite (`better-sqlite3`).
 
-## Getting Started
+- Üyelik ve giriş SMS koduyla; her hesap bir kez, kalıcı olarak bir takıma oy verir (veritabanı tetikleyicileriyle korunur).
+- Sayaçlar yalnızca aktif `fan_votes` kayıtlarından gelir; 81 il haritası, il ve takım sayfaları, eşitlikler eşitlik olarak gösterilir.
+- Forum: Milli Takım Tribünü (herkese açık, eski Genel Tribün), takım tribünleri (haftanın taraftarı meşalesiyle), Maç Günü kategorisi; beğeni, bildirim (site içi), rapor, engelleme.
+- Profil (`/u/<kullanıcı>`), rozetler ve katkı puanı (oylarla ilgisi yok).
+- Yönetim paneli: üyeler, roller, takım/lig/sezon, moderasyon, raporlar, site ayarları, bakım modu, denetim kaydı.
 
-First, run the development server:
+Belgeler: [üretim](docs/production.md) · [veri ve KVKK kuralları](docs/data-policy.md) · [roller ve panel](docs/admin.md) · [ilk süper admin](docs/admin-bootstrap.md)
+
+## Başka bir bilgisayarda çalıştırma
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone https://github.com/eskisehirspor/bizimtribun.git
+cd bizimtribun
+git fetch origin claude/production-platform-qhdqfe
+git checkout claude/production-platform-qhdqfe
+npm ci
+cp .env.example .env.local     # SMS_PROVIDER=dev: kod ekranda görünür, SMS gitmez
+npm run dev                    # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Node.js 20.9 veya üstü gerekir. Geliştirme veritabanı `data/` altında oluşur.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Kontroller
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm test                      # birim + HTTP entegrasyon testleri (geçici SQLite dosyaları)
+npx next typegen && npx tsc --noEmit
+npm run lint
+npm run build
+```

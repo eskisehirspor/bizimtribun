@@ -8,7 +8,7 @@ export async function GET(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "team_requests.manage");
   if (!gate.ok) return gate.res;
 
   const id = parseIdParam((await ctx.params).id);

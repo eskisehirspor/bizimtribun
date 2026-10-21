@@ -1,3 +1,4 @@
+import { isStaffRole } from "./permissions";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getDb } from "./db";
@@ -13,14 +14,15 @@ import {
 import { applyDevAdminBootstrap } from "./admin-bootstrap";
 import {
   findUserById,
-  isAdmin,
   isUserBanned,
   reconcileExpiredBan,
   toPublicUser,
   type PublicUser,
   type UserRow,
 } from "./users";
-import { FORUM_EMAIL_UNVERIFIED_ERROR } from "./policy";
+import { FORUM_PHONE_UNVERIFIED_ERROR } from "./policy";
+import { LEGAL_PENDING_ERROR, pendingLegalDocs } from "./legal";
+import { MAINTENANCE_ERROR, maintenanceBlocks } from "./site-settings";
 
 type SessionRow = {
   id: number;
@@ -37,7 +39,7 @@ function tokenHash(raw: string) {
 }
 
 export function sessionTtlMsForUser(user: Pick<UserRow, "role"> | undefined) {
-  return user && isAdmin(user) ? SESSION_ADMIN_TTL_MS : SESSION_TTL_MS;
+  return user && isStaffRole(user.role) ? SESSION_ADMIN_TTL_MS : SESSION_TTL_MS;
 }
 
 export function sessionCookieOptions(maxAgeSec: number) {
@@ -86,6 +88,16 @@ export function clearAdmin2faCookie(res: NextResponse) {
     maxAge: 0,
   });
   return res;
+}
+
+export function signupTicketCookieOptions(maxAgeSec: number) {
+  return { ...sessionCookieOptions(maxAgeSec), sameSite: "strict" as const };
+}
+
+export async function readCookie(req: Request | undefined, name: string) {
+  if (req) return cookieFromHeader(req.headers.get("cookie"), name);
+  const jar = await cookies();
+  return jar.get(name)?.value ?? null;
 }
 
 export function createSession(userId: number) {
@@ -147,9 +159,9 @@ export function userFromSessionToken(raw: string | null | undefined) {
   if (!row || row.revoked_at) return undefined;
   if (new Date(row.expires_at).getTime() < Date.now()) return undefined;
   const loaded = findUserById(row.user_id);
-  if (!loaded) return undefined;
+  if (!loaded || loaded.deleted_at) return undefined;
   const user = reconcileExpiredBan(loaded);
-  if (isAdmin(user)) {
+  if (isStaffRole(user.role)) {
     const last = Date.parse(row.last_seen_at || row.created_at);
     if (Number.isFinite(last) && Date.now() - last > SESSION_ADMIN_IDLE_MS) {
       const now = new Date().toISOString();
@@ -188,19 +200,31 @@ export function requireActiveUser(user: UserRow | undefined): {
   return { ok: true, user, publicUser: toPublicUser(user) };
 }
 
-export function requireForumWriter(user: UserRow | undefined): {
+const hasPendingLegal = (userId: number) => pendingLegalDocs(getDb(), userId).length > 0;
+
+export function requireForumWriter(
+  user: UserRow | undefined,
+  legalPending: (userId: number) => boolean = hasPendingLegal,
+): {
   ok: true;
   user: UserRow;
   publicUser: PublicUser;
 } | { ok: false; error: string; status: number } {
   const active = requireActiveUser(user);
   if (!active.ok) return active;
-  if (!active.user.email_verified_at) {
+  if (!active.user.phone_verified_at) {
     return {
       ok: false,
-      error: FORUM_EMAIL_UNVERIFIED_ERROR,
+      error: FORUM_PHONE_UNVERIFIED_ERROR,
       status: 403,
     };
+  }
+  if (maintenanceBlocks(active.user.role)) {
+    return { ok: false, error: MAINTENANCE_ERROR, status: 503 };
+  }
+  // Writing waits until the member has accepted the current terms and notice.
+  if (legalPending(active.user.id)) {
+    return { ok: false, error: LEGAL_PENDING_ERROR, status: 403 };
   }
   return active;
 }

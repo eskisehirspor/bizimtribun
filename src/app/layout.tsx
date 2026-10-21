@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Anton, Bangers, Caveat, Kalam, Space_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
+import SiteBanner from "@/components/SiteBanner";
+import SiteFooter from "@/components/SiteFooter";
+import LegalGate from "@/components/LegalGate";
 import SiteNav from "@/components/SiteNav";
 import "./globals.css";
 
@@ -35,9 +38,10 @@ const ultras = Bangers({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.APP_URL || "http://localhost:3000"),
   title: "Bizim Tribün — En büyük kim?",
   description:
-    "Türkiye tribünlerinin gerçek sayımı. E-posta doğrulamalı, IP sınırlı, KVKK’ya uygun taraftar kaydı.",
+    "Türkiye tribünlerinin gerçek sayımı: SMS ile doğrulanmış, hesap başına tek ve kalıcı takım oyu.",
   referrer: "no-referrer",
   robots: { index: true, follow: true },
 };
@@ -51,7 +55,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full">
         <AuthProvider>
           <SiteNav />
+          <SiteBanner />
           {children}
+          <SiteFooter />
+          <LegalGate />
         </AuthProvider>
       </body>
     </html>

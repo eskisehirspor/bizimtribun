@@ -1,19 +1,24 @@
 "use client";
 
-import { useId, useState } from "react";
+import Link from "next/link";
+import { useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { citySlug } from "@/lib/cities";
 import { compactCityPreview } from "@/lib/city-rank";
-import { getTeam } from "@/lib/teams";
+import { useTeamCatalog } from "@/components/useTeamCatalog";
 import mapData from "@/lib/turkey-paths.json";
+import { btnAccent, fieldClass, labelClass } from "@/components/ui";
 
-type Leader = { teamId: string; votes: number };
+type Standing = { teamId: string; votes: number };
+type Leader = Standing & { tied?: boolean; coLeaderIds?: string[] };
 
 type Props = {
   leaders: Record<string, Leader>;
-  standings: Record<string, Leader[]>;
-  previewCity?: string;
+  standings: Record<string, Standing[]>;
 };
+
+/** Provinces with no votes. Deliberately not a brand or team color. */
+const NEUTRAL_FILL = "#E4E0D4";
 
 type MapFile = {
   viewBox: string;
@@ -22,32 +27,59 @@ type MapFile = {
 
 const data = mapData as MapFile;
 
-export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
+export default function TurkeyMap({ leaders, standings }: Props) {
   const [hover, setHover] = useState<string | null>(null);
-  const [picked, setPicked] = useState<string | null>(previewCity ?? null);
+  const [picked, setPicked] = useState<string | null>(null);
   const uid = useId().replace(/:/g, "");
   const router = useRouter();
+  const { getTeam } = useTeamCatalog();
   const shown = hover ?? picked;
-  const preview = shown ? compactCityPreview(standings[shown] ?? []) : null;
+  const preview = shown ? compactCityPreview(standings[shown] ?? [], getTeam) : null;
+  /** How the last tap/click started: touch selects first, mouse opens straight away. */
+  const pointerType = useRef<string>("mouse");
+  const provinceNames = [...data.provinces.map((p) => p.name)].sort((a, b) => a.localeCompare(b, "tr"));
 
   function goCity(name: string) {
     setPicked(name);
     router.push(`/il/${citySlug(name)}`);
   }
 
+  function tapCity(name: string) {
+    if (pointerType.current === "mouse") {
+      goCity(name);
+      return;
+    }
+    // Touch: first tap shows the summary card; its button opens the province page.
+    setPicked(name);
+    setHover(null);
+  }
+
   return (
     <div className="relative">
       <svg
         viewBox={data.viewBox}
-        className="w-full h-auto turkey-map"
+        className="w-full h-auto turkey-map touch-manipulation"
+        onPointerDown={(e) => {
+          pointerType.current = e.pointerType || "mouse";
+        }}
         role="img"
         aria-label="İllere ayrılmış Türkiye haritası"
       >
         <title>Türkiye illeri</title>
         <defs>
+          <pattern
+            id={`${uid}-tie`}
+            width="6"
+            height="6"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <rect width="6" height="6" fill="#FFFEFA" />
+            <rect width="3" height="6" fill="#111" />
+          </pattern>
           {data.provinces.map((il, idx) => {
             const lead = leaders[il.name];
-            const t = lead ? getTeam(lead.teamId) : undefined;
+            const t = lead && !lead.tied ? getTeam(lead.teamId) : undefined;
             if (!t) return null;
             return (
               <linearGradient
@@ -81,8 +113,12 @@ export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
         ))}
         {data.provinces.map((il, idx) => {
           const lead = leaders[il.name];
-          const t = lead ? getTeam(lead.teamId) : undefined;
-          const fill = t ? `url(#${uid}-il-${idx})` : "#FFEA00";
+          const t = lead && !lead.tied ? getTeam(lead.teamId) : undefined;
+          const fill = lead?.tied
+            ? `url(#${uid}-tie)`
+            : t
+              ? `url(#${uid}-il-${idx})`
+              : NEUTRAL_FILL;
           const active = shown === il.name;
           return (
             <g
@@ -91,7 +127,7 @@ export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
               onMouseLeave={() => setHover(null)}
               onFocus={() => setHover(il.name)}
               onBlur={() => setHover(null)}
-              onClick={() => goCity(il.name)}
+              onClick={() => tapCity(il.name)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
@@ -101,15 +137,15 @@ export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
               tabIndex={0}
               role="link"
               aria-label={`${il.name} il sayfası`}
-              className="cursor-pointer outline-none"
+              className="cursor-pointer"
             >
               {il.paths.map((d, i) => (
                 <path
                   key={`halo-${i}`}
                   d={d}
                   fill="none"
-                  stroke={active && t ? "#FFEA00" : "transparent"}
-                  strokeWidth={3.4}
+                  stroke={active ? "#FFEA00" : "transparent"}
+                  strokeWidth={active && !t ? 5 : 3.4}
                   strokeLinejoin="round"
                   className="pointer-events-none"
                 />
@@ -130,9 +166,13 @@ export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
         })}
       </svg>
       {shown && preview ? (
-        <div className="mt-3 border-[3px] border-black bg-black text-[#FFEA00] p-3 font-mono text-[12px] shadow-[4px_4px_0_#FFEA00]">
-          <p className="font-anton text-[18px] text-[#FFEA00]">{shown}</p>
-          <p>Toplam: {preview.total.toLocaleString("tr-TR")}</p>
+        <div
+          className="mt-3 border-[3px] border-black bg-black text-[#FFEA00] p-3 font-mono text-[13px] shadow-[4px_4px_0_#FFEA00]"
+          aria-live="polite"
+        >
+          <p className="font-anton text-[20px] text-[#FFEA00]">{shown}</p>
+          <p>Toplam geçerli oy: {preview.total.toLocaleString("tr-TR")}</p>
+          {leaders[shown]?.tied ? <p>Liderlik eşit: ortak lider var</p> : null}
           {preview.first ? (
             <p>
               1. Takım: %{preview.first.percent} {preview.first.name}
@@ -145,12 +185,35 @@ export default function TurkeyMap({ leaders, standings, previewCity }: Props) {
           ) : (
             preview.total === 0 && <p>Henüz oy yok</p>
           )}
+          {picked === shown && (
+            <Link href={`/il/${citySlug(shown)}`} className={`mt-3 w-full sm:w-auto ${btnAccent}`}>
+              {shown} sayımını aç →
+            </Link>
+          )}
         </div>
       ) : (
-        <div className="mt-3 min-h-[48px] font-ultras text-[22px] md:text-[26px] leading-tight tracking-wide border-[3px] border-black p-3 bg-[#FFEA00] -rotate-[0.4deg] shadow-[4px_4px_0_black]">
-          İle tıkla, il sayfasına git. Hover ile özet gör.
+        <div className="mt-3 min-h-[48px] font-ultras text-[20px] md:text-[24px] leading-tight tracking-wide border-[3px] border-black p-3 bg-[#FFEA00] -rotate-[0.4deg] shadow-[4px_4px_0_black]">
+          Bir ile dokun ya da üzerine gel: özetini gör, sonra il sayfasına geç. Gri: henüz oy yok.
+          Çizgili: liderlik eşit.
         </div>
       )}
+      <label className="mt-4 block max-w-[420px]">
+        <span className={labelClass}>İL SEÇ</span>
+        <select
+          className={`mt-1 ${fieldClass}`}
+          value=""
+          onChange={(e) => {
+            if (e.target.value) goCity(e.target.value);
+          }}
+        >
+          <option value="">Listeden bir il seç…</option>
+          {provinceNames.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }

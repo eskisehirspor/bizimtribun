@@ -44,11 +44,17 @@ export function staticSitemapEntries(base: string, now = new Date()): SitemapEnt
       priority: 0.9,
     },
     {
-      url: `${root}/kvkk`,
+      url: `${root}/forum`,
       lastModified: now,
-      changeFrequency: "yearly",
-      priority: 0.3,
+      changeFrequency: "hourly",
+      priority: 0.8,
     },
+    ...["/kvkk", "/kullanim-kosullari", "/cerez-politikasi"].map((path) => ({
+      url: `${root}${path}`,
+      lastModified: now,
+      changeFrequency: "yearly" as const,
+      priority: 0.3,
+    })),
     ...CITIES.map((city) => ({
       url: `${root}/il/${city.slug}`,
       lastModified: now,
@@ -58,41 +64,14 @@ export function staticSitemapEntries(base: string, now = new Date()): SitemapEnt
   ];
 }
 
-export function activeForumSitemapEntries(
-  db: Database.Database,
-  base: string,
-): SitemapEntry[] {
-  const root = origin(base);
-  const rows = db
-    .prepare(
-      `SELECT t.id AS team_id,
-              MAX(ft.updated_at) AS last_activity
-       FROM teams t
-       LEFT JOIN forum_topics ft
-         ON ft.team_id = t.id
-        AND ft.deleted_at IS NULL
-        AND ft.held_at IS NULL
-       WHERE t.is_forum_active = 1
-       GROUP BY t.id
-       ORDER BY t.id`,
-    )
-    .all() as { team_id: string; last_activity: string | null }[];
-
-  return rows.map((row) => {
-    const lastModified = parseStamp(row.last_activity);
-    return {
-      url: `${root}/takim/${row.team_id}/forum`,
-      ...(lastModified ? { lastModified } : {}),
-      changeFrequency: "daily" as const,
-      priority: 0.7,
-    };
-  });
-}
+export type BoardFlags = { generalBoardOpen: boolean };
+const ALL_BOARDS: BoardFlags = { generalBoardOpen: true };
 
 export function publicTopicSitemapEntries(
   db: Database.Database,
   base: string,
   limit: number,
+  boards: BoardFlags = ALL_BOARDS,
 ): SitemapEntry[] {
   if (limit <= 0) return [];
   const root = origin(base);
@@ -100,10 +79,12 @@ export function publicTopicSitemapEntries(
     .prepare(
       `SELECT ft.id AS id, ft.updated_at AS updated_at
        FROM forum_topics ft
-       INNER JOIN teams t ON t.id = ft.team_id
-       WHERE t.is_forum_active = 1
-         AND ft.deleted_at IS NULL
+       WHERE ft.deleted_at IS NULL
          AND ft.held_at IS NULL
+         AND (
+           0
+           ${boards.generalBoardOpen ? "OR ft.board = 'general'" : ""}
+         )
        ORDER BY ft.updated_at DESC, ft.id DESC
        LIMIT ?`,
     )
@@ -120,17 +101,60 @@ export function publicTopicSitemapEntries(
   });
 }
 
+/** Team detail pages: active teams, plus inactive ones that still hold votes. */
+export function teamPageSitemapEntries(db: Database.Database, base: string): SitemapEntry[] {
+  const root = origin(base);
+  const rows = db
+    .prepare(
+      `SELECT t.id FROM teams t
+       WHERE t.is_active = 1 OR EXISTS (SELECT 1 FROM fan_votes fv WHERE fv.team_id = t.id AND fv.status = 'active')
+       ORDER BY t.id`,
+    )
+    .all() as { id: string }[];
+  return rows.map((row) => ({ url: `${root}/takim/${row.id}`, changeFrequency: "daily" as const, priority: 0.8 }));
+}
+
+/** Only profiles their owners made public; members-only profiles never appear. */
+export function publicProfileSitemapEntries(db: Database.Database, base: string, limit: number): SitemapEntry[] {
+  if (limit <= 0) return [];
+  const root = origin(base);
+  const rows = db
+    .prepare(
+      `SELECT username, updated_at FROM users
+       WHERE profile_visibility = 'public' AND deleted_at IS NULL AND status = 'active' AND banned_at IS NULL
+       ORDER BY updated_at DESC LIMIT ?`,
+    )
+    .all(limit) as { username: string; updated_at: string }[];
+  return rows.map((row) => {
+    const lastModified = parseStamp(row.updated_at);
+    return {
+      url: `${root}/u/${row.username}`,
+      ...(lastModified ? { lastModified } : {}),
+      changeFrequency: "weekly" as const,
+      priority: 0.3,
+    };
+  });
+}
+
 export function buildPublicSitemap(
   db: Database.Database,
   base: string,
   now = new Date(),
+  boards: BoardFlags = ALL_BOARDS,
 ): SitemapEntry[] {
+  const root = origin(base);
   const staticEntries = staticSitemapEntries(base, now);
-  const forums = activeForumSitemapEntries(db, base);
-  const remaining = SITEMAP_MAX_URLS - staticEntries.length - forums.length;
-  const topics = publicTopicSitemapEntries(db, base, remaining);
+  if (boards.generalBoardOpen) {
+    staticEntries.push({ url: `${root}/forum/milli-takim`, lastModified: now, changeFrequency: "hourly", priority: 0.7 });
+  }
+  const teamsPages = teamPageSitemapEntries(db, base);
+  // Team tribunes are members-only, so neither their boards nor their topics are listed.
+  const fixed = staticEntries.length + teamsPages.length;
+  // Profiles get at most a tenth of what is left; topics take the rest.
+  const profiles = publicProfileSitemapEntries(db, base, Math.floor((SITEMAP_MAX_URLS - fixed) / 10));
+  const topics = publicTopicSitemapEntries(db, base, SITEMAP_MAX_URLS - fixed - profiles.length, boards);
 
-  const entries = [...staticEntries, ...forums, ...topics];
+  const entries = [...staticEntries, ...teamsPages, ...topics, ...profiles];
   const seen = new Set<string>();
   const unique: SitemapEntry[] = [];
   for (const entry of entries) {

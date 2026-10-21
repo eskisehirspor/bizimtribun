@@ -4,7 +4,7 @@ import { remainingRecoveryCount } from "@/lib/admin-2fa";
 import { noStoreJson } from "@/lib/http";
 
 export async function GET(req: Request) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "security.self");
   if (!gate.ok) return gate.res;
   return noStoreJson({
     ok: true,

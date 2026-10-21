@@ -3,7 +3,10 @@ import type { Metadata } from "next";
 import CityPageView from "@/components/CityPageView";
 import { CITIES, getCityBySlug } from "@/lib/cities";
 import { cityPageMetadata } from "@/lib/city-seo";
-import { cityVoteTotals } from "@/lib/city-stats";
+import { cityHistory, cityLastVoteAt, cityVoteTotals } from "@/lib/city-stats";
+import { getSessionUser } from "@/lib/auth";
+import { memberTeamId } from "@/lib/forum";
+import { isStaffRole } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -31,5 +34,18 @@ export default async function CityPage({
   const city = getCityBySlug(citySlug);
   if (!city) notFound();
   const { total, rows } = cityVoteTotals(city.name);
-  return <CityPageView city={city} total={total} rows={rows} />;
+  const viewer = await getSessionUser();
+  const viewerTeamId = viewer ? memberTeamId(viewer.id) : null;
+  return (
+    <CityPageView
+      city={city}
+      total={total}
+      rows={rows}
+      history={cityHistory(city.name)}
+      lastVoteAt={cityLastVoteAt(city.name)}
+      generatedAt={new Date().toISOString()}
+      viewerTeamId={viewerTeamId}
+      viewerIsStaff={Boolean(viewer && isStaffRole(viewer.role))}
+    />
+  );
 }

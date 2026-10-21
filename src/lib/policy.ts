@@ -7,7 +7,33 @@ export const OTP_TTL_MS = 5 * 60 * 1000;
 export const OTP_MAX_ATTEMPTS = 5;
 export const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
 export const OTP_PER_PHONE_HOUR = 3;
-export const OTP_PER_IP_HOUR = 5;
+export const OTP_PER_PHONE_DAY = 8;
+export const OTP_PER_IP_HOUR = 10;
+export const OTP_VERIFY_PER_IP_HOUR = 30;
+export const OTP_VERIFY_PER_PHONE_HOUR = 10;
+export const SIGNUP_TICKET_TTL_MS = 15 * 60 * 1000;
+export const SIGNUP_TICKET_COOKIE = "bt_signup";
+export const SIGNUP_PER_IP_HOUR = 5;
+/**
+ * After an account is deleted, its phone cannot open a new account for this
+ * long. Only a keyed HMAC of the number is kept, and it is purged afterwards.
+ * Without this, delete + re-register would let one phone switch teams.
+ */
+/** Re-registration hold after deleting an account that never voted. */
+export const PHONE_HOLD_MS = 30 * 24 * 60 * 60 * 1000;
+/** Hold after deleting an account that cast a vote: a new vote with the same number waits a year. */
+export const PHONE_HOLD_VOTED_MS = 365 * 24 * 60 * 60 * 1000;
+/** Accounts deleted while banned: the number stays closed (no automatic release). */
+export const PHONE_HOLD_PERMANENT_UNTIL = "9999-12-31T00:00:00.000Z";
+/** Bump when the text changes; signed-in members are asked to accept the new version. */
+export const TERMS_VERSION = "2026-10-20";
+/** KVKK aydınlatma metni; members acknowledge each version once. */
+export const PRIVACY_NOTICE_VERSION = "2026-10-20";
+export const COOKIE_POLICY_VERSION = "2026-10-20";
+/** Acceptance records of deleted accounts are kept this long as proof (general limitation period). */
+export const LEGAL_RECORD_AFTER_DELETE_MS = 10 * 365 * 24 * 60 * 60 * 1000;
+export const ACCOUNT_DELETE_PER_USER_HOUR = 3;
+export const FAN_VOTE_PER_USER_HOUR = 10;
 export const REGISTER_PER_HOUR = 3;
 export const DELETE_PER_HOUR = 3;
 export const VERIFY_PER_HOUR = 20;
@@ -18,8 +44,8 @@ export const USER_EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 export const USER_EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
 export const USER_EMAIL_RESEND_PER_USER_HOUR = 3;
 export const USER_EMAIL_RESEND_PER_IP_HOUR = 8;
-export const FORUM_EMAIL_UNVERIFIED_ERROR =
-  "Forumda yazabilmek için e-posta adresini doğrulaman gerekiyor.";
+export const FORUM_PHONE_UNVERIFIED_ERROR =
+  "Forumda yazabilmek için telefonunu SMS ile doğrulaman gerekiyor.";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export const SESSION_ADMIN_TTL_MS = 8 * 60 * 60 * 1000;
 export const SESSION_ADMIN_IDLE_MS = 30 * 60 * 1000;

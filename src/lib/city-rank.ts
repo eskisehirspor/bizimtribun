@@ -1,5 +1,15 @@
 import { FORUM_ACTIVE_TEAM_IDS, getTeam } from "./teams";
 
+/** Minimal team lookup so callers can pass the database catalog. */
+export type CityTeamLookup = (
+  id: string,
+) => { name: string; isForumActive?: boolean } | undefined;
+
+const seedLookup: CityTeamLookup = (id) => {
+  const team = getTeam(id);
+  return team ? { name: team.name, isForumActive: FORUM_ACTIVE_TEAM_IDS.includes(team.id) } : undefined;
+};
+
 export type CityStanding = { teamId: string; votes: number };
 
 /** Largest-remainder percents so shares always sum to 100 (or 0). */
@@ -29,14 +39,15 @@ export type CityTeamRow = {
   forumHref: string | null;
 };
 
-export function rankCityTeams(standings: CityStanding[]): CityTeamRow[] {
+export function rankCityTeams(
+  standings: CityStanding[],
+  lookup: CityTeamLookup = seedLookup,
+): CityTeamRow[] {
   const ordered = [...standings].sort((a, b) => b.votes - a.votes);
   const percents = integerPercents(ordered.map((row) => row.votes));
   return ordered.map((row, i) => {
-    const team = getTeam(row.teamId);
-    const forumHref = FORUM_ACTIVE_TEAM_IDS.includes(row.teamId)
-      ? `/takim/${row.teamId}/forum`
-      : null;
+    const team = lookup(row.teamId);
+    const forumHref = team?.isForumActive ? `/takim/${row.teamId}/forum` : null;
     return {
       teamId: row.teamId,
       name: team?.name ?? row.teamId,
@@ -47,8 +58,8 @@ export function rankCityTeams(standings: CityStanding[]): CityTeamRow[] {
   });
 }
 
-export function compactCityPreview(rows: CityStanding[]) {
-  const ranked = rankCityTeams(rows);
+export function compactCityPreview(rows: CityStanding[], lookup?: CityTeamLookup) {
+  const ranked = rankCityTeams(rows, lookup);
   const total = ranked.reduce((sum, row) => sum + row.votes, 0);
   return {
     total,

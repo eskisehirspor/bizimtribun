@@ -47,7 +47,7 @@ export function seedPinnedStarterTopics(db: Database.Database) {
   const insert = db.prepare(
     `INSERT INTO forum_topics
      (team_id, user_id, title, content, created_at, updated_at, category, is_pinned)
-     VALUES (?, ?, ?, ?, ?, ?, 'anilar', 1)`,
+     VALUES (?, ?, ?, ?, ?, ?, 'kulup-tarihi', 1)`,
   );
 
   const run = db.transaction(() => {

@@ -22,7 +22,13 @@ export function forumApiError(status: number, fallback?: string) {
   return fallback || "Bir şey ters gitti.";
 }
 
+/**
+ * Same-site path only. Browsers treat a backslash like "/", so "/\\evil.com" would
+ * leave the site; backslashes and control characters are refused outright.
+ */
 export function safeNextPath(raw: string | null) {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/takimlar";
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || /[\\\u0000-\u001f\u007f]/.test(raw)) {
+    return "/takimlar";
+  }
   return raw;
 }

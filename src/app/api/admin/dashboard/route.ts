@@ -3,7 +3,7 @@ import { getDashboardStats } from "@/lib/admin-service";
 import { noStoreJson } from "@/lib/http";
 
 export async function GET(req: Request) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "dashboard.view");
   if (!gate.ok) return gate.res;
   return noStoreJson({ ok: true, ...getDashboardStats() });
 }

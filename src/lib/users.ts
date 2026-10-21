@@ -1,3 +1,4 @@
+import { can } from "./permissions";
 import { getDb } from "./db";
 import { hmac } from "./crypto";
 import { recordModerationAction } from "./moderation";
@@ -9,7 +10,7 @@ import {
   AUTH_REGISTER_PER_HOUR,
 } from "./policy";
 
-export const USER_ROLES = ["user", "admin"] as const;
+export const USER_ROLES = ["user", "moderator", "admin", "super_admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
 export type UserRow = {
@@ -17,9 +18,9 @@ export type UserRow = {
   username: string;
   username_norm: string;
   display_name: string;
-  email: string;
-  email_norm: string;
-  password_hash: string;
+  email: string | null;
+  email_norm: string | null;
+  password_hash: string | null;
   team_id: string | null;
   status: string;
   role: UserRole;
@@ -39,6 +40,10 @@ export type UserRow = {
   totp_enabled: number;
   totp_secret_enc: string | null;
   email_verified_at: string | null;
+  phone_verified_at: string | null;
+  deleted_at: string | null;
+  terms_version: string | null;
+  terms_accepted_at: string | null;
 };
 
 export type PublicUser = {
@@ -49,6 +54,7 @@ export type PublicUser = {
   role: UserRole;
   status: string;
   emailVerified: boolean;
+  phoneVerified: boolean;
 };
 
 export function normalizeUsername(raw: string) {
@@ -125,14 +131,16 @@ export function toPublicUser(row: UserRow): PublicUser {
     username: row.username,
     displayName: row.display_name,
     teamId: row.team_id,
-    role: row.role === "admin" ? "admin" : "user",
+    role: (USER_ROLES as readonly string[]).includes(row.role) ? row.role : "user",
     status: effectiveUserStatus(row),
     emailVerified: Boolean(row.email_verified_at),
+    phoneVerified: Boolean(row.phone_verified_at),
   };
 }
 
+/** Admin panel access. Moderator rights are a separate, narrower check. */
 export function isAdmin(user: Pick<UserRow, "role"> | null | undefined): boolean {
-  return user?.role === "admin";
+  return user?.role === "admin" || user?.role === "super_admin";
 }
 
 export function findUserById(id: number) {
@@ -196,6 +204,7 @@ export function banUser(
 ): { ok: true } | { ok: false; error: string } {
   const target = findUserById(userId);
   if (!target) return { ok: false, error: "Kullanıcı bulunamadı." };
+  if (target.deleted_at) return { ok: false, error: "Silinmiş hesap banlanamaz." };
   if (isAdmin(target)) {
     return { ok: false, error: "Admin hesap banlanamaz." };
   }
@@ -205,7 +214,7 @@ export function banUser(
     .prepare(
       `UPDATE users
        SET status = 'banned', banned_at = ?, ban_reason = ?, ban_expires_at = ?, updated_at = ?
-       WHERE id = ? AND role != 'admin'`,
+       WHERE id = ? AND role NOT IN ('admin', 'super_admin')`,
     )
     .run(now, reason.slice(0, 200), expiresAt, now, userId);
 
@@ -238,6 +247,7 @@ export function unbanUser(
 ): { ok: true } | { ok: false; error: string } {
   const target = findUserById(userId);
   if (!target) return { ok: false, error: "Kullanıcı bulunamadı." };
+  if (target.deleted_at) return { ok: false, error: "Silinmiş hesabın banı kaldırılamaz." };
   const flagged = target.status === "banned" || Boolean(target.banned_at);
   if (!flagged) return { ok: false, error: "Bu hesapta ban yok." };
 
@@ -262,35 +272,63 @@ export function unbanUser(
 export function countAdmins() {
   return (
     getDb()
-      .prepare(`SELECT COUNT(*) as c FROM users WHERE role = 'admin'`)
+      .prepare(
+        `SELECT COUNT(*) as c FROM users WHERE role IN ('admin', 'super_admin') AND deleted_at IS NULL`,
+      )
       .get() as { c: number }
   ).c;
 }
 
+export function countSuperAdmins() {
+  return (
+    getDb()
+      .prepare(
+        `SELECT COUNT(*) as c FROM users
+         WHERE role = 'super_admin' AND deleted_at IS NULL AND status = 'active'`,
+      )
+      .get() as { c: number }
+  ).c;
+}
+
+/**
+ * Role changes are a super-admin power (checked by the route as
+ * `roles.manage`). Nobody changes their own role, the last active super
+ * admin cannot be demoted, and staff roles need an active, phone-verified
+ * account. The target's sessions are revoked so the new role applies at
+ * the next login (including the admin second factor).
+ */
 export function setUserRole(
   targetId: number,
   role: UserRole,
   moderator: UserRow,
   reason: string,
 ): { ok: true } | { ok: false; error: string } {
+  if (!can(moderator.role, "roles.manage")) {
+    return { ok: false, error: "Rolleri yalnızca süper admin değiştirebilir." };
+  }
   const target = findUserById(targetId);
-  if (!target) return { ok: false, error: "Kullanıcı bulunamadı." };
-  const next = role === "admin" ? "admin" : "user";
-  if (target.role === next) return { ok: true };
-
-  if (next === "user" && isAdmin(target)) {
-    if (target.id !== moderator.id) {
-      return { ok: false, error: "Başka bir adminin rolü düşürülemez." };
+  if (!target || target.deleted_at) return { ok: false, error: "Kullanıcı bulunamadı." };
+  if (!USER_ROLES.includes(role)) return { ok: false, error: "Geçersiz rol." };
+  if (target.role === role) return { ok: true };
+  if (target.id === moderator.id) {
+    return { ok: false, error: "Kendi rolünü değiştiremezsin." };
+  }
+  if (role !== "user") {
+    if (!target.phone_verified_at) {
+      return { ok: false, error: "Yetkili rolü için hesabın telefonu doğrulanmış olmalı." };
     }
-    if (countAdmins() <= 1) {
-      return { ok: false, error: "Son admin hesabının rolü düşürülemez." };
+    if (isUserBanned(target)) {
+      return { ok: false, error: "Banlı hesaba yetki verilemez." };
     }
+  }
+  if (target.role === "super_admin" && countSuperAdmins() <= 1) {
+    return { ok: false, error: "Son süper admin hesabının rolü düşürülemez." };
   }
 
   const now = new Date().toISOString();
   const updated = getDb()
-    .prepare(`UPDATE users SET role = ?, updated_at = ? WHERE id = ?`)
-    .run(next, now, targetId);
+    .prepare(`UPDATE users SET role = ?, updated_at = ? WHERE id = ? AND role = ?`)
+    .run(role, now, targetId, target.role);
   if (updated.changes !== 1) {
     return { ok: false, error: "Rol güncellenemedi." };
   }
@@ -298,7 +336,7 @@ export function setUserRole(
   recordModerationAction({
     moderatorUserId: moderator.id,
     targetUserId: targetId,
-    action: next === "admin" ? "promote_admin" : "demote_admin",
+    action: `role_${target.role}_to_${role}`,
     reason,
   });
   revokeUserSessionsOn(getDb(), targetId);

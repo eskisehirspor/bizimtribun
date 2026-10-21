@@ -1,5 +1,6 @@
 import { getDb } from "./db";
-import { LEAGUE_ORDER, type LeagueId } from "./teams";
+import { listTeamCatalog } from "./team-catalog";
+import type { LeagueId } from "./teams";
 
 export type MembershipTeam = {
   id: string;
@@ -7,17 +8,13 @@ export type MembershipTeam = {
   league: LeagueId;
 };
 
+/** Teams that can receive a new vote (inactive teams keep their history). */
 export function listMembershipTeams(): MembershipTeam[] {
-  const rows = getDb()
-    .prepare(`SELECT id, name, league FROM teams`)
-    .all() as MembershipTeam[];
-  const order = new Map(LEAGUE_ORDER.map((id, i) => [id, i]));
-  return rows.sort((a, b) => {
-    const la = order.get(a.league) ?? 99;
-    const lb = order.get(b.league) ?? 99;
-    if (la !== lb) return la - lb;
-    return a.name.localeCompare(b.name, "tr");
-  });
+  return listTeamCatalog({ activeOnly: true }).map((t) => ({
+    id: t.id,
+    name: t.name,
+    league: t.league,
+  }));
 }
 
 export function membershipTeamExists(id: string) {

@@ -18,15 +18,18 @@ import { POST as login2fa } from "../../app/api/auth/login/2fa/route";
 import { POST as login } from "../../app/api/auth/login/route";
 import { POST as logout } from "../../app/api/auth/logout/route";
 import { GET as me } from "../../app/api/auth/me/route";
-import { POST as register } from "../../app/api/auth/register/route";
 import { POST as forumTopic } from "../../app/api/forum/teams/[teamSlug]/topics/route";
 import { getDb } from "@/lib/db";
-import { AUTH_LOGIN_PER_ID_HOUR, AUTH_REGISTER_PER_HOUR, SESSION_COOKIE } from "../../lib/policy";
+import { POST as closedRegister } from "../../app/api/auth/register/route";
+import { POST as closedCensus } from "../../app/api/register/route";
+import { POST as closedVote } from "../../app/api/vote/route";
+import { AUTH_LOGIN_PER_ID_HOUR, SESSION_COOKIE } from "../../lib/policy";
 import { totpAt } from "../../lib/totp";
 import {
   TEST_PASSWORD,
   admin2faCookie,
   authRegisterBody,
+  legacyPasswordUser,
   cookieFlags,
   freshDb,
   invoke,
@@ -66,12 +69,7 @@ async function registerUser(ip?: string) {
   const username = uniq("usr").slice(0, 20);
   const email = `${username}@example.com`;
   const phone = trPhone(seqPhone());
-  const res = await invoke(register, {
-    method: "POST",
-    path: "/api/auth/register",
-    body: authRegisterBody({ username, email, phone }),
-    ip,
-  });
+  const res = await legacyPasswordUser({ body: authRegisterBody({ username, email, phone }), ip });
   assert.equal(res.status, 200, JSON.stringify(res.json));
   return {
     username,
@@ -87,6 +85,11 @@ let phoneN = 0;
 function seqPhone() {
   phoneN += 1;
   return phoneN;
+}
+
+/** Staff need 2FA for the panel; tests flip the flag after signing in. */
+function markTotpOn(userId: number) {
+  getDb().prepare(`UPDATE users SET totp_enabled = 1 WHERE id = ?`).run(userId);
 }
 
 async function promoteAdmin(userId: number) {
@@ -158,6 +161,7 @@ test("HTTP auth: banned user login 403 ve mevcut session mutation 403", async ()
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.24",
   });
+  markTotpOn(admin.json.user.id);
   const ban = await invoke(adminBan, {
     method: "POST",
     path: `/api/admin/users/${u.json.user.id}/ban`,
@@ -198,6 +202,7 @@ test("HTTP admin: unauthenticated 401, user 403, admin 200", async () => {
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.27",
   });
+  markTotpOn(admin.json.user.id);
   const adminCookie = sessionCookie(adminLogin.res);
 
   for (const route of ADMIN_GETS) {
@@ -225,6 +230,7 @@ test("HTTP admin IDOR: olmayan kullanıcı 404", async () => {
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.28",
   });
+  markTotpOn(admin.json.user.id);
   const cookie = sessionCookie(adminLogin.res);
   const missing = await invoke(adminUser, {
     path: "/api/admin/users/999999",
@@ -324,33 +330,15 @@ test("HTTP admin 2FA: kapalı login session, açık password-only session yok, T
   assert.equal(expired.status, 401);
 });
 
-test("HTTP auth register rate limit", async () => {
-  const ip = "198.51.100.9";
-  for (let i = 0; i < AUTH_REGISTER_PER_HOUR; i++) {
-    const username = uniq("rl").slice(0, 20);
-    const res = await invoke(register, {
+test("HTTP closed sign-up paths answer 410", async () => {
+  for (const handler of [closedRegister, closedCensus, closedVote]) {
+    const res = await invoke(handler, {
       method: "POST",
-      path: "/api/auth/register",
-      ip,
-      body: authRegisterBody({
-        username,
-        email: `${username}@example.com`,
-        phone: trPhone(8000 + i),
-      }),
+      path: "/api/closed",
+      body: { username: "x" },
     });
-    assert.equal(res.status, 200, JSON.stringify(res.json));
+    assert.equal(res.status, 410);
   }
-  const blocked = await invoke(register, {
-    method: "POST",
-    path: "/api/auth/register",
-    ip,
-    body: authRegisterBody({
-      username: uniq("rlx").slice(0, 20),
-      email: `${uniq("e")}@example.com`,
-      phone: trPhone(8099),
-    }),
-  });
-  assert.equal(blocked.status, 429);
 });
 
 test("HTTP auth login rate limit", async () => {
@@ -391,16 +379,11 @@ test("HTTP production session cookie Secure", async () => {
   setNodeEnv("production");
   try {
     const username = uniq("prd").slice(0, 20);
-    const res = await invoke(register, {
-      method: "POST",
-      path: "/api/auth/register",
-      ip: "203.0.113.41",
-      body: authRegisterBody({
+    const res = await legacyPasswordUser({ body: authRegisterBody({
         username,
         email: `${username}@example.com`,
         phone: trPhone(9001),
-      }),
-    });
+      }), ip: "203.0.113.41" });
     assert.equal(res.status, 200, JSON.stringify(res.json));
     const flags = cookieFlags(setCookies(res.res), SESSION_COOKIE);
     assert.equal(flags?.secure, true);

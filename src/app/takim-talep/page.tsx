@@ -13,6 +13,8 @@ import {
   TEAM_REQUEST_NAME_MIN,
 } from "@/lib/policy";
 import { PROVINCES } from "@/lib/provinces";
+import BackLink from "@/components/BackLink";
+import { btnAccent, btnPrimary, fieldClass, hintClass, inputClass, labelClass } from "@/components/ui";
 
 export default function TakimTalepPage() {
   const router = useRouter();
@@ -41,7 +43,19 @@ export default function TakimTalepPage() {
   }, [why]);
 
   async function send() {
-    if (!nameOk || !city || !messageOk || busy) return;
+    if (busy) return;
+    if (!nameOk) {
+      setError(`Takım adı ${TEAM_REQUEST_NAME_MIN}–${TEAM_REQUEST_NAME_MAX} karakter olmalı.`);
+      return;
+    }
+    if (!city) {
+      setError("Takımın şehrini seç.");
+      return;
+    }
+    if (!messageOk) {
+      setError(`Açıklama en az ${TEAM_REQUEST_MESSAGE_MIN} karakter olmalı.`);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -70,7 +84,7 @@ export default function TakimTalepPage() {
   if (loading) {
     return (
       <ForumShell>
-        <p className="font-mono text-[13px]">…</p>
+        <p className="font-mono text-[14px]">Yükleniyor…</p>
       </ForumShell>
     );
   }
@@ -99,11 +113,8 @@ export default function TakimTalepPage() {
         <p className="font-mono text-[13px] mt-3 max-w-[480px]">
           Talebin alındı. Takımın Tribün&apos;e eklenmesi için değerlendirilecek.
         </p>
-        <Link
-          href="/takimlar"
-          className="mt-5 inline-block font-anton border-[3px] border-black bg-[#FFEA00] px-4 py-2"
-        >
-          TRİBÜNLERE DÖN
+        <Link href="/takimlar" className={`mt-5 ${btnAccent}`}>
+          ← TAKIM TRİBÜNLERİNE DÖN
         </Link>
       </ForumShell>
     );
@@ -111,9 +122,7 @@ export default function TakimTalepPage() {
 
   return (
     <ForumShell>
-      <Link href="/takimlar" className="font-mono text-[11px] underline">
-        ← Tüm tribünler
-      </Link>
+      <BackLink href="/takimlar">Takım tribünleri</BackLink>
       <h1 className="font-anton text-[36px] sm:text-[46px] leading-[0.85] mt-3">
         YENİ TAKIM
         <br />
@@ -125,19 +134,25 @@ export default function TakimTalepPage() {
 
       <div className="mt-5 bg-[#FFFEFA] border-[4px] border-black shadow-[6px_6px_0_black] p-4 sm:p-5 space-y-3">
         <label className="block">
-          <span className="font-mono text-[10px]">TAKIM ADI</span>
+          <span className={labelClass}>TAKIM ADI</span>
           <input
             value={teamName}
-            onChange={(e) => setTeamName(e.target.value.slice(0, TEAM_REQUEST_NAME_MAX))}
-            className="mt-1 w-full border-[3px] border-black px-3 py-2 font-anton text-[18px] outline-none"
+            onChange={(e) => {
+              setTeamName(e.target.value.slice(0, TEAM_REQUEST_NAME_MAX));
+              setError(null);
+            }}
+            className={`mt-1 ${fieldClass.replace("font-mono text-base sm:text-[14px]", "font-anton text-[18px]")}`}
           />
         </label>
         <label className="block">
-          <span className="font-mono text-[10px]">ŞEHİR</span>
+          <span className={labelClass}>ŞEHİR</span>
           <select
             value={city}
-            onChange={(e) => setCity(e.target.value)}
-            className="mt-1 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] bg-white"
+            onChange={(e) => {
+              setCity(e.target.value);
+              setError(null);
+            }}
+            className={inputClass}
           >
             <option value="">Seç</option>
             {PROVINCES.map((name) => (
@@ -148,26 +163,33 @@ export default function TakimTalepPage() {
           </select>
         </label>
         <label className="block">
-          <span className="font-mono text-[10px]">
-            NEDEN EKLENMELİ? ({TEAM_REQUEST_MESSAGE_MIN}–{TEAM_REQUEST_MESSAGE_MAX})
+          <span className={labelClass}>
+            NEDEN EKLENMELİ? ({TEAM_REQUEST_MESSAGE_MIN}–{TEAM_REQUEST_MESSAGE_MAX} karakter)
           </span>
           <textarea
             value={why}
-            onChange={(e) => setWhy(e.target.value.slice(0, TEAM_REQUEST_MESSAGE_MAX))}
+            onChange={(e) => {
+              setWhy(e.target.value.slice(0, TEAM_REQUEST_MESSAGE_MAX));
+              setError(null);
+            }}
             rows={6}
-            className="mt-1 w-full border-[3px] border-black px-3 py-2 font-mono text-[14px] outline-none resize-y min-h-[140px]"
+            className={`${inputClass} resize-y min-h-[140px]`}
           />
+          <span className={`${hintClass} block mt-1 text-right tabular-nums`}>
+            {why.trim().length}/{TEAM_REQUEST_MESSAGE_MAX}
+          </span>
         </label>
         {error && (
-          <p className="font-mono text-[12px] border-[2px] border-dashed border-black p-2 bg-[#C8102E]/10">
+          <p role="alert" className="font-mono text-[13px] border-[2px] border-dashed border-black p-2 bg-[#C8102E]/10">
             {error}
           </p>
         )}
         <button
           type="button"
-          disabled={busy || !nameOk || !city || !messageOk}
+          disabled={busy}
+          aria-busy={busy || undefined}
           onClick={() => void send()}
-          className="w-full font-anton text-[16px] py-3 border-[3px] border-black bg-black text-white disabled:bg-zinc-300 disabled:text-zinc-500"
+          className={`w-full ${btnPrimary}`}
         >
           {busy ? "GÖNDERİLİYOR…" : "TALEP GÖNDER"}
         </button>

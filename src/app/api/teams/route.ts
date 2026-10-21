@@ -1,7 +1,7 @@
 import { noStoreJson } from "@/lib/http";
+import { listLeagues } from "@/lib/team-catalog";
 import { listMembershipTeams } from "@/lib/team-db";
 
 export async function GET() {
-  const teams = listMembershipTeams();
-  return noStoreJson({ ok: true, teams });
+  return noStoreJson({ ok: true, teams: listMembershipTeams(), leagues: listLeagues() });
 }

@@ -6,32 +6,69 @@ import {
   type CityRecord,
 } from "@/lib/cities";
 import type { CityTeamRow } from "@/lib/city-rank";
+import type { CityHistoryPoint } from "@/lib/city-stats";
+import BackLink from "@/components/BackLink";
 import CityShare from "@/components/CityShare";
+import { btnSecondary } from "@/components/ui";
 import TeamColors from "@/components/TeamColors";
-import { getTeam } from "@/lib/teams";
+import { getCatalogTeam as getTeam } from "@/lib/team-catalog";
 
 type Props = {
   city: CityRecord;
   total: number;
   rows: CityTeamRow[];
+  history: CityHistoryPoint[];
+  lastVoteAt: string | null;
+  generatedAt: string;
+  /** Team of the viewer's vote: only that team's tribune is open to them. */
+  viewerTeamId?: string | null;
+  /** Staff may read every team tribune. */
+  viewerIsStaff?: boolean;
 };
 
-export default function CityPageView({ city, total, rows }: Props) {
+function fmt(iso: string) {
+  return new Date(iso).toLocaleString("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export default function CityPageView({
+  city,
+  total,
+  rows,
+  history,
+  lastVoteAt,
+  generatedAt,
+  viewerTeamId = null,
+  viewerIsStaff = false,
+}: Props) {
   const locative = cityLocative(city.name);
-  const headline = `${locative} bu haftanın tribün dağılımı`;
+  const headline = `${locative} tribün dağılımı`;
+  const topVotes = rows[0]?.votes ?? 0;
+  const tiedTop = topVotes > 0 ? rows.filter((r) => r.votes === topVotes) : [];
+  const isTie = tiedTop.length > 1;
   const summary =
     total === 0
       ? `${city.name} ilinde henüz doğrulanmış oy yok.`
-      : rows
-          .slice(0, 3)
-          .map((row, i) => `${i + 1}. ${row.name} %${row.percent}`)
-          .join(" · ");
+      : isTie
+        ? `Berabere: ${tiedTop.map((r) => r.name).join(" = ")} (%${tiedTop[0]!.percent})`
+        : rows
+            .slice(0, 3)
+            .map((row, i) => `${i + 1}. ${row.name} %${row.percent}`)
+            .join(" · ");
+  const maxHistory = Math.max(1, ...history.map((h) => h.total));
+  const forumRows = rows.filter((row) => row.forumHref);
 
   return (
     <div className="min-h-screen bg-[#F2EFE6] text-black relative">
       <div className="pointer-events-none fixed inset-0 z-0 opacity-[0.16] mix-blend-multiply paper-bg" />
       <div className="relative z-10 max-w-[860px] mx-auto px-4 sm:px-5 py-6 md:py-8">
-        <p className="font-mono text-[10px] tracking-[0.2em]">
+        <BackLink href="/">Türkiye haritası</BackLink>
+        <p className="font-mono text-[11px] tracking-[0.2em] mt-2">
           BİZİM TRİBÜN • İL SAYIMI
         </p>
         <h1 className="font-anton text-[42px] md:text-[56px] leading-[0.85] mt-2">
@@ -43,7 +80,7 @@ export default function CityPageView({ city, total, rows }: Props) {
         <p className="font-mono text-[13px] mt-4 max-w-[52ch]">{cityBlurb(city)}</p>
 
         <div className="mt-6 border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[8px_8px_0_black]">
-          <p className="font-mono text-[10px] opacity-60">DOĞRULANMIŞ OY</p>
+          <p className="font-mono text-[12px] opacity-70">DOĞRULANMIŞ OY</p>
           <p className="font-anton text-[48px] leading-none tabular-nums">
             {total.toLocaleString("tr-TR")}
           </p>
@@ -62,14 +99,19 @@ export default function CityPageView({ city, total, rows }: Props) {
                   <li
                     key={row.teamId}
                     className={`flex items-center gap-2 border-[3px] border-black px-3 py-2 ${
-                      i === 0 ? "bg-[#FFEA00]" : "bg-[#FFFEFA]"
+                      row.votes === topVotes ? "bg-[#FFEA00]" : "bg-[#FFFEFA]"
                     }`}
                   >
-                    <span className="font-anton text-[16px] w-7">{i + 1}.</span>
-                    {team ? <TeamColors team={team} size={12} /> : null}
-                    <span className="font-anton text-[16px] md:text-[18px] flex-1 leading-tight">
-                      {row.name}
+                    <span className="font-anton text-[16px] w-7">
+                      {row.votes === topVotes && isTie ? "=" : `${i + 1}.`}
                     </span>
+                    {team ? <TeamColors team={team} size={12} /> : null}
+                    <Link
+                      href={`/takim/${row.teamId}`}
+                      className="font-anton text-[16px] md:text-[18px] flex-1 leading-tight hover:underline inline-flex min-h-10 items-center"
+                    >
+                      {row.name}
+                    </Link>
                     <span className="font-mono text-[12px] tabular-nums">
                       {row.votes.toLocaleString("tr-TR")} · %{row.percent}
                     </span>
@@ -78,35 +120,74 @@ export default function CityPageView({ city, total, rows }: Props) {
               })}
             </ol>
           )}
+          {isTie && (
+            <p className="font-mono text-[12px] mt-3 border-[2px] border-dashed border-black p-2">
+              Bu ilde zirve berabere. Haritada çizgili gösterilir; hiçbir takım önde sayılmaz.
+            </p>
+          )}
+          <p className="font-mono text-[12px] opacity-70 mt-3">
+            Veri: {fmt(generatedAt)}
+            {lastVoteAt ? ` • son oy ${fmt(lastVoteAt)}` : ""} • yalnızca telefonu doğrulanmış
+            hesapların, hesap başına bir kalıcı oyu sayılır.
+          </p>
           <div className="mt-4">
             <CityShare slug={city.slug} headline={headline} summary={summary} />
           </div>
         </section>
 
-        {rows.some((row) => row.forumHref) ? (
-          <section className="mt-6">
-            <h2 className="font-anton text-[22px]">AKTİF FORUMLAR</h2>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {rows
-                .filter((row) => row.forumHref)
-                .map((row) => (
-                  <Link
-                    key={row.teamId}
-                    href={row.forumHref!}
-                    className="font-anton text-[14px] border-[3px] border-black bg-[#FFFEFA] px-3 py-2"
-                  >
-                    {row.name} FORUM
-                  </Link>
-                ))}
-            </div>
+        {history.some((h) => h.total > 0) && (
+          <section className="mt-6 border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[6px_6px_0_black]">
+            <h2 className="font-anton text-[22px] leading-none">SON 8 HAFTA</h2>
+            <p className="font-mono text-[12px] mt-1 opacity-70">
+              Her haftanın sonundaki doğrulanmış oy sayısı ve o haftanın lideri.
+            </p>
+            <ol className="mt-3 space-y-1">
+              {history.map((h) => {
+                const leaders = h.leaderIds.map((id) => getTeam(id)?.name ?? id);
+                return (
+                  <li key={h.weekEnding} className="flex items-center gap-2 font-mono text-[12px]">
+                    <span className="w-[82px] shrink-0 tabular-nums">
+                      {new Date(h.weekEnding).toLocaleDateString("tr-TR")}
+                    </span>
+                    <span className="flex-1 h-[14px] border-[2px] border-black bg-white relative">
+                      <span
+                        className="absolute inset-y-0 left-0 bg-black"
+                        style={{ width: `${(h.total / maxHistory) * 100}%` }}
+                      />
+                    </span>
+                    <span className="w-[36px] text-right tabular-nums">{h.total}</span>
+                    <span className="w-[42%] truncate">
+                      {leaders.length === 0
+                        ? "oy yok"
+                        : leaders.length > 1
+                          ? `berabere: ${leaders.join(" = ")}`
+                          : leaders[0]}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
           </section>
-        ) : null}
+        )}
 
-        <p className="mt-8 font-mono text-[12px]">
-          <Link href="/" className="underline">
-            ← Türkiye haritası
-          </Link>
-        </p>
+        <section className="mt-6">
+          <h2 className="font-anton text-[22px]">TRİBÜNLER</h2>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {forumRows
+              .filter((row) => viewerIsStaff || row.teamId === viewerTeamId)
+              .map((row) => (
+                <Link key={row.teamId} href={row.forumHref!} className={btnSecondary}>
+                  {`${row.name} Tribünü`.toLocaleUpperCase("tr")}
+                </Link>
+              ))}
+          </div>
+          <p className="font-mono text-[12px] mt-2 opacity-70">
+            Takım tribünleri yalnızca o takımın taraftarlarına açık.{" "}
+            <Link href="/takimlar" className="underline">
+              Tüm takım tribünleri
+            </Link>
+          </p>
+        </section>
       </div>
     </div>
   );

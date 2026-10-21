@@ -9,12 +9,13 @@ import { noStoreJson, readJsonBody } from "@/lib/http";
 import { verifyPassword } from "@/lib/password";
 
 const Body = z.object({
-  password: z.string().min(1).max(128),
+  // Phone-only staff have no password; for them the TOTP or recovery code is the proof.
+  password: z.string().max(128).optional(),
   code: z.string().min(6).max(32),
 });
 
 export async function POST(req: Request) {
-  const gate = await requireAdminResponse(req);
+  const gate = await requireAdminResponse(req, "security.self");
   if (!gate.ok) return gate.res;
 
   const body = await readJsonBody(req);
@@ -31,10 +32,8 @@ export async function POST(req: Request) {
   }
   noteTotpVerifyAttempt(db, ipHash, gate.user.id);
 
-  const passwordOk = await verifyPassword(
-    parsed.data.password,
-    gate.user.password_hash,
-  );
+  const passwordOk =
+    gate.user.password_hash == null || (await verifyPassword(parsed.data.password ?? "", gate.user.password_hash));
   if (!passwordOk) {
     return noStoreJson({ error: "Doğrulama kodu hatalı." }, 401);
   }

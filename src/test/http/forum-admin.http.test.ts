@@ -1,10 +1,9 @@
 import "./env-init";
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
-import { POST as register } from "../../app/api/auth/register/route";
 import { POST as login } from "../../app/api/auth/login/route";
 import { GET as listTopics, POST as createTopic } from "../../app/api/forum/teams/[teamSlug]/topics/route";
-import { GET as getTopic, PUT as putTopic, DELETE as deleteTopic } from "../../app/api/forum/topics/[topicId]/route";
+import { GET as getTopic, DELETE as deleteTopic } from "../../app/api/forum/topics/[topicId]/route";
 import { POST as createPost } from "../../app/api/forum/topics/[topicId]/posts/route";
 import { GET as heldList } from "../../app/api/admin/moderation/held/route";
 import { POST as heldApprove } from "../../app/api/admin/moderation/[type]/[id]/approve/route";
@@ -26,9 +25,11 @@ import {
   TEST_PASSWORD,
   assertNoSensitiveLeak,
   authRegisterBody,
+  legacyPasswordUser,
   freshDb,
   invoke,
-  markEmailVerified,
+  castTestVote,
+  markPhoneVerified,
   sessionCookie,
   trPhone,
   uniq,
@@ -38,6 +39,12 @@ const ALLOW = {
   title: "Derbi analizi temiz",
   content: "Rakip kaleci büyük hata yaptı, defans da çok açıktı.",
 };
+let seq = 0;
+/** The same text can't be sent twice, so each request gets its own. */
+function allowBody() {
+  seq += 1;
+  return { title: ALLOW.title, content: `${ALLOW.content} (${seq})` };
+}
 const REVIEW = {
   title: "Ofsayt tartışması",
   content: "Sen aptalsın, ofsaytı göremedin.",
@@ -47,27 +54,27 @@ const BLOCK = {
   content: "Bu hakem orospu gibi yönetiyor.",
 };
 
-beforeEach(() => {
+/** A Galatasaray fan: team tribunes are not readable by guests. */
+let reader: { cookie: string };
+
+beforeEach(async () => {
   freshDb();
+  reader = await user("203.0.113.199");
 });
 
 let n = 0;
-async function user(ip: string) {
+async function user(ip: string, team: string | null = "galatasaray") {
   n += 1;
   const username = uniq("f").slice(0, 20);
-  const res = await invoke(register, {
-    method: "POST",
-    path: "/api/auth/register",
-    ip,
-    body: authRegisterBody({
+  const res = await legacyPasswordUser({ body: authRegisterBody({
       username,
       email: `${username}@example.com`,
       phone: trPhone(2000 + n),
-    }),
-  });
+    }), ip });
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const id = (res.json as { user: { id: number } }).user.id;
-  markEmailVerified(id);
+  markPhoneVerified(id);
+  if (team) castTestVote(id, team);
   return {
     username,
     cookie: sessionCookie(res.res),
@@ -77,55 +84,97 @@ async function user(ip: string) {
 
 async function adminCookie(ip: string) {
   const u = await user(ip);
-  getDb()
-    .prepare(`UPDATE users SET role = 'admin' WHERE id = ?`)
-    .run(u.id);
   const logged = await invoke(login, {
     method: "POST",
     path: "/api/auth/login",
     body: { login: u.username, password: TEST_PASSWORD },
     ip,
   });
+  // Promoted after sign-in; the panel needs 2FA switched on.
+  getDb()
+    .prepare(`UPDATE users SET role = 'admin', totp_enabled = 1 WHERE id = ?`)
+    .run(u.id);
   return sessionCookie(logged.res);
 }
 
-test("HTTP forum guest GET ok, POST 401", async () => {
-  const list = await invoke(listTopics, {
-    path: "/api/forum/teams/galatasaray/topics",
-    params: { teamSlug: "galatasaray" },
-  });
-  assert.equal(list.status, 200);
-  assertNoSensitiveLeak(list.json, ["city", "email", "phone"]);
-  const pinned = (list.json as { topics: { isPinned: boolean }[] }).topics;
-  const firstUnpinned = pinned.findIndex((t) => !t.isPinned);
-  if (firstUnpinned > 0) {
-    assert.ok(pinned.slice(0, firstUnpinned).every((t) => t.isPinned));
-  }
+test("HTTP team tribune: guests and rival fans locked out, own fans and staff in", async () => {
+  const seedId = (
+    getDb()
+      .prepare(`SELECT id FROM forum_topics WHERE board = 'team' AND team_id = 'galatasaray' AND deleted_at IS NULL LIMIT 1`)
+      .get() as { id: number }
+  ).id;
+  const list = (cookie?: string) =>
+    invoke(listTopics, { path: "/api/forum/teams/galatasaray/topics", params: { teamSlug: "galatasaray" }, cookie });
+  const topic = (cookie?: string) =>
+    invoke(getTopic, { path: `/api/forum/topics/${seedId}`, params: { topicId: String(seedId) }, cookie });
 
+  // Guests: nothing from a team tribune, not even the topic.
+  const guest = await list();
+  assert.equal(guest.status, 401);
+  assert.equal((guest.json as { code: string }).code, "TEAM_BOARD_LOGIN");
+  assert.equal((guest.json as { topics?: unknown }).topics, undefined);
+  assert.equal((await topic()).status, 401);
   const postTopic = await invoke(createTopic, {
     method: "POST",
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
-    body: ALLOW,
+    body: allowBody(),
   });
   assert.equal(postTopic.status, 401);
 
-  const seedId = (list.json as { topics: { id: number }[] }).topics[0]?.id;
-  if (seedId) {
-    const reply = await invoke(createPost, {
-      method: "POST",
-      path: `/api/forum/topics/${seedId}/posts`,
-      params: { topicId: String(seedId) },
-      body: { content: ALLOW.content },
-    });
-    assert.equal(reply.status, 401);
-    const got = await invoke(getTopic, {
-      path: `/api/forum/topics/${seedId}`,
-      params: { topicId: String(seedId) },
-    });
-    assert.equal(got.status, 200);
-    assertNoSensitiveLeak(got.json, ["city", "email", "phone"]);
-  }
+  // Own fan: reads and writes.
+  const fan = await user("203.0.113.150");
+  const ownList = await list(fan.cookie);
+  assert.equal(ownList.status, 200);
+  assertNoSensitiveLeak(ownList.json, ["city", "email", "phone"]);
+  const pinned = (ownList.json as { topics: { isPinned: boolean }[] }).topics;
+  const firstUnpinned = pinned.findIndex((t) => !t.isPinned);
+  if (firstUnpinned > 0) assert.ok(pinned.slice(0, firstUnpinned).every((t) => t.isPinned));
+  const got = await topic(fan.cookie);
+  assert.equal(got.status, 200);
+  assertNoSensitiveLeak(got.json, ["city", "email", "phone"]);
+
+  // Rival fan: 403 on read, write, reply.
+  const rival = await user("203.0.113.151", "fenerbahce");
+  assert.equal((await list(rival.cookie)).status, 403);
+  assert.equal((await topic(rival.cookie)).status, 403);
+  const rivalTopic = await invoke(createTopic, {
+    method: "POST",
+    path: "/api/forum/teams/galatasaray/topics",
+    params: { teamSlug: "galatasaray" },
+    cookie: rival.cookie,
+    body: allowBody(),
+    ip: "203.0.113.151",
+  });
+  assert.equal(rivalTopic.status, 403);
+  const rivalReply = await invoke(createPost, {
+    method: "POST",
+    path: `/api/forum/topics/${seedId}/posts`,
+    params: { topicId: String(seedId) },
+    cookie: rival.cookie,
+    body: { content: allowBody().content },
+    ip: "203.0.113.151",
+  });
+  assert.equal(rivalReply.status, 403);
+
+  // Verified member with no vote yet: locked out too.
+  const novote = await user("203.0.113.152", null);
+  assert.equal((await list(novote.cookie)).status, 403);
+
+  // Moderators read every team tribune but write only in their own.
+  const mod = await user("203.0.113.153", "fenerbahce");
+  getDb().prepare(`UPDATE users SET role = 'moderator', totp_enabled = 1 WHERE id = ?`).run(mod.id);
+  assert.equal((await list(mod.cookie)).status, 200);
+  assert.equal((await topic(mod.cookie)).status, 200);
+  const modReply = await invoke(createPost, {
+    method: "POST",
+    path: `/api/forum/topics/${seedId}/posts`,
+    params: { topicId: String(seedId) },
+    cookie: mod.cookie,
+    body: { content: allowBody().content },
+    ip: "203.0.113.153",
+  });
+  assert.equal(modReply.status, 403);
 });
 
 test("HTTP forum auth CRUD, 403, lock 409, pagination, category", async () => {
@@ -136,30 +185,32 @@ test("HTTP forum auth CRUD, 403, lock 409, pagination, category", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-      body: { ...ALLOW, category: "tartisma" },
+      body: { ...allowBody(), category: "teknik-direktor-taktik" },
     ip: "203.0.113.140",
   });
   assert.equal(created.status, 201, JSON.stringify(created.json));
   const id = (created.json as { topic: { id: number; category: string } }).topic.id;
-  assert.equal((created.json as { topic: { category: string } }).topic.category, "tartisma");
+  assert.equal((created.json as { topic: { category: string } }).topic.category, "teknik-direktor-taktik");
 
   const badCat = await invoke(createTopic, {
     method: "POST",
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: { ...ALLOW, category: "yok-boyle" },
+    body: { ...allowBody(), category: "yok-boyle" },
     ip: "203.0.113.140",
   });
   assert.equal(badCat.status, 400);
 
   const page = await invoke(listTopics, {
+    cookie: reader.cookie,
     path: "/api/forum/teams/galatasaray/topics?page=1&limit=999",
     params: { teamSlug: "galatasaray" },
   });
   assert.equal((page.json as { limit: number }).limit, FORUM_PAGE_MAX);
 
   const invalidList = await invoke(listTopics, {
+    cookie: reader.cookie,
     path: "/api/forum/teams/galatasaray/topics?category=nope",
     params: { teamSlug: "galatasaray" },
   });
@@ -170,28 +221,10 @@ test("HTTP forum auth CRUD, 403, lock 409, pagination, category", async () => {
     path: `/api/forum/topics/${id}/posts`,
     params: { topicId: String(id) },
     cookie: a.cookie,
-    body: { content: ALLOW.content },
+    body: { content: allowBody().content },
     ip: "203.0.113.140",
   });
   assert.equal(reply.status, 201, JSON.stringify(reply.json));
-
-  const edited = await invoke(putTopic, {
-    method: "PUT",
-    path: `/api/forum/topics/${id}`,
-    params: { topicId: String(id) },
-    cookie: a.cookie,
-    body: { title: "Güncel derbi notu", content: ALLOW.content },
-  });
-  assert.equal(edited.status, 200);
-
-  const stolen = await invoke(putTopic, {
-    method: "PUT",
-    path: `/api/forum/topics/${id}`,
-    params: { topicId: String(id) },
-    cookie: b.cookie,
-    body: { title: "Başkasının konusu", content: ALLOW.content },
-  });
-  assert.equal(stolen.status, 403);
 
   const admin = await adminCookie("203.0.113.142");
   const lock = await invoke(lockTopic, {
@@ -207,7 +240,7 @@ test("HTTP forum auth CRUD, 403, lock 409, pagination, category", async () => {
     path: `/api/forum/topics/${id}/posts`,
     params: { topicId: String(id) },
     cookie: a.cookie,
-    body: { content: ALLOW.content },
+    body: { content: allowBody().content },
   });
   assert.equal(lockedPost.status, 409);
 
@@ -236,7 +269,7 @@ test("HTTP forum banned mutation 403", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: ALLOW,
+    body: allowBody(),
   });
   assert.ok(topic.status === 401 || topic.status === 403);
 });
@@ -250,7 +283,7 @@ test("HTTP forum topic rate limit", async () => {
       params: { teamSlug: "galatasaray" },
       cookie: a.cookie,
       ip: "203.0.113.145",
-      body: { title: `${ALLOW.title} ${i}`, content: ALLOW.content },
+      body: { title: `${ALLOW.title} ${i}`, content: allowBody().content },
     });
     assert.equal(r.status, 201, JSON.stringify(r.json));
   }
@@ -260,7 +293,7 @@ test("HTTP forum topic rate limit", async () => {
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
     ip: "203.0.113.145",
-    body: ALLOW,
+    body: allowBody(),
   });
   assert.equal(blocked.status, 429);
 });
@@ -273,12 +306,13 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: ALLOW,
+    body: allowBody(),
     ip: "203.0.113.146",
   });
   assert.equal(allow.status, 201);
   const allowId = (allow.json as { topic: { id: number } }).topic.id;
   const publicAllow = await invoke(getTopic, {
+    cookie: reader.cookie,
     path: `/api/forum/topics/${allowId}`,
     params: { topicId: String(allowId) },
   });
@@ -299,6 +333,7 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     )
     .get() as { id: number };
   const hidden = await invoke(getTopic, {
+    cookie: reader.cookie,
     path: `/api/forum/topics/${heldRow.id}`,
     params: { topicId: String(heldRow.id) },
   });
@@ -357,6 +392,7 @@ test("HTTP moderation allow/review/block + held admin", async () => {
   });
   assert.equal(approved.status, 200, JSON.stringify(approved.json));
   const nowPublic = await invoke(getTopic, {
+    cookie: reader.cookie,
     path: `/api/forum/topics/${heldRow.id}`,
     params: { topicId: String(heldRow.id) },
   });
@@ -375,7 +411,7 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: { title: "İkinci tartışma", content: REVIEW.content },
+    body: { title: "İkinci tartışma", content: `${REVIEW.content} Yine aynı.` },
     ip: "203.0.113.146",
   });
   assert.equal(review2.status, 422);
@@ -393,6 +429,7 @@ test("HTTP moderation allow/review/block + held admin", async () => {
   });
   assert.equal(rejected.status, 200, JSON.stringify(rejected.json));
   const gone = await invoke(getTopic, {
+    cookie: reader.cookie,
     path: `/api/forum/topics/${held2.id}`,
     params: { topicId: String(held2.id) },
   });
@@ -411,7 +448,7 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: { title: "Üçüncü tartışma", content: REVIEW.content },
+    body: { title: "Üçüncü tartışma", content: `${REVIEW.content} Üçüncü kez.` },
     ip: "203.0.113.146",
   });
   assert.equal(review3.status, 422);
@@ -429,6 +466,7 @@ test("HTTP moderation allow/review/block + held admin", async () => {
   });
   assert.equal(banned.status, 200, JSON.stringify(banned.json));
   const stillHidden = await invoke(getTopic, {
+    cookie: reader.cookie,
     path: `/api/forum/topics/${held3.id}`,
     params: { topicId: String(held3.id) },
   });
@@ -446,7 +484,7 @@ test("HTTP held post public GET'te yok", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: ALLOW,
+    body: allowBody(),
     ip: "203.0.113.148",
   });
   const topicId = (created.json as { topic: { id: number } }).topic.id;
@@ -460,6 +498,7 @@ test("HTTP held post public GET'te yok", async () => {
   });
   assert.equal(heldPost.status, 422);
   const got = await invoke(getTopic, {
+    cookie: reader.cookie,
     path: `/api/forum/topics/${topicId}`,
     params: { topicId: String(topicId) },
   });
@@ -600,14 +639,16 @@ test("HTTP robots/sitemap private yok", async () => {
   assert.equal(robotsPathDecision("/giris?next=/admin"), "disallow");
   assert.equal(robotsPathDecision("/il/eskisehir"), "allow");
   assert.equal(robotsPathDecision("/takimlar"), "allow");
-  assert.equal(robotsPathDecision("/takim/galatasaray/forum"), "allow");
+  assert.equal(robotsPathDecision("/takim/galatasaray"), "allow");
+  assert.equal(robotsPathDecision("/takim/galatasaray/forum"), "disallow");
   const sitemap = (await import("../../app/sitemap")).default;
   const urls = sitemap().map((e) => e.url);
   assert.equal(sitemapHasPrivatePath(urls), false);
   assert.equal(urls.filter((u) => u.includes("/il/")).length, 81);
   assert.ok(urls.some((u) => u.endsWith("/takimlar")));
   assert.ok(urls.some((u) => u.endsWith("/kvkk")));
-  assert.ok(urls.some((u) => u.endsWith("/takim/galatasaray/forum")));
+  assert.ok(urls.some((u) => u.endsWith("/takim/galatasaray")));
+  assert.equal(urls.some((u) => u.includes("/forum") && u.includes("/takim/")), false);
   assert.equal(urls.some((u) => u.includes("/admin")), false);
   assert.equal(urls.some((u) => u.includes("/uye-dogrula")), false);
   assert.equal(urls.some((u) => u.includes("/forum/yeni")), false);

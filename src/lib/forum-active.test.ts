@@ -3,7 +3,7 @@ import { test } from "node:test";
 import Database from "better-sqlite3";
 import { PINNED_STARTER_TOPICS } from "./forum-category";
 import { seedPinnedStarterTopics } from "./forum-seed";
-import { getMonthlyForumLeader } from "./forum-leaders";
+import { getWeeklyFanOfWeek } from "./forum-leaders";
 import {
   FORUM_ACTIVE_TEAM_IDS,
   TEAM_IDS,
@@ -100,7 +100,7 @@ test("üyelikte 139 takım hala seçilebilir", () => {
   assert.equal(new Set(TEAM_IDS).size, 139);
 });
 
-test("Tribün Lideri yeni aktif takımlarda çalışıyor", () => {
+test("Haftanın Taraftarı yeni aktif takımlarda çalışıyor", () => {
   assert.ok(ADDED_FROM_NTA.length > 0);
   const db = new Database(":memory:");
   db.exec(`
@@ -124,6 +124,13 @@ test("Tribün Lideri yeni aktif takımlarda çalışıyor", () => {
       updated_at TEXT NOT NULL,
       deleted_at TEXT,
       held_at TEXT
+    );
+    CREATE TABLE forum_likes (
+      user_id INTEGER NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, target_type, target_id)
     );
     CREATE TABLE forum_posts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -153,7 +160,7 @@ test("Tribün Lideri yeni aktif takımlarda çalışıyor", () => {
     insertTeam.run(teamId, teamId);
     const topicId = Number(insertTopic.run(teamId, userId, now, now).lastInsertRowid);
     insertPost.run(topicId, userId, now, now);
-    const leader = getMonthlyForumLeader(teamId, 2026, 9, db, now);
+    const leader = getWeeklyFanOfWeek(teamId, "2026-08-31", db, now);
     assert.equal(leader?.userId, userId, teamId);
     assert.equal(leader?.postCount, 1, teamId);
   }

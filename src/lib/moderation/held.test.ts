@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import Database from "better-sqlite3";
-import { getMonthlyForumLeader } from "../forum-leaders";
+import { getWeeklyFanOfWeek } from "../forum-leaders";
 import {
   approveHeldContent,
   banHeldAuthor,
@@ -35,7 +35,10 @@ function openDb() {
       ban_reason TEXT,
       ban_expires_at TEXT,
       email_norm TEXT,
-      password_hash TEXT NOT NULL DEFAULT 'hash'
+      password_hash TEXT NOT NULL DEFAULT 'hash',
+      notify_replies INTEGER NOT NULL DEFAULT 1,
+      notify_mentions INTEGER NOT NULL DEFAULT 1,
+      notify_likes INTEGER NOT NULL DEFAULT 1
     );
     CREATE TABLE sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +47,9 @@ function openDb() {
     );
     CREATE TABLE forum_topics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_id TEXT NOT NULL,
+      board TEXT NOT NULL DEFAULT 'team',
+      city TEXT,
+      team_id TEXT,
       user_id INTEGER NOT NULL,
       title TEXT NOT NULL,
       content TEXT NOT NULL,
@@ -52,6 +57,13 @@ function openDb() {
       updated_at TEXT NOT NULL,
       deleted_at TEXT,
       held_at TEXT
+    );
+    CREATE TABLE forum_likes (
+      user_id INTEGER NOT NULL,
+      target_type TEXT NOT NULL,
+      target_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (user_id, target_type, target_id)
     );
     CREATE TABLE forum_posts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -62,6 +74,24 @@ function openDb() {
       updated_at TEXT NOT NULL,
       deleted_at TEXT,
       held_at TEXT
+    );
+    CREATE TABLE notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      actor_user_id INTEGER,
+      topic_id INTEGER,
+      post_id INTEGER,
+      body TEXT NOT NULL,
+      dedupe_key TEXT,
+      read_at TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE (user_id, dedupe_key)
+    );
+    CREATE TABLE user_blocks (
+      blocker_user_id INTEGER NOT NULL,
+      blocked_user_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL
     );
     CREATE TABLE moderation_actions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -243,7 +273,7 @@ test("held içerik yorum sayısına ve son aktiviteye dahil olmaz", () => {
   db.close();
 });
 
-test("held içerik Tribün Lideri hesabına dahil olmaz", () => {
+test("held içerik Haftanın Taraftarı hesabına dahil olmaz", () => {
   const db = openDb();
   const a = addUser(db, "ali");
   const b = addUser(db, "berk");
@@ -251,13 +281,7 @@ test("held içerik Tribün Lideri hesabına dahil olmaz", () => {
   addPost(db, topic, a, { heldAt: NOW, createdAt: "2026-09-01T10:00:00.000Z" });
   addPost(db, topic, a, { heldAt: NOW, createdAt: "2026-09-02T10:00:00.000Z" });
   addPost(db, topic, b, { createdAt: "2026-09-01T11:00:00.000Z" });
-  const leader = getMonthlyForumLeader(
-    "fenerbahce",
-    2026,
-    9,
-    db,
-    NOW,
-  );
+  const leader = getWeeklyFanOfWeek("fenerbahce", "2026-08-31", db, NOW);
   assert.equal(leader?.userId, b);
   assert.equal(leader?.postCount, 1);
   db.close();

@@ -1,4 +1,10 @@
+import type Database from "better-sqlite3";
+import { refreshBadges } from "./profiles";
+import { can, canBanRole, roleRank } from "./permissions";
+import { maskEmail, maskPhone } from "./privacy";
+import { notifyModeration } from "./notifications";
 import { getDb } from "./db";
+import { FORUM_SYSTEM_PASSWORD_HASH } from "./forum-system";
 import {
   adminSoftDeletePost,
   adminSoftDeleteTopic,
@@ -15,7 +21,6 @@ import {
   rejectHeldContent,
   type HeldKind,
 } from "./moderation/held";
-import { liveVotesWhere } from "./votes";
 import {
   banUser,
   findUserById,
@@ -33,15 +38,21 @@ function bannedClause(alias: string) {
     AND (${alias}.ban_expires_at IS NULL OR ${alias}.ban_expires_at > ?)`;
 }
 
+/** The non-login system account that owns the pinned starter topics is not a member. */
+const HUMAN = `password_hash IS NOT '${FORUM_SYSTEM_PASSWORD_HASH}'`;
+const BY_HUMAN = `user_id NOT IN (SELECT id FROM users WHERE password_hash = '${FORUM_SYSTEM_PASSWORD_HASH}')`;
+
 export function getDashboardStats() {
   const db = getDb();
   const now = nowIso();
-  const totalMembers = (db.prepare(`SELECT COUNT(*) as c FROM users`).get() as { c: number }).c;
+  const totalMembers = (
+    db.prepare(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN}`).get() as { c: number }
+  ).c;
   const activeMembers = (
     db
       .prepare(
         `SELECT COUNT(*) as c FROM users u
-         WHERE NOT (${bannedClause("u")})`,
+         WHERE u.deleted_at IS NULL AND ${HUMAN} AND NOT (${bannedClause("u")})`,
       )
       .get(now) as { c: number }
   ).c;
@@ -49,7 +60,7 @@ export function getDashboardStats() {
     db
       .prepare(
         `SELECT COUNT(*) as c FROM forum_topics
-         WHERE deleted_at IS NULL AND held_at IS NULL`,
+         WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN}`,
       )
       .get() as { c: number }
   ).c;
@@ -57,7 +68,7 @@ export function getDashboardStats() {
     db
       .prepare(
         `SELECT COUNT(*) as c FROM forum_posts
-         WHERE deleted_at IS NULL AND held_at IS NULL`,
+         WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN}`,
       )
       .get() as { c: number }
   ).c;
@@ -72,16 +83,21 @@ export function getDashboardStats() {
       .get() as { c: number }
   ).c;
 
-  const live = liveVotesWhere();
   const validVotes = (
+    db.prepare(`SELECT COUNT(*) as c FROM fan_votes WHERE status = 'active'`).get() as {
+      c: number;
+    }
+  ).c;
+  const phoneVerifiedMembers = (
     db
       .prepare(
-        `SELECT COUNT(*) as c
-         FROM votes v
-         JOIN participants p ON p.id = v.participant_id
-         WHERE ${live.sql}`,
+        `SELECT COUNT(*) as c FROM users WHERE phone_verified_at IS NOT NULL AND deleted_at IS NULL`,
       )
-      .get(...live.params) as { c: number }
+      .get() as { c: number }
+  ).c;
+  /** Old e-mail census ballots: kept for the record, not part of any public count. */
+  const legacyCensusVotes = (
+    db.prepare(`SELECT COUNT(*) as c FROM votes WHERE revoked_at IS NULL`).get() as { c: number }
   ).c;
 
   const recent = db
@@ -116,6 +132,8 @@ export function getDashboardStats() {
     activeBans,
     activeForumTeams,
     validVotes,
+    phoneVerifiedMembers,
+    legacyCensusVotes,
     recent: recent.map((row) => ({
       id: row.id,
       action: row.action,
@@ -127,14 +145,124 @@ export function getDashboardStats() {
       targetTopicId: row.target_topic_id,
       targetPostId: row.target_post_id,
     })),
+    ...getDashboardExtras(db),
+  };
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Growth, distribution, queue and abuse indicators. Every figure is a plain
+ * COUNT over live rows; definitions are shown next to each card in the UI.
+ */
+function getDashboardExtras(db: Database.Database, nowMs = Date.now()) {
+  const since = (days: number) => new Date(nowMs - days * DAY_MS).toISOString();
+  const count = (sql: string, ...params: unknown[]) => (db.prepare(sql).get(...params) as { c: number }).c;
+
+  const signups = {
+    day: count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(1)),
+    week: count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(7)),
+    month: count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(30)),
+  };
+  const newTopicsWeek = count(
+    `SELECT COUNT(*) as c FROM forum_topics WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN} AND created_at >= ?`,
+    since(7),
+  );
+  const newPostsWeek = count(
+    `SELECT COUNT(*) as c FROM forum_posts WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN} AND created_at >= ?`,
+    since(7),
+  );
+  const openReports = count(`SELECT COUNT(*) as c FROM forum_reports WHERE status = 'open'`);
+  const held = countHeldItems(db);
+
+  const teamDistribution = db
+    .prepare(
+      `SELECT fv.team_id as teamId, COALESCE(t.name, fv.team_id) as name, COUNT(*) as votes
+       FROM fan_votes fv LEFT JOIN teams t ON t.id = fv.team_id
+       WHERE fv.status = 'active' GROUP BY fv.team_id ORDER BY votes DESC, name LIMIT 10`,
+    )
+    .all() as { teamId: string; name: string; votes: number }[];
+  const provinceDistribution = db
+    .prepare(
+      `SELECT city as province, COUNT(*) as votes FROM fan_votes
+       WHERE status = 'active' AND city IS NOT NULL GROUP BY city ORDER BY votes DESC, city LIMIT 10`,
+    )
+    .all() as { province: string; votes: number }[];
+  const votesWithoutProvince = count(
+    `SELECT COUNT(*) as c FROM fan_votes WHERE status = 'active' AND city IS NULL`,
+  );
+
+  const day = since(1);
+  const suspicious = {
+    /** SMS codes requested in the last 24 hours (each one is a paid SMS in production). */
+    otpRequests: count(`SELECT COUNT(*) as c FROM auth_otps WHERE created_at >= ?`, day),
+    /** Codes locked after too many wrong guesses in the last 24 hours. */
+    otpLockouts: count(
+      `SELECT COUNT(*) as c FROM auth_otps WHERE created_at >= ? AND attempts >= max_attempts`,
+      day,
+    ),
+    /** Most sign-ups in a single clock hour over the last 24 hours (a burst hints at scripted sign-ups). */
+    signupPeakHour: count(
+      `SELECT COALESCE(MAX(n), 0) as c FROM (SELECT COUNT(*) as n FROM users WHERE ${HUMAN} AND created_at >= ?
+       GROUP BY substr(created_at, 1, 13))`,
+      day,
+    ),
+    /** Members who tried a staff-only action in the last 24 hours. */
+    deniedAdminAttempts: count(
+      `SELECT COUNT(*) as c FROM security_events WHERE created_at >= ? AND action LIKE 'admin_denied:%'`,
+      day,
+    ),
+    /** Failed staff sign-ins / 2FA checks in the last 24 hours. */
+    failedStaffLogins: count(
+      `SELECT COUNT(*) as c FROM security_events WHERE created_at >= ? AND success = 0
+       AND action NOT LIKE 'admin_denied:%'`,
+      day,
+    ),
+    /** Votes voided by staff in the last 30 days. */
+    votesVoided30d: count(
+      `SELECT COUNT(*) as c FROM fan_votes WHERE status = 'void' AND voided_at >= ?`,
+      since(30),
+    ),
+  };
+
+  const recentAdmin = db
+    .prepare(
+      `SELECT a.id, a.action, a.target_type as targetType, a.target_id as targetId, a.reason,
+              a.created_at as createdAt, u.username as actor
+       FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
+       ORDER BY a.id DESC LIMIT 10`,
+    )
+    .all() as {
+    id: number;
+    action: string;
+    targetType: string | null;
+    targetId: string | null;
+    reason: string | null;
+    createdAt: string;
+    actor: string | null;
+  }[];
+
+  return {
+    signups,
+    newTopicsWeek,
+    newPostsWeek,
+    openReports,
+    heldItems: held,
+    teamDistribution,
+    provinceDistribution,
+    votesWithoutProvince,
+    suspicious,
+    recentAdmin,
   };
 }
 
 export type UserListFilters = {
   q: string | null;
-  role: "user" | "admin" | null;
+  role: UserRole | null;
   banned: boolean | null;
   teamId: string | null;
+  /** Whether the viewer may search by phone / e-mail / real name. */
+  pii: boolean;
   offset: number;
   limit: number;
 };
@@ -145,7 +273,10 @@ export function listAdminUsers(filters: UserListFilters) {
   const where: string[] = ["1=1"];
   const params: unknown[] = [];
 
-  if (filters.q) {
+  if (filters.q && !filters.pii) {
+    where.push(`(u.username_norm LIKE ? OR u.display_name LIKE ?)`);
+    params.push(filters.q, filters.q);
+  } else if (filters.q) {
     where.push(
       `(u.username_norm LIKE ? OR u.email_norm LIKE ? OR u.display_name LIKE ?
         OR IFNULL(u.first_name,'') LIKE ? OR IFNULL(u.last_name,'') LIKE ?
@@ -188,7 +319,7 @@ export function listAdminUsers(filters: UserListFilters) {
     .prepare(
       `SELECT u.id, u.username, u.display_name, u.team_id, u.status, u.role,
               u.created_at, u.last_login_at, u.banned_at, u.ban_reason, u.ban_expires_at,
-              tm.name as team_name
+              u.phone_verified_at, u.deleted_at, tm.name as team_name
        FROM users u
        LEFT JOIN teams tm ON tm.id = u.team_id
        WHERE ${whereSql}
@@ -207,6 +338,8 @@ export function listAdminUsers(filters: UserListFilters) {
     banned_at: string | null;
     ban_reason: string | null;
     ban_expires_at: string | null;
+    phone_verified_at: string | null;
+    deleted_at: string | null;
     team_name: string | null;
   }>;
 
@@ -219,7 +352,9 @@ export function listAdminUsers(filters: UserListFilters) {
       teamId: row.team_id,
       teamName: row.team_name,
       status: row.status,
-      role: row.role === "admin" ? "admin" : "user",
+      role: row.role,
+      phoneVerified: Boolean(row.phone_verified_at),
+      deleted: Boolean(row.deleted_at),
       createdAt: row.created_at,
       lastLoginAt: row.last_login_at,
       banned: isUserBanned(row),
@@ -240,7 +375,13 @@ export function listAdminTeamOptions() {
     .all() as Array<{ id: string; name: string }>;
 }
 
-export function getAdminUserDetail(id: number) {
+/**
+ * `viewerRole` decides how much personal data comes back: moderators see
+ * the account and its forum history only; admins also see the e-mail and
+ * profile fields. The phone number is always masked.
+ */
+export function getAdminUserDetail(id: number, viewerRole: string) {
+  const pii = can(viewerRole, "users.pii");
   const user = findUserById(id);
   if (!user) return null;
   const team = user.team_id
@@ -248,6 +389,23 @@ export function getAdminUserDetail(id: number) {
         .prepare(`SELECT id, name FROM teams WHERE id = ?`)
         .get(user.team_id) as { id: string; name: string } | undefined)
     : undefined;
+
+  const vote = getDb()
+    .prepare(
+      `SELECT v.team_id, t.name as team_name, v.city, v.cast_at, v.status, v.voided_at, v.void_reason
+       FROM fan_votes v LEFT JOIN teams t ON t.id = v.team_id WHERE v.user_id = ?`,
+    )
+    .get(id) as
+    | {
+        team_id: string;
+        team_name: string | null;
+        city: string;
+        cast_at: string;
+        status: string;
+        voided_at: string | null;
+        void_reason: string | null;
+      }
+    | undefined;
 
   const topics = getDb()
     .prepare(
@@ -257,6 +415,8 @@ export function getAdminUserDetail(id: number) {
     .all(id) as Array<{
     id: number;
     team_id: string;
+    board: string;
+    city: string | null;
     title: string;
     created_at: string;
     locked_at: string | null;
@@ -288,16 +448,29 @@ export function getAdminUserDetail(id: number) {
     id: user.id,
     username: user.username,
     displayName: user.display_name,
-    email: user.email,
-    phone: user.phone,
-    firstName: user.first_name,
-    lastName: user.last_name,
-    birthDate: user.birth_date,
+    email: pii ? user.email : maskEmail(user.email),
+    phoneMasked: maskPhone(user.phone_norm ?? user.phone),
+    phoneVerified: Boolean(user.phone_verified_at),
+    firstName: pii ? user.first_name : null,
+    lastName: pii ? user.last_name : null,
+    birthDate: pii ? user.birth_date : null,
     city: user.city,
+    deleted: Boolean(user.deleted_at),
+    vote: vote
+      ? {
+          teamId: vote.team_id,
+          teamName: vote.team_name,
+          city: vote.city,
+          castAt: vote.cast_at,
+          status: vote.status,
+          voidedAt: vote.voided_at,
+          voidReason: vote.void_reason,
+        }
+      : null,
     teamId: user.team_id,
     teamName: team?.name ?? null,
     status: user.status,
-    role: user.role === "admin" ? "admin" : "user",
+    role: user.role,
     createdAt: user.created_at,
     lastLoginAt: user.last_login_at,
     banned: isUserBanned(user),
@@ -333,11 +506,27 @@ export function adminBanUser(
   moderator: UserRow,
 ) {
   const db = getDb();
+  const denied = banPermissionError(targetId, moderator);
+  if (denied) return denied;
   return db.transaction(() => banUser(targetId, reason, expiresAt, moderator.id))();
+}
+
+function banPermissionError(targetId: number, moderator: UserRow) {
+  const target = findUserById(targetId);
+  if (!target) return { ok: false as const, error: "Kullanıcı bulunamadı." };
+  if (target.id === moderator.id) {
+    return { ok: false as const, error: "Kendi hesabın üzerinde ban işlemi yapamazsın." };
+  }
+  if (!canBanRole(moderator.role, target.role)) {
+    return { ok: false as const, error: "Bu hesabın banını değiştirme yetkin yok." };
+  }
+  return null;
 }
 
 export function adminUnbanUser(targetId: number, reason: string, moderator: UserRow) {
   const db = getDb();
+  const denied = banPermissionError(targetId, moderator);
+  if (denied) return denied;
   return db.transaction(() => unbanUser(targetId, reason, moderator.id))();
 }
 
@@ -359,14 +548,26 @@ export type TopicListFilters = {
   limit: number;
 };
 
+/** Team id, or "board:general" / "board:city" for the open boards. */
+function pushBoardFilter(value: string | null, where: string[], params: unknown[]) {
+  if (!value) return;
+  if (value === "board:general") {
+    where.push(`t.board = 'general'`);
+    return;
+  }
+  if (value === "board:city") {
+    where.push(`t.board = 'city'`);
+    return;
+  }
+  where.push(`t.team_id = ?`);
+  params.push(value);
+}
+
 export function listAdminTopics(filters: TopicListFilters) {
   const db = getDb();
   const where: string[] = ["1=1"];
   const params: unknown[] = [];
-  if (filters.teamId) {
-    where.push(`t.team_id = ?`);
-    params.push(filters.teamId);
-  }
+  pushBoardFilter(filters.teamId, where, params);
   if (filters.q) {
     where.push(`t.title LIKE ?`);
     params.push(filters.q);
@@ -385,7 +586,7 @@ export function listAdminTopics(filters: TopicListFilters) {
 
   const rows = db
     .prepare(
-      `SELECT t.id, t.team_id, t.title, t.created_at, t.locked_at, t.deleted_at, t.held_at, t.user_id,
+      `SELECT t.id, t.team_id, t.board, t.city, t.title, t.created_at, t.locked_at, t.deleted_at, t.held_at, t.user_id,
               u.username,
               tm.name as team_name,
               (SELECT COUNT(*) FROM forum_posts p WHERE p.topic_id = t.id AND p.deleted_at IS NULL) as post_count
@@ -399,6 +600,8 @@ export function listAdminTopics(filters: TopicListFilters) {
     .all(...params, filters.limit, filters.offset) as Array<{
     id: number;
     team_id: string;
+    board: string;
+    city: string | null;
     title: string;
     created_at: string;
     locked_at: string | null;
@@ -416,6 +619,8 @@ export function listAdminTopics(filters: TopicListFilters) {
       id: row.id,
       teamId: row.team_id,
       teamName: row.team_name,
+      board: row.board,
+      city: row.city,
       title: row.title,
       createdAt: row.created_at,
       locked: Boolean(row.locked_at),
@@ -440,10 +645,7 @@ export function listAdminPosts(filters: PostListFilters) {
   const db = getDb();
   const where: string[] = ["1=1"];
   const params: unknown[] = [];
-  if (filters.teamId) {
-    where.push(`t.team_id = ?`);
-    params.push(filters.teamId);
-  }
+  pushBoardFilter(filters.teamId, where, params);
   if (filters.topicId) {
     where.push(`p.topic_id = ?`);
     params.push(filters.topicId);
@@ -472,7 +674,7 @@ export function listAdminPosts(filters: PostListFilters) {
   const rows = db
     .prepare(
       `SELECT p.id, p.topic_id, p.content, p.created_at, p.deleted_at, p.held_at, p.user_id,
-              u.username, t.title as topic_title, t.team_id, tm.name as team_name
+              u.username, t.title as topic_title, t.team_id, t.board, t.city, tm.name as team_name
        FROM forum_posts p
        JOIN forum_topics t ON t.id = p.topic_id
        JOIN users u ON u.id = p.user_id
@@ -492,6 +694,8 @@ export function listAdminPosts(filters: PostListFilters) {
     username: string;
     topic_title: string;
     team_id: string;
+    board: string;
+    city: string | null;
     team_name: string | null;
   }>;
 
@@ -503,6 +707,8 @@ export function listAdminPosts(filters: PostListFilters) {
       topicTitle: row.topic_title,
       teamId: row.team_id,
       teamName: row.team_name,
+      board: row.board,
+      city: row.city,
       content: row.content.slice(0, 400),
       createdAt: row.created_at,
       deleted: Boolean(row.deleted_at),
@@ -512,10 +718,25 @@ export function listAdminPosts(filters: PostListFilters) {
   };
 }
 
+/**
+ * Moderators can't act on content by staff of the same or higher rank
+ * (same rule as bans). Super admins can act on anything.
+ */
+function contentRankError(authorId: number, moderator: UserRow) {
+  if (authorId === moderator.id || moderator.role === "super_admin") return null;
+  const author = getDb().prepare(`SELECT role FROM users WHERE id = ?`).get(authorId) as { role: string } | undefined;
+  if (author && roleRank(author.role) >= roleRank(moderator.role)) {
+    return { ok: false as const, error: "Aynı veya daha yüksek yetkili birinin içeriğine işlem yapamazsın.", status: 403 };
+  }
+  return null;
+}
+
 export function lockTopicAdmin(topicId: number, lock: boolean, reason: string, moderator: UserRow) {
   const topic = findTopic(topicId);
   if (!topic) return { ok: false as const, error: "Konu bulunamadı.", status: 404 };
   if (topic.deleted_at) return { ok: false as const, error: "Silinmiş konu kilitlenemez.", status: 409 };
+  const rank = contentRankError(topic.user_id, moderator);
+  if (rank) return rank;
 
   if (lock && topic.locked_at) return { ok: true as const };
   if (!lock && !topic.locked_at) return { ok: true as const };
@@ -538,6 +759,8 @@ export function deleteTopicAdmin(topicId: number, reason: string, moderator: Use
   const topic = findTopic(topicId);
   if (!topic) return { ok: false as const, error: "Konu bulunamadı.", status: 404 };
   if (topic.deleted_at) return { ok: false as const, error: "Konu zaten silinmiş.", status: 409 };
+  const rank = contentRankError(topic.user_id, moderator);
+  if (rank) return rank;
 
   const db = getDb();
   const ok = db.transaction(() => {
@@ -550,6 +773,11 @@ export function deleteTopicAdmin(topicId: number, reason: string, moderator: Use
       action: "delete_topic",
       reason,
     });
+    notifyModeration(db, {
+      userId: topic.user_id,
+      topicId,
+      body: `"${topic.title.slice(0, 80)}" konun moderatör tarafından kaldırıldı. Gerekçe: ${reason.slice(0, 160)}`,
+    });
     return true;
   })();
   if (!ok) return { ok: false as const, error: "Konu silinemedi.", status: 409 };
@@ -560,6 +788,8 @@ export function deletePostAdmin(postId: number, reason: string, moderator: UserR
   const post = findPost(postId);
   if (!post) return { ok: false as const, error: "Mesaj bulunamadı.", status: 404 };
   if (post.deleted_at) return { ok: false as const, error: "Mesaj zaten silinmiş.", status: 409 };
+  const rank = contentRankError(post.user_id, moderator);
+  if (rank) return rank;
 
   const db = getDb();
   const ok = db.transaction(() => {
@@ -572,6 +802,12 @@ export function deletePostAdmin(postId: number, reason: string, moderator: UserR
       targetUserId: post.user_id,
       action: "delete_post",
       reason,
+    });
+    notifyModeration(db, {
+      userId: post.user_id,
+      topicId: post.topic_id,
+      postId,
+      body: `Bir yorumun moderatör tarafından kaldırıldı. Gerekçe: ${reason.slice(0, 160)}`,
     });
     return true;
   })();
@@ -815,7 +1051,14 @@ export function adminApproveHeld(
   moderator: UserRow,
   reason: string | null,
 ) {
-  return approveHeldContent(getDb(), kind, id, moderator.id, reason);
+  const result = approveHeldContent(getDb(), kind, id, moderator.id, reason);
+  if (result.ok) {
+    const author = getDb()
+      .prepare(kind === "topic" ? `SELECT user_id FROM forum_topics WHERE id = ?` : `SELECT user_id FROM forum_posts WHERE id = ?`)
+      .get(id) as { user_id: number } | undefined;
+    if (author) refreshBadges(getDb(), author.user_id);
+  }
+  return result;
 }
 
 export function adminRejectHeld(
@@ -840,8 +1083,8 @@ export function adminBanHeld(
   const db = getDb();
   const loaded = loadHeldTarget(db, kind, id);
   if (!loaded.ok) return loaded;
-  if (loaded.target.authorRole === "admin") {
-    return { ok: false as const, error: "Admin hesap banlanamaz.", status: 409 };
+  if (!canBanRole(moderator.role, loaded.target.authorRole)) {
+    return { ok: false as const, error: "Bu hesabı banlama yetkin yok.", status: 409 };
   }
   try {
     return db.transaction(() => {

@@ -1,5 +1,9 @@
 import { z } from "zod";
+import { forumFloodCheck, isNewAccount } from "@/lib/forum-spam";
+import { getDb } from "@/lib/db";
+import { notifyReply } from "@/lib/notifications";
 import { clientIp } from "@/lib/request";
+import { refreshBadges } from "@/lib/profiles";
 import { noStoreJson, readJsonBody } from "@/lib/http";
 import { getSessionUser, requireForumWriter } from "@/lib/auth";
 import { FORUM_POST_MAX } from "@/lib/policy";
@@ -10,7 +14,8 @@ import {
   forumPostLimited,
   noteForumPostAttempt,
   parseIdParam,
-  requireForumBoard,
+  topicAccess,
+  topicBoardOpen,
   serializePost,
 } from "@/lib/forum";
 import {
@@ -46,11 +51,22 @@ export async function POST(
   }
 
   const topic = findLiveTopic(topicId);
-  if (!topic || !requireForumBoard(topic.team_id)) {
+  if (!topic || !topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
+  }
+  const access = topicAccess(topic, active.user, "write");
+  if (!access.ok) {
+    return noStoreJson({ error: access.error, code: access.code }, access.status);
   }
   if (topic.locked_at) {
     return noStoreJson({ error: "Bu konu kilitli. Yorum eklenemez." }, 409);
+  }
+  if (
+    getDb()
+      .prepare(`SELECT 1 FROM user_blocks WHERE blocker_user_id = ? AND blocked_user_id = ?`)
+      .get(topic.user_id, active.user.id)
+  ) {
+    return noStoreJson({ error: "Bu üyenin konusuna yazamazsın." }, 403);
   }
 
   const parsed = Body.safeParse(body.data);
@@ -62,11 +78,21 @@ export async function POST(
     return noStoreJson({ error: "Yazı boş olamaz. Limitleri aşma." }, 400);
   }
 
+  // Counted before moderation so blocked attempts can't probe the filter for free.
+  const ip = await clientIp();
+  if (forumPostLimited(ip, active.user.id)) {
+    return noStoreJson({ error: "Çok fazla yorum. Biraz sonra dene." }, 429);
+  }
+  noteForumPostAttempt(ip, active.user.id);
+  const flood = forumFloodCheck(getDb(), active.user.id, content);
+  if (!flood.ok) return noStoreJson({ error: flood.error }, flood.status);
+
   const verdict = moderateForumPublication([content], {
     surface: "post",
     userId: active.user.id,
-    teamId: topic.team_id,
+    teamId: topic.team_id ?? undefined,
     topicId: topic.id,
+    newAccount: isNewAccount(getDb(), active.user.id),
   });
   const mode = forumWriteMode(verdict.decision);
   if (mode === "none") {
@@ -77,12 +103,6 @@ export async function POST(
     });
     return noStoreJson({ error: FORUM_CONTENT_BLOCKED_ERROR }, 422);
   }
-
-  const ip = await clientIp();
-  if (forumPostLimited(ip, active.user.id)) {
-    return noStoreJson({ error: "Çok fazla yorum. Biraz sonra dene." }, 429);
-  }
-  noteForumPostAttempt(ip, active.user.id);
 
   const post = createPost({
     topicId: topic.id,
@@ -99,5 +119,7 @@ export async function POST(
     });
     return noStoreJson({ error: FORUM_CONTENT_REVIEW_ERROR }, 422);
   }
-  return noStoreJson({ ok: true, post: serializePost(post) }, 201);
+  notifyReply(getDb(), { actorId: active.user.id, topicId: topic.id, postId: post.id, content });
+  refreshBadges(getDb(), active.user.id);
+  return noStoreJson({ ok: true, post: serializePost(post, active.user.id) }, 201);
 }

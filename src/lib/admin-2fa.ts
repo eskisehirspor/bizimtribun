@@ -1,3 +1,4 @@
+import { can, isStaffRole } from "./permissions";
 import type Database from "better-sqlite3";
 import { hmac, newToken } from "./crypto";
 import { randomBytes } from "crypto";
@@ -11,6 +12,7 @@ import { decryptSecret, encryptSecret } from "./secret-box";
 import {
   generateTotpSecret,
   totpOtpAuthUrl,
+  matchTotpStep,
   verifyTotpCode,
 } from "./totp";
 
@@ -42,7 +44,7 @@ export function isAdminTotpEnabled(user: {
   role?: string;
   totp_enabled?: number | null;
 }) {
-  return user.role === "admin" && Number(user.totp_enabled) === 1;
+  return isStaffRole(user.role) && Number(user.totp_enabled) === 1;
 }
 
 export function passwordLoginNextStep(user: {
@@ -164,8 +166,13 @@ export function startTotpSetup(
   db: Database.Database,
   user: { id: number; username: string; role: string },
 ) {
-  if (user.role !== "admin") {
+  if (!can(user.role, "security.self")) {
     return { ok: false as const, error: "Bu işlem için yetkin yok.", status: 403 };
+  }
+  // A session alone must not replace a working authenticator: turn 2FA off
+  // first, which needs the current code.
+  if (totpEnabledOn(db, user.id)) {
+    return { ok: false as const, error: "2FA zaten açık. Yeniden kurmak için önce mevcut kodla kapat.", status: 409 };
   }
   const secret = generateTotpSecret();
   const now = Date.now();
@@ -282,12 +289,16 @@ function verifyAdminSecondFactor(
   secretEnc: string | null,
   code: string,
 ) {
-  const totpOk = secretEnc
-    ? (() => {
-        const secret = decryptSecret(secretEnc);
-        return secret ? verifyTotpCode(secret, code) : false;
-      })()
-    : false;
+  const secret = secretEnc ? decryptSecret(secretEnc) : null;
+  const step = secret ? matchTotpStep(secret, code) : null;
+  // Each code works once: a step at or before the last accepted one is a replay.
+  const totpOk =
+    step != null &&
+    db
+      .prepare(
+        `UPDATE users SET totp_last_step = ? WHERE id = ? AND (totp_last_step IS NULL OR totp_last_step < ?)`,
+      )
+      .run(step, userId, step).changes === 1;
   if (totpOk) return { ok: true as const, via: "totp" as const };
   if (consumeRecoveryCode(db, userId, code)) {
     return { ok: true as const, via: "recovery" as const };
@@ -411,7 +422,7 @@ export function completeLoginChallenge(
         totp_secret_enc: string | null;
       }
     | undefined;
-  if (!user || user.role !== "admin" || Number(user.totp_enabled) !== 1) {
+  if (!user || !can(user.role, "security.self") || Number(user.totp_enabled) !== 1) {
     return { ok: false, error: "Doğrulama kodu hatalı.", status: 401 };
   }
 

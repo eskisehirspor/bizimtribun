@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { cityCanonical } from "@/lib/city-seo";
+import { btnAccent } from "@/components/ui";
 
 type Props = {
   slug: string;
@@ -36,7 +37,7 @@ export default function CityShare({ slug, headline, summary }: Props) {
     <button
       type="button"
       onClick={() => void share()}
-      className="font-anton text-[14px] border-[3px] border-black bg-[#FFEA00] px-4 py-2 shadow-[4px_4px_0_black]"
+      className={`${btnAccent} shadow-[4px_4px_0_black]`}
     >
       {copied ? "KOPYALANDI" : "PAYLAŞ"}
     </button>

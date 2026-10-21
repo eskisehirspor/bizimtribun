@@ -6,9 +6,7 @@ process.env.BIZIM_TRIBUN_TEST = "1";
 process.env.TRUST_PROXY = "forwarded";
 process.env.APP_SECRET =
   process.env.APP_SECRET || "http-integration-test-secret-32ch";
-if (!process.env.PHONE_VERIFICATION_ENABLED) {
-  process.env.PHONE_VERIFICATION_ENABLED = "false";
-}
+process.env.SMS_PROVIDER = "dev";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bt-http-"));
 process.env.BIZIM_TRIBUN_DB = path.join(dir, "boot.db");

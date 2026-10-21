@@ -1,15 +1,22 @@
 import "./env-init";
-import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { getDb, resetDbForTests } from "@/lib/db";
+import { castFanVote } from "@/lib/fan-votes";
 import {
   ADMIN_2FA_COOKIE,
   SESSION_COOKIE,
-  VOTE_GRANT_COOKIE,
+  SIGNUP_TICKET_COOKIE,
 } from "../../lib/policy";
 import { runWithTestHeaders } from "../../lib/request";
+import { hashPassword } from "../../lib/password";
+import { POST as login } from "../../app/api/auth/login/route";
+import { POST as otpRequest } from "../../app/api/auth/otp/request/route";
+import { POST as otpVerify } from "../../app/api/auth/otp/verify/route";
+import { POST as signup } from "../../app/api/auth/signup/route";
+import { PRIVACY_NOTICE_VERSION, TERMS_VERSION } from "@/lib/policy";
+import { recordLegalAcceptance } from "@/lib/legal";
 
 export const TEST_PASSWORD = "Passw0rd!";
 export const ORIGIN = "http://localhost:3000";
@@ -31,10 +38,6 @@ export function setNodeEnv(value: string | undefined) {
   const env = process.env as { NODE_ENV?: string };
   if (value == null) delete env.NODE_ENV;
   else env.NODE_ENV = value;
-}
-
-export function setPhoneVerification(on: boolean) {
-  process.env.PHONE_VERIFICATION_ENABLED = on ? "true" : "false";
 }
 
 export async function invoke(
@@ -101,9 +104,9 @@ export function sessionCookie(res: Response) {
   return token ? `${SESSION_COOKIE}=${token}` : "";
 }
 
-export function grantCookie(res: Response) {
-  const token = cookieValue(setCookies(res), VOTE_GRANT_COOKIE);
-  return token ? `${VOTE_GRANT_COOKIE}=${token}` : "";
+export function signupCookie(res: Response) {
+  const token = cookieValue(setCookies(res), SIGNUP_TICKET_COOKIE);
+  return token ? `${SIGNUP_TICKET_COOKIE}=${token}` : "";
 }
 
 export function admin2faCookie(res: Response) {
@@ -149,24 +152,6 @@ export function assertNoSensitiveLeak(payload: unknown, extra: string[] = []) {
   }
 }
 
-export function censusBody(over: {
-  email: string;
-  phone: string;
-  fingerprint?: string;
-}) {
-  return {
-    firstName: "Ahmet",
-    lastName: "Yılmaz",
-    phone: over.phone,
-    email: over.email,
-    teamId: "galatasaray",
-    city: "İstanbul",
-    fingerprint: over.fingerprint || randomBytes(16).toString("hex"),
-    kvkk: true as const,
-    riza: true as const,
-  };
-}
-
 export function authRegisterBody(over: {
   username: string;
   email: string;
@@ -185,6 +170,122 @@ export function authRegisterBody(over: {
   };
 }
 
+/**
+ * An account made by the old password sign-up (closed now): password,
+ * e-mail, unverified phone, no vote. Signs in with the password route and
+ * returns that response, so tests see a real session cookie.
+ */
+export async function legacyPasswordUser(opts: {
+  body: ReturnType<typeof authRegisterBody>;
+  ip?: string;
+}) {
+  const b = opts.body;
+  const now = new Date().toISOString();
+  const info = getDb()
+    .prepare(
+      `INSERT INTO users
+       (username, username_norm, display_name, email, email_norm, password_hash,
+        team_id, status, role, created_at, updated_at,
+        first_name, last_name, birth_date, phone, phone_norm, city)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'user', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      b.username,
+      b.username.toLowerCase(),
+      `${b.firstName} ${b.lastName}`,
+      b.email,
+      b.email.toLowerCase(),
+      await hashPassword(b.password),
+      b.teamId,
+      now,
+      now,
+      b.firstName,
+      b.lastName,
+      b.birthDate,
+      `+90${b.phone}`,
+      b.phone,
+      b.city,
+    );
+  const id = Number(info.lastInsertRowid);
+  const res = await invoke(login, {
+    method: "POST",
+    path: "/api/auth/login",
+    body: { login: b.username, password: b.password },
+    ip: opts.ip,
+  });
+  if (res.status !== 200) throw new Error(`legacy login ${res.status}`);
+  return {
+    status: res.status,
+    res: res.res,
+    json: { user: { id, role: "user" } },
+    cookie: sessionCookie(res.res),
+  };
+}
+
+/** Full SMS sign-up: request code → verify → username + permanent team. */
+export async function smsSignup(opts: {
+  phone: string;
+  username: string;
+  teamId?: string;
+  city?: string | null;
+  ip?: string;
+}) {
+  const ip = opts.ip ?? "203.0.113.200";
+  const sent = await invoke(otpRequest, {
+    method: "POST",
+    path: "/api/auth/otp/request",
+    body: { phone: opts.phone },
+    ip,
+  });
+  if (sent.status !== 200) throw new Error(`otp request ${sent.status} ${sent.text}`);
+  const code = (sent.json as { devCode: string }).devCode;
+  const verified = await invoke(otpVerify, {
+    method: "POST",
+    path: "/api/auth/otp/verify",
+    body: { phone: opts.phone, code },
+    ip,
+  });
+  if (verified.status !== 200) throw new Error(`otp verify ${verified.status} ${verified.text}`);
+  const done = await invoke(signup, {
+    method: "POST",
+    path: "/api/auth/signup",
+    cookie: signupCookie(verified.res),
+    ip,
+    body: {
+      username: opts.username,
+      teamId: opts.teamId ?? "galatasaray",
+      city: opts.city === undefined ? "İstanbul" : opts.city,
+      confirmTeamLocked: true,
+      ...LEGAL_OK,
+    },
+  });
+  if (done.status !== 200) throw new Error(`signup ${done.status} ${done.text}`);
+  const user = (done.json as { user: { id: number; username: string } }).user;
+  return { id: user.id, username: user.username, cookie: sessionCookie(done.res), res: done.res };
+}
+
+export function markPhoneVerified(userId: number) {
+  const now = new Date().toISOString();
+  getDb()
+    .prepare(`UPDATE users SET phone_verified_at = ?, updated_at = ? WHERE id = ?`)
+    .run(now, now, userId);
+  // Old password accounts never saw the current texts; tests treat them as having accepted.
+  recordLegalAcceptance(getDb(), {
+    userId,
+    source: "reaccept",
+    accepted: [
+      { doc: "terms", version: TERMS_VERSION },
+      { doc: "privacy", version: PRIVACY_NOTICE_VERSION },
+    ],
+  });
+}
+
+/** Gives a phone-verified test account its one team vote (team tribunes need it). */
+export function castTestVote(userId: number, teamId = "galatasaray") {
+  const res = castFanVote(getDb(), { userId, teamId, city: null });
+  if (!res.ok) throw new Error(`vote ${res.code}`);
+}
+
 export function markEmailVerified(userId: number) {
   const now = new Date().toISOString();
   getDb()
@@ -197,3 +298,12 @@ export function markEmailVerified(userId: number) {
 export function trPhone(n: number) {
   return `532${String(1000000 + n).slice(-7)}`;
 }
+
+/** The consent fields the sign-up form sends when both boxes are ticked. */
+export const LEGAL_OK = {
+  acceptTerms: true,
+  acknowledgePrivacy: true,
+  confirmAge: true,
+  termsVersion: TERMS_VERSION,
+  privacyVersion: PRIVACY_NOTICE_VERSION,
+} as const;

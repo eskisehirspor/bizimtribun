@@ -177,16 +177,101 @@ const RAW: Row[] = [
   ["nazillispor", "Nazillispor", "Aydın", "bal", "#111111"],
 ];
 
-function initials(name: string) {
-  const parts = name.replace(/FK|SK|A\.Ş\.?/gi, "").trim().split(/\s+/);
-  if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
+export function initials(name: string) {
+  const parts = name.replace(/\b(FK|SK|A\.Ş\.?)(?=\s|$)/gi, "").trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 3).toLocaleUpperCase("tr-TR");
   return parts
     .filter((p) => !/^\d+$/.test(p))
     .slice(0, 3)
     .map((p) => p[0])
     .join("")
-    .toUpperCase();
+    .toLocaleUpperCase("tr-TR");
 }
+
+/** Badges drawn differently from the team colours, as the clubs are usually shown. */
+const BADGE_OVERRIDE: Record<string, { bg: string; fg: string; bar: [string, string] }> = {
+  besiktas: { bg: "#FFFFFF", fg: "#111111", bar: ["#FFFFFF", "#111111"] },
+  altay: { bg: "#FFFFFF", fg: "#111111", bar: ["#FFFFFF", "#111111"] },
+};
+
+function luminance(hex: string) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return 0;
+  const [r, g, b] = [0, 2, 4].map((i) => {
+    const c = parseInt(m[1].slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/**
+ * Colours for the square team badge: background, a code colour that stays
+ * readable on it (dark teams used to get black text on black), and the
+ * two-colour bar along the bottom.
+ */
+export function teamBadge(team: Pick<Team, "id" | "bleed" | "accent">) {
+  const fixed = BADGE_OVERRIDE[team.id];
+  if (fixed) return fixed;
+  const fg = luminance(team.bleed) > 0.18 ? "#111111" : "#FFFFFF";
+  return { bg: team.bleed, fg, bar: [team.bleed, team.accent] as [string, string] };
+}
+
+/** Legal-form and club suffixes that say nothing about which team it is. */
+const SHORT_NOISE = /^(FK|SK|SFK|FSK|A\.?Ş\.?|\d+)$/i;
+
+/**
+ * Three-letter code shown in team badges. Hand-picked codes win (common
+ * broadcast usage, and no two catalog teams share one); otherwise the first
+ * three letters of a one-word name, or the initials of a longer one.
+ */
+export function teamShort(id: string, name: string) {
+  const fixed = SHORT_CODE[id];
+  if (fixed) return fixed;
+  const words = name.trim().split(/\s+/).filter((w) => !SHORT_NOISE.test(w));
+  if (words.length === 0) return name.slice(0, 3).toLocaleUpperCase("tr-TR");
+  const code =
+    words.length === 1
+      ? words[0].slice(0, 3)
+      : words.length === 2
+        ? words[0][0] + words[1].slice(0, 2)
+        : words.slice(0, 3).map((w) => w[0]).join("");
+  return code.toLocaleUpperCase("tr-TR");
+}
+
+const SHORT_CODE: Record<string, string> = {
+  eskisehirspor: "ESK",
+  trabzonspor: "TS",
+  besiktas: "BJK",
+  "istanbul-basaksehir": "BŞK",
+  "caykur-rizespor": "RİZ",
+  "fatih-karagumruk": "FKG",
+  "adana-demirspor": "ADS",
+  "ankara-demirspor": "ADM",
+  keciorengucu: "KEÇ",
+  "mke-ankaragucu": "MKE",
+  galata: "GLT",
+  "1461-trabzon": "T61",
+  "alanya-1221": "ALY",
+  kastamonuspor: "KST",
+  "beykoz-anadoluspor": "BKA",
+  "corluspor-1947": "ÇRL",
+  "24-erzincanspor": "EZC",
+  "karacabey-belediyespor": "KRC",
+  "karakopru-belediyespor": "KKP",
+  altinordu: "AOR",
+  "karaman-fk": "KRM",
+  karsiyaka: "KSK",
+  "adana-01": "A01",
+  "68-aksaray": "AKS",
+  "arnavutkoy-belediyespor": "ARN",
+  ayvalikgucu: "AYV",
+  kirklarelispor: "KLR",
+  kirikkale: "KKL",
+  kirsehir: "KRŞ",
+  diyarbekirspor: "DYB",
+  "52-orduspor": "O52",
+  "1926-bulancakspor": "BLC",
+};
 
 const ACCENT: Record<string, string> = {
   galatasaray: "#FFD100",
@@ -320,7 +405,7 @@ function secondColor(id: string, bleed: string) {
 export const TEAMS: Team[] = RAW.map(([id, name, city, league, bleed]) => ({
   id,
   name,
-  short: initials(name),
+  short: teamShort(id, name),
   city,
   league,
   bleed,
@@ -377,6 +462,18 @@ export const FORUM_ACTIVE_TEAM_IDS = [
 
 export function isForumActiveTeam(id: string) {
   return FORUM_ACTIVE_TEAM_IDS.includes(id);
+}
+
+export function leaguePaper(league: string) {
+  return PAPER[league as LeagueId] ?? "#EDE6DA";
+}
+
+export function resolveTeamAlias(id: string) {
+  return ALIAS[id] || id;
+}
+
+export function isLeagueId(value: string): value is LeagueId {
+  return (LEAGUE_ORDER as string[]).includes(value);
 }
 
 export function getTeam(id: string) {

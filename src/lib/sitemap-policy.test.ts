@@ -5,7 +5,6 @@ import { CITIES } from "./cities";
 import { FORUM_ACTIVE_TEAM_IDS, TEAMS } from "./teams";
 import {
   SITEMAP_MAX_URLS,
-  activeForumSitemapEntries,
   buildPublicSitemap,
   publicTopicSitemapEntries,
   staticSitemapEntries,
@@ -20,11 +19,28 @@ function openDb() {
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL DEFAULT '',
       league TEXT NOT NULL DEFAULT 'super',
-      is_forum_active INTEGER NOT NULL DEFAULT 0
+      is_forum_active INTEGER NOT NULL DEFAULT 0,
+      is_active INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE TABLE fan_votes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      team_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active'
+    );
+    CREATE TABLE users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL,
+      profile_visibility TEXT NOT NULL DEFAULT 'members',
+      status TEXT NOT NULL DEFAULT 'active',
+      banned_at TEXT,
+      deleted_at TEXT,
+      updated_at TEXT NOT NULL DEFAULT '2026-09-01T00:00:00.000Z'
     );
     CREATE TABLE forum_topics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_id TEXT NOT NULL,
+      board TEXT NOT NULL DEFAULT 'team',
+      city TEXT,
+      team_id TEXT,
       title TEXT NOT NULL DEFAULT 't',
       content TEXT NOT NULL DEFAULT 'c',
       created_at TEXT NOT NULL,
@@ -83,52 +99,14 @@ test("static sitemap keeps home, 81 il, /takimlar, /kvkk", () => {
   assert.ok(urls.some((u) => u.endsWith("/il/istanbul")));
 });
 
-test("25 aktif Tribün sitemap'te; inactive yok", () => {
+test("team tribunes are members-only and stay out of the sitemap", () => {
   const db = openDb();
   seedCatalog(db);
-  const forums = activeForumSitemapEntries(db, BASE);
-  const urls = forums.map((e) => e.url);
-  assert.equal(forums.length, 25);
-  assert.equal(FORUM_ACTIVE_TEAM_IDS.length, 25);
-  for (const id of FORUM_ACTIVE_TEAM_IDS) {
-    assert.ok(urls.includes(`${BASE}/takim/${id}/forum`));
-  }
-  assert.equal(urls.some((u) => u.includes("/takim/bandirmaspor/")), false);
-  assert.equal(urls.length, new Set(urls).size);
-});
-
-test("public topic sitemap'te; held/deleted/inactive team topic yok", () => {
-  const db = openDb();
-  seedCatalog(db);
-  const liveAt = "2026-09-01T12:00:00.000Z";
-  const publicId = insertTopic(db, {
-    teamId: "galatasaray",
-    updatedAt: liveAt,
-  });
-  insertTopic(db, {
-    teamId: "galatasaray",
-    updatedAt: liveAt,
-    heldAt: liveAt,
-  });
-  insertTopic(db, {
-    teamId: "galatasaray",
-    updatedAt: liveAt,
-    deletedAt: liveAt,
-  });
-  insertTopic(db, {
-    teamId: "bandirmaspor",
-    updatedAt: liveAt,
-  });
-
-  const topics = publicTopicSitemapEntries(db, BASE, 1000);
-  const urls = topics.map((e) => e.url);
-  assert.ok(urls.includes(`${BASE}/forum/konu/${publicId}`));
-  assert.equal(urls.length, 1);
-  assert.equal(topics[0]?.lastModified?.toISOString(), liveAt);
-
-  const all = buildPublicSitemap(db, BASE);
-  const topicUrls = all.map((e) => e.url).filter((u) => u.includes("/forum/konu/"));
-  assert.deepEqual(topicUrls, [`${BASE}/forum/konu/${publicId}`]);
+  const teamTopic = insertTopic(db, { teamId: "galatasaray", updatedAt: "2026-09-01T12:00:00.000Z" });
+  const urls = buildPublicSitemap(db, BASE).map((e) => e.url);
+  assert.equal(urls.some((u) => /\/takim\/[^/]+\/forum/.test(u)), false);
+  assert.equal(urls.includes(`${BASE}/forum/konu/${teamTopic}`), false);
+  assert.equal(publicTopicSitemapEntries(db, BASE, 1000).length, 0);
 });
 
 test("private routes and post URLs are not in sitemap", () => {
@@ -161,36 +139,45 @@ test("private routes and post URLs are not in sitemap", () => {
   assert.equal(urls.length, new Set(urls).size);
 });
 
-test("forum lastModified is latest public topic activity", () => {
-  const db = openDb();
-  seedCatalog(db);
-  insertTopic(db, {
-    teamId: "galatasaray",
-    updatedAt: "2026-08-01T00:00:00.000Z",
-  });
-  insertTopic(db, {
-    teamId: "galatasaray",
-    updatedAt: "2026-09-02T15:30:00.000Z",
-  });
-  insertTopic(db, {
-    teamId: "galatasaray",
-    updatedAt: "2026-09-03T00:00:00.000Z",
-    heldAt: "2026-09-03T00:00:00.000Z",
-  });
-  const gs = activeForumSitemapEntries(db, BASE).find((e) =>
-    e.url.endsWith("/takim/galatasaray/forum"),
-  );
-  assert.equal(gs?.lastModified?.toISOString(), "2026-09-02T15:30:00.000Z");
-  const empty = activeForumSitemapEntries(db, BASE).find((e) =>
-    e.url.endsWith("/takim/fenerbahce/forum"),
-  );
-  assert.equal(empty?.lastModified, undefined);
-});
-
 test("topic query respects sitemap URL budget", () => {
   assert.ok(SITEMAP_MAX_URLS <= 50_000);
   const db = openDb();
   seedCatalog(db);
   const sliced = publicTopicSitemapEntries(db, BASE, 0);
   assert.equal(sliced.length, 0);
+});
+
+test("team pages, general topics (not old province topics), and only public profiles", () => {
+  const db = openDb();
+  seedCatalog(db);
+  db.prepare(`UPDATE teams SET is_active = 0 WHERE id IN ('bandirmaspor', 'sakaryaspor')`).run();
+  db.prepare(`INSERT INTO fan_votes (team_id) VALUES ('sakaryaspor')`).run();
+  const at = "2026-09-04T10:00:00.000Z";
+  const general = Number(
+    db
+      .prepare(`INSERT INTO forum_topics (board, team_id, created_at, updated_at) VALUES ('general', NULL, ?, ?)`)
+      .run(at, at).lastInsertRowid,
+  );
+  const city = Number(
+    db
+      .prepare(`INSERT INTO forum_topics (board, city, created_at, updated_at) VALUES ('city', 'Eskişehir', ?, ?)`)
+      .run(at, at).lastInsertRowid,
+  );
+  db.prepare(`INSERT INTO users (username, profile_visibility) VALUES ('acik', 'public'), ('kapali', 'members')`).run();
+  db.prepare(`INSERT INTO users (username, profile_visibility, deleted_at) VALUES ('silinen', 'public', ?)`).run(at);
+
+  const urls = buildPublicSitemap(db, BASE).map((e) => e.url);
+  assert.ok(urls.includes(`${BASE}/takim/galatasaray`));
+  assert.ok(urls.includes(`${BASE}/takim/sakaryaspor`), "inactive team with votes stays");
+  assert.equal(urls.includes(`${BASE}/takim/bandirmaspor`), false);
+  assert.ok(urls.includes(`${BASE}/forum/konu/${general}`));
+  assert.equal(urls.includes(`${BASE}/forum/konu/${city}`), false);
+  assert.ok(urls.includes(`${BASE}/u/acik`));
+  assert.equal(urls.some((u) => u.endsWith("/u/kapali") || u.endsWith("/u/silinen")), false);
+
+  const closed = buildPublicSitemap(db, BASE, new Date(), { generalBoardOpen: false }).map(
+    (e) => e.url,
+  );
+  assert.equal(closed.includes(`${BASE}/forum/konu/${general}`), false);
+  assert.equal(closed.includes(`${BASE}/forum/milli-takim`), false);
 });

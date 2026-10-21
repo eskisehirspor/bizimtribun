@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { requireActiveUser, requireForumWriter } from "./auth";
-import { FORUM_EMAIL_UNVERIFIED_ERROR } from "./policy";
+import { FORUM_PHONE_UNVERIFIED_ERROR } from "./policy";
 import type { UserRow } from "./users";
+import { LEGAL_PENDING_ERROR } from "./legal";
+
+// Legal acceptance is covered by the HTTP tests; here it is always current.
+const w = (u: UserRow | undefined) => requireForumWriter(u, () => false);
 
 function row(over: Partial<UserRow> = {}): UserRow {
   return {
@@ -32,23 +36,27 @@ function row(over: Partial<UserRow> = {}): UserRow {
     totp_enabled: 0,
     totp_secret_enc: null,
     email_verified_at: null,
+    phone_verified_at: null,
+    deleted_at: null,
+    terms_version: null,
+    terms_accepted_at: null,
     ...over,
   };
 }
 
 test("requireForumWriter: unverified 403, verified ok, banned first", () => {
-  const guest = requireForumWriter(undefined);
+  const guest = w(undefined);
   assert.equal(guest.ok, false);
   if (!guest.ok) assert.equal(guest.status, 401);
 
-  const unverified = requireForumWriter(row());
+  const unverified = w(row());
   assert.equal(unverified.ok, false);
   if (!unverified.ok) {
     assert.equal(unverified.status, 403);
-    assert.equal(unverified.error, FORUM_EMAIL_UNVERIFIED_ERROR);
+    assert.equal(unverified.error, FORUM_PHONE_UNVERIFIED_ERROR);
   }
 
-  const banned = requireForumWriter(
+  const banned = w(
     row({ status: "banned", banned_at: "2026-01-02T00:00:00.000Z" }),
   );
   assert.equal(banned.ok, false);
@@ -57,11 +65,11 @@ test("requireForumWriter: unverified 403, verified ok, banned first", () => {
     assert.equal(banned.error, "Hesap askıya alınmış.");
   }
 
-  const bannedUnverified = requireForumWriter(
+  const bannedUnverified = w(
     row({
       status: "banned",
       banned_at: "2026-01-02T00:00:00.000Z",
-      email_verified_at: null,
+      phone_verified_at: null,
     }),
   );
   assert.equal(bannedUnverified.ok, false);
@@ -69,27 +77,31 @@ test("requireForumWriter: unverified 403, verified ok, banned first", () => {
     assert.equal(bannedUnverified.error, "Hesap askıya alınmış.");
   }
 
-  const expiredBan = requireForumWriter(
+  const expiredBan = w(
     row({
       status: "banned",
       banned_at: "2026-01-01T00:00:00.000Z",
       ban_expires_at: "2026-01-02T00:00:00.000Z",
-      email_verified_at: "2026-01-03T00:00:00.000Z",
+      phone_verified_at: "2026-01-03T00:00:00.000Z",
     }),
   );
   assert.equal(expiredBan.ok, true);
 
-  const adminUnverified = requireForumWriter(row({ role: "admin" }));
+  const adminUnverified = w(row({ role: "admin" }));
   assert.equal(adminUnverified.ok, false);
   if (!adminUnverified.ok) {
-    assert.equal(adminUnverified.error, FORUM_EMAIL_UNVERIFIED_ERROR);
+    assert.equal(adminUnverified.error, FORUM_PHONE_UNVERIFIED_ERROR);
   }
 
-  const verified = requireForumWriter(
-    row({ email_verified_at: "2026-01-03T00:00:00.000Z" }),
+  const verified = w(
+    row({ phone_verified_at: "2026-01-03T00:00:00.000Z" }),
   );
   assert.equal(verified.ok, true);
 
   const active = requireActiveUser(row());
   assert.equal(active.ok, true);
+
+  const outdated = requireForumWriter(row({ phone_verified_at: "2026-01-03T00:00:00.000Z" }), () => true);
+  assert.equal(outdated.ok, false);
+  if (!outdated.ok) assert.equal(outdated.error, LEGAL_PENDING_ERROR);
 });

@@ -20,11 +20,12 @@ Copy `.env.example` and set at least:
 | `BIZIM_TRIBUN_DB` | Absolute path to the SQLite file on persistent disk |
 | `APP_SECRET` | ≥ 32 random characters (session HMAC) |
 | `APP_URL` | Public HTTPS origin, no trailing slash |
-| `TRUST_PROXY` | `none` (default), `forwarded` (nginx), or `cloudflare` |
+| `TRUST_PROXY` | **Required in production:** `forwarded` (nginx) or `cloudflare`. `none` is for development only. |
 | `TRUST_PROXY_HOPS` | Hop count when `TRUST_PROXY=forwarded` (usually `1`) |
 | `RESEND_API_KEY` | Required to send mail |
 | `MAIL_FROM` | From address Resend accepts |
-| `PHONE_VERIFICATION_ENABLED` | `true` / `false` — vote OTP gate (SMS vendor still unset in prod) |
+| `SMS_PROVIDER` | `netgsm` or `twilio` (plus that provider's credentials). Unset = SMS sign-up/login closed (503) |
+| `TURNSTILE_SECRET_KEY` / `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Bot check before every SMS send. Required in production (fails closed) |
 | `DB_BACKUP_DIR` | Optional backup directory (default: `<db-dir>/backups`) |
 | `DB_BACKUP_RETENTION` | Optional; default `7` daily files |
 
@@ -76,14 +77,40 @@ Restore snapshots the current live file into `<db-dir>/restore-safety/` first, c
 
 ## Boot / migrations
 
-On first connection the process applies idempotent `CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN` / index creation, team catalog sync, pinned starter topics (skip if title exists), vote revoke/backfill, and **production demo-seed strip**. Failed boot closes the connection and does not keep a half-open singleton. Production also refuses to serve if `PRAGMA quick_check` is not `ok`.
+On first connection the process applies the idempotent baseline (`CREATE TABLE IF NOT EXISTS` / `ALTER TABLE ... ADD COLUMN`), then the ordered run-once migrations in `src/lib/migrations.ts` (recorded in `schema_migrations`), team catalog sync, pinned starter topics (skip if title exists), and removal of leftover demo ballots from old dev builds. **Take a backup (`npm run db:backup`) before deploying a build that adds a migration.** See [data-policy.md](data-policy.md). Failed boot closes the connection and does not keep a half-open singleton. Production also refuses to serve if `PRAGMA quick_check` is not `ok`.
 
-Team `is_forum_active` is reset from code on each boot (the 25 active tribunes). That is idempotent; it does not delete forum posts.
+Migrations shipped so far:
+
+| Id | What it does |
+| --- | --- |
+| `001_phone_accounts_and_fan_votes` | Phone accounts, roles, `fan_votes` (one immutable vote per account, DB triggers), `audit_log` |
+| `002_team_catalog_leagues_seasons` | Team catalog columns (active, province, colours), `leagues`, `seasons`, `team_seasons` |
+| `003_forum_boards_likes_reports_blocks` | Forum boards (team / general / province), edit history, likes, reports, member blocks |
+| `004_notifications` | In-site notifications |
+| `005_profiles_badges` | Profile fields, notification preferences, `user_badges` |
+| `006_site_settings` | `site_settings` (announcement, featured topics, maintenance, feature flags…) |
+| `007_query_indexes` | Indexes for province history and date-range counts |
+
+The team catalog in `src/lib/teams.ts` is synced on boot only into rows an admin has never edited (`admin_edited_at IS NULL`). Edits made in `/admin/takimlar` are kept across deploys. Nothing in the sync deletes votes or forum posts.
+
+## Site settings and maintenance
+
+`/admin/ayarlar` holds the announcement banner, featured topics, home-page leagues, home SEO texts and social links (admins), plus read-only maintenance mode and feature flags (super admins only). Every change is written to `audit_log`. In maintenance mode members cannot sign up, vote, post, like or report; staff can. Values are plain text and https links; nothing is rendered as HTML.
+
+## Share images
+
+Open Graph images (`/opengraph-image`, `/takim/<id>/opengraph-image`, `/il/<slug>/opengraph-image`) are drawn per request from live counts and carry the data time. They read the fonts in `assets/fonts` (SIL Open Font License, licence files next to them), so run `next start` from the repository directory or copy `assets/` alongside the build.
 
 ## SMS
 
-`PHONE_VERIFICATION_ENABLED=true` enforces phone OTP for votes. Production has no SMS vendor wired: OTP send fails closed until a provider is configured. Do not use the dev `data/last-otp.txt` inbox in production.
+Sign-up and sign-in are by SMS code. Set `SMS_PROVIDER` and that provider's credentials (see `.env.example`). Without them production answers 503 to code requests and creates no codes. `SMS_PROVIDER=dev` is refused in production. The Netgsm and Twilio adapters are written against their public APIs but **have not been tested with a live account**; send one real code to your own phone before opening sign-ups.
+
+## First super admin
+
+There is no admin sign-up and no default admin. See [admin-bootstrap.md](admin-bootstrap.md). Roles and what each can do: [admin.md](admin.md). Every staff account should turn on TOTP at `/admin/guvenlik`; once it is on, sign-in asks for it.
 
 ## Trusted proxy
 
-Leave `TRUST_PROXY=none` unless the process sits behind a proxy you control. Forged `X-Forwarded-For` is ignored unless you opt in.
+Production must run behind a proxy you control and say which one: `TRUST_PROXY=forwarded` (nginx, with `TRUST_PROXY_HOPS`) or `TRUST_PROXY=cloudflare`. With `none`, Next.js route handlers can't see the visitor's address, every request would share one IP and the per-IP limits (SMS codes, sign-up, forum) would lock the whole site after a few requests, so production refuses rate-limited requests until it is set. Forged `X-Forwarded-For` is ignored unless you opt in.
+
+With `cloudflare`, firewall the origin so only Cloudflare can reach it; otherwise anyone can send their own `CF-Connecting-IP`.

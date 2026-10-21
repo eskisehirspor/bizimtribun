@@ -1,3 +1,5 @@
+import { notifyModeration, notifyReply } from "../notifications";
+import { can, roleRank } from "../permissions";
 import type Database from "better-sqlite3";
 
 export const HELD_KINDS = ["topic", "post"] as const;
@@ -17,7 +19,7 @@ export function parseHeldId(raw: string | undefined | null) {
 
 export function heldModerationAdminGate(user: { role?: string } | null | undefined) {
   if (!user) return { ok: false as const, error: "Giriş gerekli.", status: 401 };
-  if (user.role !== "admin") {
+  if (!can(user.role, "forum.moderate")) {
     return { ok: false as const, error: "Bu işlem için yetkin yok.", status: 403 };
   }
   return { ok: true as const };
@@ -216,21 +218,23 @@ export function listHeldItems(db: Database.Database, offset: number, limit: numb
   const rows = db
     .prepare(
       `SELECT * FROM (
-         SELECT 'topic' as kind, t.id as id, t.team_id as teamId, tm.name as teamName,
+         SELECT 'topic' as kind, t.id as id, t.team_id as teamId,
+                COALESCE(tm.name, CASE t.board WHEN 'city' THEN t.city || ' Tribünü' ELSE 'Milli Takım Tribünü' END) as teamName,
                 t.title as title, t.content as content, t.held_at as heldAt,
                 t.user_id as userId, u.username as username, t.id as topicId
          FROM forum_topics t
          JOIN users u ON u.id = t.user_id
-         JOIN teams tm ON tm.id = t.team_id
+         LEFT JOIN teams tm ON tm.id = t.team_id
          WHERE t.held_at IS NOT NULL AND t.deleted_at IS NULL
          UNION ALL
-         SELECT 'post' as kind, p.id as id, t.team_id as teamId, tm.name as teamName,
+         SELECT 'post' as kind, p.id as id, t.team_id as teamId,
+                COALESCE(tm.name, CASE t.board WHEN 'city' THEN t.city || ' Tribünü' ELSE 'Milli Takım Tribünü' END) as teamName,
                 t.title as title, p.content as content, p.held_at as heldAt,
                 p.user_id as userId, u.username as username, p.topic_id as topicId
          FROM forum_posts p
          JOIN forum_topics t ON t.id = p.topic_id
          JOIN users u ON u.id = p.user_id
-         JOIN teams tm ON tm.id = t.team_id
+         LEFT JOIN teams tm ON tm.id = t.team_id
          WHERE p.held_at IS NOT NULL AND p.deleted_at IS NULL
        )
        ORDER BY heldAt ASC, kind ASC, id ASC
@@ -239,7 +243,7 @@ export function listHeldItems(db: Database.Database, offset: number, limit: numb
     .all(limit, offset) as Array<{
     kind: HeldKind;
     id: number;
-    teamId: string;
+    teamId: string | null;
     teamName: string;
     title: string;
     content: string;
@@ -310,6 +314,23 @@ export function approveHeldContent(
       targetTopicId: target.topicId,
       targetPostId: target.postId,
     });
+    if (kind === "post" && target.postId != null) {
+      const post = db.prepare(`SELECT content FROM forum_posts WHERE id = ?`).get(target.postId) as
+        | { content: string }
+        | undefined;
+      notifyReply(db, {
+        actorId: target.userId,
+        topicId: target.topicId,
+        postId: target.postId,
+        content: post?.content ?? "",
+      });
+    }
+    notifyModeration(db, {
+      userId: target.userId,
+      topicId: target.topicId,
+      postId: target.postId,
+      body: `İncelemedeki ${kind === "topic" ? "konun" : "yorumun"} onaylandı ve yayında.`,
+    });
     return { ok: true as const };
   });
   return run();
@@ -341,6 +362,12 @@ function applyRejectHeld(
     targetUserId: target.userId,
     targetTopicId: target.topicId,
     targetPostId: target.postId,
+  });
+  notifyModeration(db, {
+    userId: target.userId,
+    topicId: target.topicId,
+    postId: target.postId,
+    body: `İncelemedeki ${target.kind === "topic" ? "konun" : "yorumun"} topluluk kurallarına uymadığı için yayımlanmadı.`,
   });
   return { ok: true as const };
 }
@@ -378,7 +405,7 @@ export function banHeldAuthor(
   }
   const loaded = loadHeldTarget(db, kind, id);
   if (!loaded.ok) return loaded;
-  if (loaded.target.authorRole === "admin") {
+  if (roleRank(loaded.target.authorRole) >= 1) {
     return { ok: false, error: "Admin hesap banlanamaz.", status: 409 };
   }
 
@@ -394,7 +421,7 @@ export function banHeldAuthor(
       .prepare(
         `UPDATE users
          SET status = 'banned', banned_at = ?, ban_reason = ?, ban_expires_at = NULL, updated_at = ?
-         WHERE id = ? AND role != 'admin'`,
+         WHERE id = ? AND role NOT IN ('admin', 'super_admin')`,
       )
       .run(now, trimmed.slice(0, 200), now, loaded.target.userId);
     if (banned.changes !== 1) {

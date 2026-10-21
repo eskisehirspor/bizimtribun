@@ -1,3 +1,4 @@
+import { can } from "./permissions";
 import type Database from "better-sqlite3";
 import { getCityByName, getCityBySlug } from "./cities";
 import { isProvince } from "./provinces";
@@ -46,7 +47,7 @@ export function teamRequestAdminGate(user: { role?: string } | null | undefined)
   if (!user) {
     return { ok: false as const, error: "Giriş gerekli.", status: 401 };
   }
-  if (user.role !== "admin") {
+  if (!can(user.role, "team_requests.manage")) {
     return { ok: false as const, error: "Bu işlem için yetkin yok.", status: 403 };
   }
   return { ok: true as const };

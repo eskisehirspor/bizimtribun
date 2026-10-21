@@ -1,6 +1,6 @@
 /** Crawler policy only. Does not replace server-side auth or requireAdmin(). */
 
-export const ROBOTS_ALLOW = ["/", "/il/", "/takimlar", "/takim/", "/forum/"] as const;
+export const ROBOTS_ALLOW = ["/", "/il/", "/takimlar", "/takim/", "/forum", "/u/"] as const;
 
 export const ROBOTS_DISALLOW = [
   "/admin",
@@ -11,7 +11,12 @@ export const ROBOTS_DISALLOW = [
   "/dogrula",
   "/uye-dogrula",
   "/sil-verilerim",
-  "/takim/*/forum/yeni",
+  // Team tribunes are members-only.
+  "/takim/*/forum",
+  "/forum/*/yeni",
+  "/hesap",
+  "/bildirimler",
+  "/takim-sec",
 ] as const;
 
 export function robotsMetadata(appBase: string) {

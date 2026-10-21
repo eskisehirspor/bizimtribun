@@ -12,16 +12,20 @@ export function isProductionNodeEnv(nodeEnv = process.env.NODE_ENV) {
  * keeps `'unsafe-inline'` for script-src and does not use preload/HSTS extras.
  * `'unsafe-eval'` is development-only (React Refresh / Turbopack).
  */
+/** Cloudflare Turnstile (bot check before SMS sends) loads from this origin. */
+export const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
+
 export function contentSecurityPolicy(production: boolean): string {
   const scriptSrc = production
-    ? "script-src 'self' 'unsafe-inline'"
-    : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
+    ? `script-src 'self' 'unsafe-inline' ${TURNSTILE_ORIGIN}`
+    : `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${TURNSTILE_ORIGIN}`;
   const connectSrc = production
-    ? "connect-src 'self'"
-    : "connect-src 'self' ws: wss:";
+    ? `connect-src 'self' ${TURNSTILE_ORIGIN}`
+    : `connect-src 'self' ws: wss: ${TURNSTILE_ORIGIN}`;
   return [
     "default-src 'self'",
     scriptSrc,
+    `frame-src ${TURNSTILE_ORIGIN}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self'",

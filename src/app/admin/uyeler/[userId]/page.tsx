@@ -3,19 +3,33 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { useAdminCan, useAdminViewer } from "@/components/admin/AdminShell";
+import { canBanRole, ROLE_LABELS } from "@/lib/permissions";
 import {
   AdminNotice,
   adminJson,
   formatWhen,
   useConfirmAction,
 } from "@/components/admin/AdminUi";
+import { btnAccent, btnDanger, btnSecondary } from "@/components/ui";
 
 type Detail = {
   id: number;
   username: string;
   displayName: string;
-  email: string;
-  phone: string | null;
+  email: string | null;
+  phoneMasked: string | null;
+  phoneVerified: boolean;
+  deleted: boolean;
+  vote: {
+    teamId: string;
+    teamName: string | null;
+    city: string;
+    castAt: string;
+    status: string;
+    voidedAt: string | null;
+    voidReason: string | null;
+  } | null;
   firstName: string | null;
   lastName: string | null;
   birthDate: string | null;
@@ -51,6 +65,9 @@ type Detail = {
 export default function AdminUserDetailPage() {
   const params = useParams<{ userId: string }>();
   const { ask, dialog } = useConfirmAction();
+  const can = useAdminCan();
+  const viewer = useAdminViewer();
+  const [nextRole, setNextRole] = useState("user");
   const [user, setUser] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,6 +75,7 @@ export default function AdminUserDetailPage() {
     try {
       const data = await adminJson<{ user: Detail }>(`/api/admin/users/${params.userId}`);
       setUser(data.user);
+      setNextRole(data.user.role);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Yüklenemedi.");
@@ -74,7 +92,7 @@ export default function AdminUserDetailPage() {
   return (
     <div>
       {dialog}
-      <Link href="/admin/uyeler" className="font-mono text-[11px] underline">
+      <Link href="/admin/uyeler" className="font-mono text-[12px] underline">
         ← üyeler
       </Link>
       <h2 className="font-anton text-[32px] leading-none mt-2">{user.username}</h2>
@@ -82,15 +100,27 @@ export default function AdminUserDetailPage() {
 
       <div className="grid sm:grid-cols-2 gap-2 mt-4 font-mono text-[12px]">
         {[
-          ["E-posta", user.email],
-          ["Telefon", user.phone || "—"],
-          ["Ad", user.firstName || "—"],
-          ["Soyad", user.lastName || "—"],
-          ["Doğum", user.birthDate || "—"],
+          ["E-posta", user.email || "—"],
+          ["Telefon", `${user.phoneMasked || "—"}${user.phoneVerified ? " (doğrulandı)" : " (doğrulanmadı)"}`],
+          ...(can("users.pii")
+            ? [
+                ["Ad", user.firstName || "—"],
+                ["Soyad", user.lastName || "—"],
+                ["Doğum", user.birthDate || "—"],
+              ]
+            : []),
           ["Şehir", user.city || "—"],
           ["Takım", user.teamName || user.teamId || "—"],
-          ["Rol", user.role],
-          ["Status", user.status],
+          [
+            "Taraftar oyu",
+            user.vote
+              ? `${user.vote.teamName || user.vote.teamId} • ${user.vote.city} • ${formatWhen(user.vote.castAt)}${
+                  user.vote.status === "void" ? ` • İPTAL: ${user.vote.voidReason || ""}` : ""
+                }`
+              : "yok",
+          ],
+          ["Rol", ROLE_LABELS[user.role] ?? user.role],
+          ["Status", user.deleted ? "silindi" : user.status],
           ["Kayıt", formatWhen(user.createdAt)],
           ["Son giriş", formatWhen(user.lastLoginAt)],
           ["Ban", user.banned ? "evet" : "hayır"],
@@ -99,17 +129,17 @@ export default function AdminUserDetailPage() {
           ["Ban gerekçe", user.banReason || "—"],
         ].map(([k, v]) => (
           <div key={k} className="border-[2px] border-black bg-[#FFFEFA] p-2">
-            <div className="opacity-50 text-[10px]">{k}</div>
+            <div className="opacity-50 text-[12px]">{k}</div>
             <div>{v}</div>
           </div>
         ))}
       </div>
 
       <div className="flex flex-wrap gap-2 mt-4">
-        {!user.banned && user.role !== "admin" && (
+        {!user.banned && !user.deleted && canBanRole(viewer.role, user.role) && (
           <button
             type="button"
-            className="font-anton border-[3px] border-black bg-[#C8102E] text-white px-3 py-2"
+            className={btnDanger}
             onClick={() =>
               ask({
                 title: "BANLA",
@@ -128,10 +158,10 @@ export default function AdminUserDetailPage() {
             BANLA
           </button>
         )}
-        {user.banned && (
+        {user.banned && canBanRole(viewer.role, user.role) && (
           <button
             type="button"
-            className="font-anton border-[3px] border-black bg-[#FFEA00] px-3 py-2"
+            className={btnAccent}
             onClick={() =>
               ask({
                 title: "BAN KALDIR",
@@ -150,32 +180,87 @@ export default function AdminUserDetailPage() {
             BAN KALDIR
           </button>
         )}
-        <button
-          type="button"
-          className="font-anton border-[3px] border-black bg-white px-3 py-2"
-          onClick={() =>
-            ask({
-              title: "ROL DEĞİŞTİR",
-              body:
-                user.role === "admin"
-                  ? "Bu hesabı user yapmak istiyorsun. Başka adminin rolü düşürülemez; son admin korunur."
-                  : "Bu hesabı admin yapmak istiyorsun.",
-              confirmLabel: "DEĞİŞTİR",
-              onConfirm: async (reason) => {
-                await adminJson(`/api/admin/users/${user.id}/role`, {
-                  method: "PUT",
-                  body: JSON.stringify({
-                    role: user.role === "admin" ? "user" : "admin",
-                    reason,
-                  }),
-                });
-                await load();
-              },
-            })
-          }
-        >
-          {user.role === "admin" ? "USER YAP" : "ADMIN YAP"}
-        </button>
+        {can("votes.void") && user.vote?.status === "active" && (
+          <button
+            type="button"
+            className={btnSecondary}
+            onClick={() =>
+              ask({
+                title: "OYU İPTAL ET",
+                body: "Oy sayımdan çıkar ve başka takıma taşınmaz. Üye yeniden oy veremez; yanlışlıkla iptal edildiyse yalnızca süper admin geri alabilir. İşlem denetim kaydına yazılır.",
+                confirmLabel: "İPTAL ET",
+                onConfirm: async (reason) => {
+                  await adminJson(`/api/admin/users/${user.id}/vote`, {
+                    method: "DELETE",
+                    body: JSON.stringify({ reason }),
+                  });
+                  await load();
+                },
+              })
+            }
+          >
+            OYU İPTAL ET
+          </button>
+        )}
+        {can("votes.restore") && user.vote?.status === "void" && !user.deleted && (
+          <button
+            type="button"
+            className={btnSecondary}
+            onClick={() =>
+              ask({
+                title: "İPTALİ GERİ AL",
+                body: "Oy, ilk verildiği takım ve ille aynen sayıma geri döner. Başka takıma taşınamaz. İşlem denetim kaydına yazılır.",
+                confirmLabel: "GERİ AL",
+                onConfirm: async (reason) => {
+                  await adminJson(`/api/admin/users/${user.id}/vote`, {
+                    method: "POST",
+                    body: JSON.stringify({ reason }),
+                  });
+                  await load();
+                },
+              })
+            }
+          >
+            İPTALİ GERİ AL
+          </button>
+        )}
+        {can("roles.manage") && !user.deleted && (
+          <div className="flex gap-2 items-center border-[3px] border-black bg-white px-2 py-1">
+            <select
+              value={nextRole}
+              onChange={(e) => setNextRole(e.target.value)}
+              className="font-mono text-[12px] bg-white"
+              aria-label="Yeni rol"
+            >
+              {Object.entries(ROLE_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              disabled={nextRole === user.role}
+              className="font-anton px-2 py-1 disabled:opacity-40"
+              onClick={() =>
+                ask({
+                  title: "ROL DEĞİŞTİR",
+                  body: `${user.username}: ${ROLE_LABELS[user.role] ?? user.role} → ${ROLE_LABELS[nextRole] ?? nextRole}. Oturumları kapanır; son süper admin korunur.`,
+                  confirmLabel: "DEĞİŞTİR",
+                  onConfirm: async (reason) => {
+                    await adminJson(`/api/admin/users/${user.id}/role`, {
+                      method: "PUT",
+                      body: JSON.stringify({ role: nextRole, reason }),
+                    });
+                    await load();
+                  },
+                })
+              }
+            >
+              ROLÜ UYGULA
+            </button>
+          </div>
+        )}
       </div>
 
       <h3 className="font-anton text-[22px] mt-6">FORUM KONULARI</h3>

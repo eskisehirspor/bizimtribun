@@ -92,3 +92,31 @@ body {
   background: #ffea00;
   color: #000;
 }
+
+/* Visible keyboard focus everywhere. Yellow ring with a black edge so it
+   also shows on yellow and black surfaces. Utilities can still override. */
+@layer base {
+  :focus-visible {
+    outline: 4px solid #ffea00;
+    outline-offset: 2px;
+  }
+  a:focus-visible,
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  [role="link"]:focus-visible,
+  summary:focus-visible {
+    box-shadow: 0 0 0 8px #000;
+  }
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    box-shadow: 0 0 0 7px #000;
+  }
+  button:not(:disabled),
+  [role="button"],
+  summary,
+  label:has(> input[type="checkbox"]),
+  label:has(> input[type="radio"]) {
+    cursor: pointer;
+  }
+}

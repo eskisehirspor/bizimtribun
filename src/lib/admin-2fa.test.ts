@@ -64,7 +64,11 @@ test("requireAdmin kapısı korunur", () => {
   const denied = evaluateAdminGate(user);
   assert.equal(denied.ok, false);
   if (!denied.ok) assert.equal(denied.status, 403);
-  const admin = { ...user, role: "admin" };
+  // Without TOTP an admin only reaches their own security settings.
+  const no2fa = { ...user, role: "admin", totp_enabled: 0 };
+  assert.equal(evaluateAdminGate(no2fa).ok, false);
+  assert.equal(evaluateAdminGate(no2fa, "security.self").ok, true);
+  const admin = { ...user, role: "admin", totp_enabled: 1 };
   assert.equal(evaluateAdminGate(admin).ok, true);
   const bannedAdmin = {
     ...admin,
@@ -92,6 +96,7 @@ function openDb() {
       status TEXT NOT NULL DEFAULT 'active',
       password_hash TEXT NOT NULL DEFAULT 'x',
       totp_enabled INTEGER NOT NULL DEFAULT 0,
+      totp_last_step INTEGER,
       totp_secret_enc TEXT,
       updated_at TEXT
     );
@@ -205,6 +210,12 @@ test("doğru TOTP → challenge tamamlanır, yanlış reddedilir", () => {
   });
   assert.equal(good.ok, true);
   if (good.ok) assert.equal(good.userId, admin);
+  // The same code can't be used twice.
+  const token3 = createLoginChallenge(db, admin);
+  const replay = completeLoginChallenge(db, token3, totpAt(started.secret, now)!, { ipHash: "login-ip-3" });
+  assert.equal(replay.ok, false);
+  // A session alone can't swap the authenticator while 2FA is on.
+  assert.equal(startTotpSetup(db, { id: admin, username: "mod", role: "admin" }).ok, false);
   db.close();
 });
 

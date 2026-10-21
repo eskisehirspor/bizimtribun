@@ -1,14 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { CITIES, cityLocative, getCityBySlug } from "./cities";
 import { cityCanonical, cityPageMetadata, citySeoTitle } from "./city-seo";
 import { integerPercents, rankCityTeams } from "./city-rank";
 import { PROVINCES } from "./provinces";
-import { SEED_DOMAIN } from "./seed-votes";
-import { liveVotesWhere } from "./votes";
 
 test("81 il slug route", () => {
   assert.equal(CITIES.length, 81);
@@ -39,20 +34,6 @@ test("citySlug doğru ili getiriyor", () => {
   assert.equal(ranked[0]?.teamId, "eskisehirspor");
   assert.equal(ranked[0]?.votes, 8);
   assert.equal(ranked.reduce((s, r) => s + r.votes, 0), 10);
-});
-
-test("production demo oyları sayılmıyor", () => {
-  const live = liveVotesWhere();
-  assert.match(live.sql, /revoked_at IS NULL/);
-  assert.match(live.sql, /deleted_at IS NULL/);
-  const dir = dirname(fileURLToPath(import.meta.url));
-  const votesSrc = readFileSync(join(dir, "votes.ts"), "utf8");
-  const cityStatsSrc = readFileSync(join(dir, "city-stats.ts"), "utf8");
-  assert.match(votesSrc, /email_norm NOT LIKE/);
-  assert.match(votesSrc, /isDemoRuntime/);
-  assert.match(votesSrc, /SEED_DOMAIN_LIKE/);
-  assert.equal(SEED_DOMAIN, "bizimtribun.demo");
-  assert.match(cityStatsSrc, /liveVotesWhere/);
 });
 
 test("il oranlarının toplamı doğru", () => {

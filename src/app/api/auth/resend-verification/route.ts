@@ -24,6 +24,11 @@ export async function POST(req: Request) {
     return noStoreJson({ ok: true, message: USER_VERIFY_ALREADY });
   }
 
+  if (!active.user.email) {
+    return noStoreJson({ error: "Hesabında kayıtlı e-posta yok." }, 400);
+  }
+  const email = active.user.email;
+
   const ip = await clientIp();
   const limited = userEmailResendLimited(ip, active.user.id);
   if (limited.limited) {
@@ -32,7 +37,7 @@ export async function POST(req: Request) {
 
   const raw = issueUserEmailToken(active.user.id);
   try {
-    await sendUserVerifyEmail(active.user.email, raw);
+    await sendUserVerifyEmail(email, raw);
   } catch {
     return noStoreJson(
       { error: "Doğrulama maili şu an gönderilemiyor." },
