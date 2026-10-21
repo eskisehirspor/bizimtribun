@@ -40,9 +40,9 @@ type Post = BoardInfo & {
   author: { id: number; username: string };
 };
 
-/** "Galatasaray", "Genel Tribün" or "İl: Eskişehir". */
+/** "Galatasaray", "Milli Takım Tribünü" or "İl: Eskişehir". */
 function boardName(row: BoardInfo) {
-  if (row.board === "general") return "Genel Tribün";
+  if (row.board === "general") return "Milli Takım Tribünü";
   if (row.board === "city") return row.city ? `İl: ${row.city}` : "İl tribünü";
   return row.teamName || row.teamId || "—";
 }
@@ -268,7 +268,7 @@ export default function AdminForumPage() {
             className={`mt-1 ${fieldClass}`}
           >
             <option value="">Hepsi</option>
-            <option value="board:general">Genel Tribün</option>
+            <option value="board:general">Milli Takım Tribünü</option>
             <optgroup label="Takım tribünleri">
               {forumTeams.map((t) => (
                 <option key={t.id} value={t.id}>

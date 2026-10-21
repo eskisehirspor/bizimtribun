@@ -4,7 +4,7 @@ Türkiye'nin il bazında taraftar sayımı ve taraftar forumu. Next.js 16 + SQLi
 
 - Üyelik ve giriş SMS koduyla; her hesap bir kez, kalıcı olarak bir takıma oy verir (veritabanı tetikleyicileriyle korunur).
 - Sayaçlar yalnızca aktif `fan_votes` kayıtlarından gelir; 81 il haritası, il ve takım sayfaları, eşitlikler eşitlik olarak gösterilir.
-- Forum: Genel Tribün, takım tribünleri (haftanın taraftarı meşalesiyle), Maç Günü kategorisi; beğeni, bildirim (site içi), rapor, engelleme.
+- Forum: Milli Takım Tribünü (herkese açık, eski Genel Tribün), takım tribünleri (haftanın taraftarı meşalesiyle), Maç Günü kategorisi; beğeni, bildirim (site içi), rapor, engelleme.
 - Profil (`/u/<kullanıcı>`), rozetler ve katkı puanı (oylarla ilgisi yok).
 - Yönetim paneli: üyeler, roller, takım/lig/sezon, moderasyon, raporlar, site ayarları, bakım modu, denetim kaydı.
 

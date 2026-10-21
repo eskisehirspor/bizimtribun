@@ -179,5 +179,5 @@ test("team pages, general topics (not old province topics), and only public prof
     (e) => e.url,
   );
   assert.equal(closed.includes(`${BASE}/forum/konu/${general}`), false);
-  assert.equal(closed.includes(`${BASE}/forum/genel`), false);
+  assert.equal(closed.includes(`${BASE}/forum/milli-takim`), false);
 });

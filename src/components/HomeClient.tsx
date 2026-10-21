@@ -15,6 +15,7 @@ import {
 import PitchDecor from "@/components/PitchDecor";
 import TurkeyMap from "@/components/TurkeyMap";
 import TeamColors from "@/components/TeamColors";
+import { MilliTag } from "@/components/AyYildiz";
 import { btnSm, chipClass, fieldClass } from "@/components/ui";
 
 /** Rows shown on phones before "Tümünü göster"; desktop scrolls inside the box. */
@@ -419,7 +420,7 @@ export default function HomeClient({
               {recentTopics.length === 0 && (
                 <p className="font-mono text-[13px]">
                   Henüz konu açılmadı.{" "}
-                  <Link href="/forum/genel" className="underline underline-offset-4">
+                  <Link href="/forum/milli-takim" className="underline underline-offset-4">
                     İlk konuyu sen aç
                   </Link>
                   .
@@ -438,9 +439,7 @@ export default function HomeClient({
                     {team ? (
                       <TeamColors team={team} size={10} />
                     ) : (
-                      <span className="shrink-0 border border-black px-1 text-[11px]">
-                        GENEL
-                      </span>
+                      <MilliTag />
                     )}
                     <span className="min-w-0 flex-1 truncate">{row.title}</span>
                     <span className="shrink-0 opacity-60">@{row.authorUsername}</span>

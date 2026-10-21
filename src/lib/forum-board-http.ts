@@ -36,7 +36,7 @@ import { notifyStaffNewTopic } from "./notifications";
 
 /**
  * One topic list/create implementation for every board: team tribunes,
- * "Genel Tribün" and province tribunes. Only how the board is resolved
+ * the Milli Takım Tribünü. Only how the board is resolved
  * differs between the routes.
  */
 export type ResolvedBoard = {
@@ -56,7 +56,7 @@ export function resolveTeamBoard(teamSlug: string): ResolvedBoard | null {
 
 export function resolveGeneralBoard(): ResolvedBoard | null {
   if (!getSettings().features.generalBoardOpen) return null;
-  return { ref: { kind: "general" }, info: { kind: "general", id: "genel", name: "Genel Tribün" } };
+  return { ref: { kind: "general" }, info: { kind: "general", id: "genel", name: "Milli Takım Tribünü" } };
 }
 
 const CreateBody = z.object({

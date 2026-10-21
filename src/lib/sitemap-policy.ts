@@ -145,7 +145,7 @@ export function buildPublicSitemap(
   const root = origin(base);
   const staticEntries = staticSitemapEntries(base, now);
   if (boards.generalBoardOpen) {
-    staticEntries.push({ url: `${root}/forum/genel`, lastModified: now, changeFrequency: "hourly", priority: 0.7 });
+    staticEntries.push({ url: `${root}/forum/milli-takim`, lastModified: now, changeFrequency: "hourly", priority: 0.7 });
   }
   const teamsPages = teamPageSitemapEntries(db, base);
   // Team tribunes are members-only, so neither their boards nor their topics are listed.

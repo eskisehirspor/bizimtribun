@@ -71,5 +71,5 @@ Province tribunes were removed. Their old topics stay in the database, hidden; o
 Each block is saved on its own and audited as `setting_<key>`. Text is stored as plain text
 (control characters and `<` `>` removed); links must be `https://` or a same-site path.
 Featured topic ids must point at live topics. Feature flags: new sign-ups, team requests,
-likes and the general board. Closing a board hides it and its topics
+likes and the Milli Takım Tribünü (stored as the general board; `/forum/genel` redirects to `/forum/milli-takim`). Closing a board hides it and its topics
 (including from the sitemap) without deleting anything; reopening brings them back.

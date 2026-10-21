@@ -28,7 +28,7 @@ const FEATURE_LABELS: Record<keyof Settings["features"], string> = {
   signupsOpen: "Yeni üyelik açık",
   teamRequestsOpen: "Takım talepleri açık",
   likesEnabled: "Beğeniler açık",
-  generalBoardOpen: "Genel Tribün açık",
+  generalBoardOpen: "Milli Takım Tribünü açık",
 };
 
 export default function SettingsPage() {

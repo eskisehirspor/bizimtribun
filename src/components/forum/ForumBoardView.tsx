@@ -59,7 +59,7 @@ const SORTS = [
   ["newest", "En yeni"],
 ] as const;
 
-/** Topic list shared by team tribunes, Genel Tribün and province tribunes. */
+/** Topic list shared by team tribunes and the Milli Takım Tribünü. */
 export default function ForumBoardView({
   apiPath,
   newTopicPath,

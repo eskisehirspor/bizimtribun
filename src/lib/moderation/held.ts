@@ -219,7 +219,7 @@ export function listHeldItems(db: Database.Database, offset: number, limit: numb
     .prepare(
       `SELECT * FROM (
          SELECT 'topic' as kind, t.id as id, t.team_id as teamId,
-                COALESCE(tm.name, CASE t.board WHEN 'city' THEN t.city || ' Tribünü' ELSE 'Genel Tribün' END) as teamName,
+                COALESCE(tm.name, CASE t.board WHEN 'city' THEN t.city || ' Tribünü' ELSE 'Milli Takım Tribünü' END) as teamName,
                 t.title as title, t.content as content, t.held_at as heldAt,
                 t.user_id as userId, u.username as username, t.id as topicId
          FROM forum_topics t
@@ -228,7 +228,7 @@ export function listHeldItems(db: Database.Database, offset: number, limit: numb
          WHERE t.held_at IS NOT NULL AND t.deleted_at IS NULL
          UNION ALL
          SELECT 'post' as kind, p.id as id, t.team_id as teamId,
-                COALESCE(tm.name, CASE t.board WHEN 'city' THEN t.city || ' Tribünü' ELSE 'Genel Tribün' END) as teamName,
+                COALESCE(tm.name, CASE t.board WHEN 'city' THEN t.city || ' Tribünü' ELSE 'Milli Takım Tribünü' END) as teamName,
                 t.title as title, p.content as content, p.held_at as heldAt,
                 p.user_id as userId, u.username as username, p.topic_id as topicId
          FROM forum_posts p

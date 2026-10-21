@@ -171,7 +171,7 @@ export function memberTeamId(userId: number) {
  * Team tribunes are for that team's fans only (reading and writing).
  * Moderators and admins can read every team tribune so they can moderate,
  * but write only in their own team's tribune like any fan.
- * Genel Tribün and province tribunes are open to everyone.
+ * The Milli Takım Tribünü (board 'general') is open to everyone.
  */
 export function boardAccess(
   board: ForumBoardRef,

@@ -27,6 +27,7 @@ import {
 import BackLink from "@/components/BackLink";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
+import { NATIONAL_BOARD_NAME, NATIONAL_BOARD_PATH } from "@/lib/national-board";
 import {
   btnPrimary,
   btnSecondary,
@@ -133,12 +134,12 @@ export default function KonuPage() {
     ? "/forum"
     : topic.board === "team" && topic.teamId
       ? `/takim/${topic.teamId}/forum`
-      : "/forum/genel";
+      : NATIONAL_BOARD_PATH;
   const boardLabel = !topic
     ? "Tribün"
     : team
       ? tribunTitle(team.name)
-      : "Genel Tribün";
+      : NATIONAL_BOARD_NAME;
   const canWrite = Boolean(user && user.phoneVerified && !banned);
   const pages = Math.max(1, Math.ceil(total / limit));
   const isOwner = Boolean(user && topic && user.id === topic.author?.id);
