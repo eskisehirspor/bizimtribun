@@ -11,6 +11,7 @@ import { errorText, inputClass, Notice, postJson, primaryButton } from "@/compon
 import { safeNextPath } from "@/lib/forum-ui";
 import { hintClass, labelClass } from "@/components/ui";
 import { LEGAL_DOCS } from "@/lib/legal";
+import { formatTrMobileInput } from "@/lib/phone";
 
 type Step = "phone" | "profile" | "team";
 
@@ -37,7 +38,12 @@ function Flow() {
   const [verifiedAs, setVerifiedAs] = useState<string | null>(null);
   const [legacyHint, setLegacyHint] = useState(false);
   const [username, setUsername] = useState("");
-  const [displayName, setDisplayName] = useState("");
+  const [ticketChannel, setTicketChannel] = useState<"email" | "sms" | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [marketing, setMarketing] = useState(false);
   const [terms, setTerms] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [age, setAge] = useState(false);
@@ -51,6 +57,7 @@ function Flow() {
       .then((d) => {
         if (cancelled || !d.ticket) return;
         setVerifiedAs(ticketLabel(d));
+        setTicketChannel(d.channel ?? null);
         setStep("profile");
       })
       .catch(() => {});
@@ -75,6 +82,7 @@ function Flow() {
       setLegacyHint(Boolean(data.legacyAccountHint));
       const t = await fetch("/api/auth/signup", { cache: "no-store" }).then((r) => r.json());
       setVerifiedAs(ticketLabel(t));
+      setTicketChannel(t.channel ?? null);
       setStep("profile");
       return;
     }
@@ -91,7 +99,12 @@ function Flow() {
     setError(null);
     const r = await postJson("/api/auth/signup", {
       username,
-      displayName: displayName || null,
+      displayName: null,
+      firstName,
+      lastName,
+      birthDate,
+      phone: ticketChannel === "sms" ? null : phone,
+      marketingConsent: marketing,
       city,
       teamId,
       confirmTeamLocked: true,
@@ -105,7 +118,7 @@ function Flow() {
     if (!r.ok) {
       setError(errorText(r));
       if (r.status === 401) setStep("phone");
-      if (r.status === 409 && /kullanıcı adı/i.test(errorText(r))) setStep("profile");
+      if (/kullanıcı adı|telefon|doğum|ad soyad|adını|yaşından/i.test(errorText(r))) setStep("profile");
       return;
     }
     await refresh();
@@ -150,7 +163,19 @@ function Flow() {
           onSubmit={(e) => {
             e.preventDefault();
             if (!/^[a-z0-9_]{3,20}$/.test(username)) {
-              setError("Kullanıcı adı 3–20 karakter olmalı; küçük harf, rakam ve alt çizgi.");
+              setError("Takma ad 3–20 karakter olmalı; küçük harf, rakam ve alt çizgi.");
+              return;
+            }
+            if (firstName.trim().length < 2 || lastName.trim().length < 2) {
+              setError("Adını ve soyadını yaz.");
+              return;
+            }
+            if (ticketChannel !== "sms" && phone.replace(/\D/g, "").length < 10) {
+              setError("Cep telefonu numaranı 5XX XXX XX XX biçiminde yaz.");
+              return;
+            }
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+              setError("Doğum tarihini seç.");
               return;
             }
             setError(null);
@@ -167,7 +192,7 @@ function Flow() {
             </Notice>
           )}
           <label className="block">
-            <span className={labelClass}>KULLANICI ADI</span>
+            <span className={labelClass}>TAKMA AD</span>
             <input
               required
               value={username}
@@ -178,17 +203,92 @@ function Flow() {
               aria-describedby="u-help"
             />
             <span id="u-help" className={hintClass}>
-              Forumda ve profilinde görünen tek kimliğin. 3–20 karakter: a-z, 0-9, _
+              Forumda ve profilinde görünen tek kimliğin. 3–20 karakter: küçük harf (a-z), rakam (0-9)
+              ve alt çizgi (_).
+            </span>
+          </label>
+          <fieldset className="block">
+            <legend className={labelClass}>AD SOYAD</legend>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                required
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className={inputClass}
+                autoComplete="given-name"
+                maxLength={40}
+                placeholder="Ad"
+                aria-label="Ad"
+                aria-describedby="name-help"
+              />
+              <input
+                required
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className={inputClass}
+                autoComplete="family-name"
+                maxLength={40}
+                placeholder="Soyad"
+                aria-label="Soyad"
+                aria-describedby="name-help"
+              />
+            </div>
+            <span id="name-help" className={hintClass}>
+              Bu isim hiçbir yerde görünmez. Sitede yalnızca takma adın görünür.
+            </span>
+          </fieldset>
+          {ticketChannel !== "sms" && (
+            <label className="block">
+              <span className={labelClass}>CEP TELEFONU</span>
+              <div className="flex items-stretch">
+                <span className="mt-1 inline-flex items-center border-[3px] border-r-0 border-black px-2 py-2 font-mono text-base sm:text-[14px] bg-[#F2EFE6]">
+                  +90
+                </span>
+                <input
+                  required
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel-national"
+                  placeholder="5XX XXX XX XX"
+                  value={formatTrMobileInput(phone)}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className={inputClass}
+                  aria-describedby="phone-help"
+                />
+              </div>
+              <span id="phone-help" className={hintClass}>
+                Hesabınla ilgili iletişim için. Herkese açık profilde görünmez.
+              </span>
+            </label>
+          )}
+          <label className="flex min-h-11 items-start gap-3 font-mono text-[13px]">
+            <input
+              type="checkbox"
+              checked={marketing}
+              onChange={(e) => setMarketing(e.target.checked)}
+              className="mt-0.5 h-5 w-5 shrink-0"
+            />
+            <span>
+              Bizim Tribün&apos;e özel fırsat ve kampanyalardan SMS ile haberdar olmak istiyorum.
+              (İsteğe bağlı, istediğin zaman Hesabım sayfasından geri alabilirsin.)
             </span>
           </label>
           <label className="block">
-            <span className={labelClass}>GÖRÜNEN AD (İSTEĞE BAĞLI)</span>
+            <span className={labelClass}>DOĞUM TARİHİ</span>
             <input
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
+              required
+              type="date"
+              value={birthDate}
+              onChange={(e) => setBirthDate(e.target.value)}
               className={inputClass}
-              maxLength={40}
+              autoComplete="bday"
+              min="1900-01-01"
+              max={new Date().toISOString().slice(0, 10)}
+              aria-describedby="bday-help"
             />
+            <span id="bday-help" className={hintClass}>
+              Yaş sınırı için. 13 yaşından küçükler üye olamaz. Herkese açık görünmez.
+            </span>
           </label>
           <fieldset className="space-y-2 border-[3px] border-black p-3">
             <legend className={`${labelClass} px-1`}>ONAYLAR (HEPSİ ZORUNLU)</legend>

@@ -46,22 +46,42 @@ export default function KvkkPage() {
           <tbody>
             <tr>
               <td>
-                <strong>İletişim:</strong> e-posta adresi; SMS doğrulaması kullanıldığında cep
-                telefonu numarası
+                <strong>İletişim:</strong> e-posta adresi, cep telefonu numarası
               </td>
               <td>
-                E-posta (ya da SMS) koduyla üyelik ve giriş, bir adrese ya da numaraya tek hesap kuralı.
-                Profilde ve herkese açık alanlarda gösterilmez. Moderatörler yalnızca maskeli hâlini
-                görür. Tamamını yalnızca yetkili yöneticiler görebilir.
+                E-posta (ya da SMS) koduyla üyelik ve giriş, bir adrese ya da numaraya tek hesap kuralı,
+                hesabınla ilgili iletişim. Profilde ve herkese açık alanlarda gösterilmez. Moderatörler
+                yalnızca maskeli hâlini görür. Tamamını yalnızca yetkili yöneticiler görebilir.
               </td>
               <td>(c) sözleşmenin kurulması ve ifası</td>
             </tr>
             <tr>
               <td>
-                <strong>Kimlik:</strong> kullanıcı adı, isteğe bağlı görünen ad
+                <strong>Kimlik:</strong> takma ad (kullanıcı adı)
               </td>
-              <td>Seni tribünlerde ve profilinde göstermek.</td>
+              <td>Seni tribünlerde ve profilinde göstermek. Sitede görünen tek kimliğin budur.</td>
               <td>(c) sözleşmenin kurulması ve ifası</td>
+            </tr>
+            <tr>
+              <td>
+                <strong>Kimlik:</strong> ad, soyad, doğum tarihi
+              </td>
+              <td>
+                Yaş sınırını uygulamak, hesap sahipliğiyle ilgili başvurularda ve uyuşmazlıklarda seni
+                tanımak. Hiçbir yerde herkese açık gösterilmez; yalnızca yetkili yöneticiler görebilir.
+              </td>
+              <td>(c) sözleşmenin kurulması ve ifası; (e) bir hakkın tesisi, kullanılması veya korunması</td>
+            </tr>
+            <tr>
+              <td>
+                <strong>Pazarlama:</strong> cep telefonu numarası, kampanya izninin verildiği tarih
+              </td>
+              <td>
+                Yalnızca ayrıca izin verdiysen, Bizim Tribün&apos;e özel fırsat ve kampanyalardan SMS ile
+                haberdar etmek. İzin üyeliğin şartı değildir; Hesabım sayfasından istediğin zaman geri
+                alabilirsin.
+              </td>
+              <td>Açık rıza (KVKK md. 5/1) ve 6563 sayılı Kanun kapsamında ticari elektronik ileti onayı</td>
             </tr>
             <tr>
               <td>
@@ -112,10 +132,6 @@ export default function KvkkPage() {
         </table>
       </div>
       <p>
-        Eski şifreli hesaplarda ad, soyad ve doğum tarihi de bulunabilir. Bunlar herkese açık değildir
-        ve hesap silindiğinde silinir.
-      </p>
-      <p>
         Özel nitelikli kişisel veri (sağlık, din, siyasi görüş, dernek üyeliği vb.) istemiyoruz. Takım
         tercihi bu kapsamda değildir. Tribünlerde kendi ya da başkasının özel nitelikli verisini
         paylaşmaman gerekir.
@@ -148,6 +164,10 @@ export default function KvkkPage() {
           e-posta adresin ve mailin içeriği Resend (Resend Inc., ABD) üzerinden gönderilir.
         </li>
         <li>
+          <strong>İleti Yönetim Sistemi (İYS):</strong> Kampanya SMS&apos;i iznini verdiysen,
+          numaran ve iznin yasal zorunluluk gereği İYS&apos;ye bildirilir.
+        </li>
+        <li>
           <strong>Barındırma:</strong> Veriler {"[SUNUCU / BARINDIRMA SAĞLAYICISI VE ÜLKESİ]"} üzerinde
           saklanır.
         </li>
@@ -171,6 +191,7 @@ export default function KvkkPage() {
           dakika.
         </li>
         <li>Cihaz kimliği özeti ve hesap açılış tarihi: 1 yıl, sonra otomatik silinir.</li>
+        <li>Kampanya izni: geri alınana ya da hesap silinene kadar.</li>
         <li>
           Oturum kayıtları: oturum sona erdikten ya da kapatıldıktan 30 gün sonra silinir. Üye
           oturumu en fazla 30 gün, yönetici oturumu en fazla 8 saat sürer.

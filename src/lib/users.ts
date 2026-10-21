@@ -40,6 +40,7 @@ export type UserRow = {
   totp_enabled: number;
   totp_secret_enc: string | null;
   email_verified_at: string | null;
+  marketing_consent_at?: string | null;
   phone_verified_at: string | null;
   deleted_at: string | null;
   terms_version: string | null;

@@ -322,8 +322,11 @@ export function trPhone(n: number) {
   return `532${String(1000000 + n).slice(-7)}`;
 }
 
-/** The consent fields the sign-up form sends when both boxes are ticked. */
+/** The consent and profile fields the sign-up form sends when everything is filled in. */
 export const LEGAL_OK = {
+  firstName: "Ayşe",
+  lastName: "Demir",
+  birthDate: "1994-03-12",
   acceptTerms: true,
   acknowledgePrivacy: true,
   confirmAge: true,

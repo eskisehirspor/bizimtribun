@@ -37,6 +37,11 @@ const Body = z.object({
   confirmAge: z.literal(true),
   termsVersion: z.string().max(20),
   privacyVersion: z.string().max(20),
+  firstName: z.string().max(40),
+  lastName: z.string().max(40),
+  birthDate: z.string().max(10),
+  phone: z.string().max(24).optional().nullable(),
+  marketingConsent: z.boolean().optional(),
 });
 
 export async function GET(req: Request) {
@@ -57,7 +62,10 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) {
     return noStoreJson(
-      { error: "Kullanıcı adı, takım, takımın kalıcı olduğu, Kullanım Koşulları ve Aydınlatma Metni onayı gerekiyor." },
+      {
+        error:
+          "Takma ad, ad soyad, doğum tarihi, takım, takımın kalıcı olduğu, Kullanım Koşulları ve Aydınlatma Metni onayı gerekiyor.",
+      },
       400,
     );
   }
@@ -88,6 +96,11 @@ export async function POST(req: Request) {
     city: parsed.data.city,
     teamId: parsed.data.teamId,
     legal: { termsVersion: parsed.data.termsVersion, privacyVersion: parsed.data.privacyVersion },
+    firstName: parsed.data.firstName,
+    lastName: parsed.data.lastName,
+    birthDate: parsed.data.birthDate,
+    phone: parsed.data.phone,
+    marketingConsent: parsed.data.marketingConsent === true,
   });
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
 

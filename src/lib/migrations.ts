@@ -705,6 +705,15 @@ END;
 `);
     },
   },
+  {
+    id: "015_marketing_consent",
+    up(db) {
+      // Optional, separate consent to campaign SMS (ETK / İYS). NULL = no
+      // consent; set to the time the member ticked it, cleared on withdrawal.
+      const cols = new Set((db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[]).map((c) => c.name));
+      if (!cols.has("marketing_consent_at")) db.exec(`ALTER TABLE users ADD COLUMN marketing_consent_at TEXT`);
+    },
+  },
 ];
 
 export function appliedMigrationIds(db: Database.Database) {

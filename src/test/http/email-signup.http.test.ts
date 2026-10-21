@@ -20,8 +20,10 @@ import {
   setCookies,
   signupCookie,
   testDevice,
+  trPhone,
   uniq,
 } from "./harness";
+import { GET as marketingGet, POST as marketingPost } from "../../app/api/account/marketing/route";
 
 beforeEach(() => {
   freshDb();
@@ -32,6 +34,8 @@ afterEach(() => {
 });
 
 const name = () => uniq("ep").slice(0, 20);
+let phoneSeq = 8000;
+const nextPhone = () => trPhone(phoneSeq++);
 let ipSeq = 0;
 /** Each sign-up from its own IP, so only the device limit is under test. */
 const ip = () => `198.51.100.${(ipSeq++ % 250) + 1}`;
@@ -66,7 +70,7 @@ async function emailSignup(email: string, device: string, teamId = "galatasaray"
     path: "/api/auth/signup",
     cookie: cookies(signupCookie(verified.res), device),
     ip: ip(),
-    body: { username: name(), teamId, city: null, confirmTeamLocked: true, ...LEGAL_OK },
+    body: { username: name(), teamId, city: null, confirmTeamLocked: true, ...LEGAL_OK, phone: nextPhone() },
   });
 }
 
@@ -101,7 +105,7 @@ test("e-mail sign-up: code → account verified by e-mail with its permanent vot
     method: "POST",
     path: "/api/auth/signup",
     cookie: cookies(signupCookie(verified.res), device),
-    body: { username: name(), teamId: "eskisehirspor", city: "Eskişehir", confirmTeamLocked: true, ...LEGAL_OK },
+    body: { username: name(), teamId: "eskisehirspor", city: "Eskişehir", confirmTeamLocked: true, ...LEGAL_OK, phone: nextPhone() },
   });
   assert.equal(done.status, 200, done.text);
   const user = (done.json as { user: { id: number; verified: boolean; phoneVerified: boolean } }).user;
@@ -116,7 +120,7 @@ test("e-mail sign-up: code → account verified by e-mail with its permanent vot
   };
   assert.equal(row.email, email);
   assert.ok(row.email_verified_at);
-  assert.equal(row.phone_norm, null);
+  assert.ok(row.phone_norm); // typed on the form, not verified
   // The device row carries no account link.
   const dev = getDb().prepare(`SELECT * FROM device_signups`).all() as Record<string, unknown>[];
   assert.equal(dev.length, 1);
@@ -172,7 +176,7 @@ test(`one device opens at most ${DEVICE_SIGNUP_MAX} accounts, whatever the e-mai
     path: "/api/auth/signup",
     cookie: cookies(signupCookie(verified.res), device),
     ip: ip(),
-    body: { username: name(), teamId: "galatasaray", city: null, confirmTeamLocked: true, ...LEGAL_OK },
+    body: { username: name(), teamId: "galatasaray", city: null, confirmTeamLocked: true, ...LEGAL_OK, phone: nextPhone() },
   });
   assert.equal(late.status, 429);
   assert.equal(await total(), DEVICE_SIGNUP_MAX);
@@ -209,4 +213,74 @@ test("a deleted e-mail account's address waits before it can sign up again", asy
   const sent = await sendCode(email, testDevice());
   const again = await checkCode(email, (sent.json as { devCode: string }).devCode, testDevice());
   assert.equal(again.status, 409);
+});
+
+async function ticketFor(email: string, device: string) {
+  const sent = await sendCode(email, device);
+  const verified = await checkCode(email, (sent.json as { devCode: string }).devCode, device);
+  assert.equal(verified.status, 200, verified.text);
+  return cookies(signupCookie(verified.res), device);
+}
+
+function signupWith(cookie: string, over: Record<string, unknown>) {
+  return invoke(signup, {
+    method: "POST",
+    path: "/api/auth/signup",
+    cookie,
+    ip: ip(),
+    body: { username: name(), teamId: "galatasaray", city: null, confirmTeamLocked: true, ...LEGAL_OK, phone: nextPhone(), ...over },
+  });
+}
+
+test("sign-up asks for real name, phone and birth date; they stay private", async () => {
+  const device = testDevice();
+  const cookie = await ticketFor(`${uniq("bilgi")}@example.com`, device);
+  for (const [over, status] of [
+    [{ phone: null }, 400],
+    [{ phone: "123" }, 400],
+    [{ firstName: "" }, 400],
+    [{ lastName: "1" }, 400],
+    [{ birthDate: "2099-01-01" }, 400],
+    [{ birthDate: "1990-02-30" }, 400],
+    [{ birthDate: new Date(Date.now() - 10 * 365 * 86400000).toISOString().slice(0, 10) }, 400],
+  ] as const) {
+    const res = await signupWith(cookie, over);
+    assert.equal(res.status, status, JSON.stringify(over));
+  }
+  const phone = nextPhone();
+  const ok = await signupWith(cookie, { firstName: " Çağrı ", lastName: "Öztürk-Şahin", phone });
+  assert.equal(ok.status, 200, ok.text);
+  assert.ok(!/Çağrı|Öztürk|1994-03-12/.test(ok.text));
+  const id = (ok.json as { user: { id: number } }).user.id;
+  const row = getDb()
+    .prepare(`SELECT first_name, last_name, birth_date, phone_norm, phone_verified_at, marketing_consent_at FROM users WHERE id = ?`)
+    .get(id) as Record<string, string | null>;
+  assert.deepEqual(row, {
+    first_name: "Çağrı",
+    last_name: "Öztürk-Şahin",
+    birth_date: "1994-03-12",
+    phone_norm: phone,
+    phone_verified_at: null,
+    marketing_consent_at: null,
+  });
+
+  // The same phone cannot be typed on a second account.
+  const other = await ticketFor(`${uniq("bilgi")}@example.com`, testDevice());
+  const dup = await signupWith(other, { phone });
+  assert.equal(dup.status, 409);
+});
+
+test("campaign SMS consent is optional, separate and can be withdrawn", async () => {
+  const cookie = await ticketFor(`${uniq("izin")}@example.com`, testDevice());
+  const ok = await signupWith(cookie, { marketingConsent: true });
+  assert.equal(ok.status, 200, ok.text);
+  const session = setCookies(ok.res).map((l) => l.split(";")[0]).join("; ");
+  const id = (ok.json as { user: { id: number } }).user.id;
+  const at = () =>
+    (getDb().prepare(`SELECT marketing_consent_at as m FROM users WHERE id = ?`).get(id) as { m: string | null }).m;
+  assert.ok(at());
+  assert.equal(((await invoke(marketingGet, { path: "/api/account/marketing", cookie: session })).json as { consent: boolean }).consent, true);
+  const off = await invoke(marketingPost, { method: "POST", path: "/api/account/marketing", cookie: session, body: { consent: false } });
+  assert.equal(off.status, 200, off.text);
+  assert.equal(at(), null);
 });

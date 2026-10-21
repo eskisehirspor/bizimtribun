@@ -14,6 +14,7 @@ import {
 import { isProvince } from "./provinces";
 import { isUserBanned, isUsername, normalizeUsername, type UserRow } from "./users";
 import { isReservedName } from "./name";
+import { isTrMobile, normalizePhone } from "./phone";
 
 function ticketHash(raw: string) {
   return hmac(`signup-ticket:${raw}`);
@@ -172,7 +173,40 @@ export type SignupInput = {
   teamId: string;
   /** Text versions the member ticked on the sign-up form. */
   legal: { termsVersion: string; privacyVersion: string };
+  /** Never shown publicly; only admins with PII rights see them. */
+  firstName: string;
+  lastName: string;
+  /** YYYY-MM-DD. */
+  birthDate: string;
+  /** Required for e-mail sign-ups (stored unverified); SMS sign-ups use the verified number. */
+  phone?: string | null;
+  /** Separate, optional consent to campaign SMS. Never a condition of sign-up. */
+  marketingConsent?: boolean;
 };
+
+export const MIN_SIGNUP_AGE = 13;
+
+const NAME_RE = /^[\p{L}][\p{L}' .-]{0,39}$/u;
+
+/** Trimmed real-name part, or null when it is not a plausible name. */
+export function cleanRealName(raw: string | null | undefined) {
+  const v = (raw ?? "").replace(/\s+/g, " ").trim();
+  return v.length >= 2 && NAME_RE.test(v) ? v : null;
+}
+
+/** Age in whole years on `today`, or null for an invalid or future date. */
+export function ageFromBirthDate(raw: string, today = new Date()) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  if (date.getUTCFullYear() !== y || date.getUTCMonth() !== mo - 1 || date.getUTCDate() !== d) return null;
+  if (y < 1900 || date.getTime() > today.getTime()) return null;
+  let age = today.getUTCFullYear() - y;
+  const md = (today.getUTCMonth() + 1) * 100 + today.getUTCDate();
+  if (md < mo * 100 + d) age -= 1;
+  return age;
+}
 
 export type SignupResult =
   | { ok: true; userId: number }
@@ -205,12 +239,36 @@ export function signupWithTicket(db: Database.Database, input: SignupInput): Sig
   if (city && !isProvince(city)) {
     return { ok: false, status: 400, error: "İl geçersiz." };
   }
+  const firstName = cleanRealName(input.firstName);
+  const lastName = cleanRealName(input.lastName);
+  if (!firstName || !lastName) {
+    return { ok: false, status: 400, error: "Adını ve soyadını harflerle yaz." };
+  }
+  const age = ageFromBirthDate(input.birthDate);
+  if (age === null || age > 120) {
+    return { ok: false, status: 400, error: "Doğum tarihi geçersiz." };
+  }
+  if (age < MIN_SIGNUP_AGE) {
+    return { ok: false, status: 400, error: `${MIN_SIGNUP_AGE} yaşından küçükler üye olamaz.` };
+  }
+  const typedPhone = input.phone ? normalizePhone(input.phone) : null;
+  if (typedPhone && !isTrMobile(typedPhone)) {
+    return { ok: false, status: 400, error: "Cep telefonunu 5XX XXX XX XX biçiminde yaz." };
+  }
 
   try {
     return db.transaction((): SignupResult => {
       const ticket = lookupSignupTicket(db, input.ticketRaw);
       if (!ticket) {
         return { ok: false, status: 401, error: TICKET_EXPIRED_ERROR };
+      }
+      if (ticket.channel === "email") {
+        if (!typedPhone) {
+          return { ok: false, status: 400, error: "Cep telefonu numaranı yaz." };
+        }
+        if (db.prepare(`SELECT 1 FROM users WHERE phone_norm = ?`).get(typedPhone)) {
+          return { ok: false, status: 409, error: "Bu telefon numarası başka bir hesapta kayıtlı." };
+        }
       }
       if (ticket.channel === "sms") {
         if (findVerifiedUserByPhone(db, ticket.phoneNorm)) {
@@ -246,13 +304,16 @@ export function signupWithTicket(db: Database.Database, input: SignupInput): Sig
 
       if (ticket.channel === "sms") takePhone(db, -1, ticket.phoneNorm, now);
       else takeEmail(db, ticket.emailNorm, now);
+      // E-mail sign-ups type a phone that is not verified; an SMS check later can confirm it.
+      const phoneNorm = ticket.channel === "sms" ? ticket.phoneNorm : typedPhone!;
       const info = db
         .prepare(
           `INSERT INTO users
            (username, username_norm, display_name, status, role, created_at, updated_at,
             phone, phone_norm, phone_verified_at, email, email_norm, email_verified_at,
+            first_name, last_name, birth_date, marketing_consent_at,
             city, terms_version, terms_accepted_at)
-           VALUES (?, ?, ?, 'active', 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, 'active', 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           usernameNorm,
@@ -260,12 +321,16 @@ export function signupWithTicket(db: Database.Database, input: SignupInput): Sig
           displayName || usernameNorm,
           now,
           now,
-          ticket.channel === "sms" ? `+90${ticket.phoneNorm}` : null,
-          ticket.channel === "sms" ? ticket.phoneNorm : null,
+          `+90${phoneNorm}`,
+          phoneNorm,
           ticket.channel === "sms" ? now : null,
           ticket.channel === "email" ? ticket.email : null,
           ticket.channel === "email" ? ticket.emailNorm : null,
           ticket.channel === "email" ? now : null,
+          firstName,
+          lastName,
+          input.birthDate,
+          input.marketingConsent ? now : null,
           city,
           TERMS_VERSION,
           now,
@@ -427,7 +492,7 @@ export function deleteAccount(
       `UPDATE users SET
          username = ?, username_norm = ?, display_name = 'Silinmiş üye',
          email = NULL, email_norm = NULL, password_hash = NULL,
-         first_name = NULL, last_name = NULL, birth_date = NULL,
+         first_name = NULL, last_name = NULL, birth_date = NULL, marketing_consent_at = NULL,
          phone = NULL, phone_norm = NULL, city = NULL,
          bio = NULL, avatar = NULL, show_city = 0, profile_visibility = 'members',
          totp_enabled = 0, totp_secret_enc = NULL,

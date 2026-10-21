@@ -12,6 +12,12 @@
   (`idx_users_phone_norm` / `email_norm` unique + checks in `accounts.ts`). E-mails are
   normalised before lookup: lower case, `+tag` dropped, dots ignored for Gmail, so
   `a.li+2@gmail.com` is the same inbox as `ali@gmail.com`.
+- The sign-up form also asks for first and last name, birth date (13+ only) and, on e-mail
+  sign-ups, a mobile number stored *unverified* (one account per number; a later SMS check
+  can confirm it). None of these is ever public; admins with PII rights see them. Campaign SMS
+  needs a separate, unticked, optional consent (`marketing_consent_at`), withdrawable on
+  `/hesap`. Before any campaign SMS is sent the consent must be registered in İYS and the
+  sender needs ETK-compliant opt-out; none of that sending exists yet.
 - Throwaway inbox domains (`disposable.ts`, subdomains included) cannot ask for a code. The
   list is not exhaustive.
 - **Device limit:** the code request sets `bt_device`, a random id in an httpOnly cookie

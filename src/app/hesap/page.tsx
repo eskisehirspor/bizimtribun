@@ -8,6 +8,7 @@ import ForumShell from "@/components/ForumShell";
 import { errorText, inputClass, Notice, postJson, secondaryButton } from "@/components/auth/ui";
 import { useTeamCatalog } from "@/components/useTeamCatalog";
 import ProfileSettingsForm from "@/components/profile/ProfileSettingsForm";
+import MarketingConsentToggle from "@/components/profile/MarketingConsentToggle";
 import { btnDanger, btnPrimary, labelClass } from "@/components/ui";
 
 const CONFIRM = "HESABIMI SİL";
@@ -82,6 +83,11 @@ function Account() {
       <section id="profil" className="border-[3px] border-black bg-white p-4 space-y-2">
         <h2 className="font-anton text-[20px]">PROFİL VE BİLDİRİMLER</h2>
         <ProfileSettingsForm username={user.username} />
+      </section>
+
+      <section className="border-[3px] border-black bg-white p-4 space-y-2">
+        <h2 className="font-anton text-[20px]">KAMPANYA İZNİ</h2>
+        <MarketingConsentToggle />
       </section>
 
       <section className="border-[3px] border-black bg-white p-4 space-y-2">
