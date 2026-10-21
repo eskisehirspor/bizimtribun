@@ -136,13 +136,13 @@ export function ReportButton({ type, id }: { type: "topic" | "post" | "user"; id
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className={btnGhost} aria-expanded={false}>
-        Bildir
+        Şikâyet et
       </button>
     );
   }
   return (
     <div className="basis-full w-full max-w-[460px] border-[3px] border-black bg-white p-3 space-y-2">
-      <p className="font-anton text-[16px]">BU İÇERİĞİ BİLDİR</p>
+      <p className="font-anton text-[16px]">BU YAZIYI ŞİKÂYET ET</p>
       <label className="block" htmlFor={`${fieldId}-r`}>
         <span className={labelClass}>Sebep</span>
         <select
@@ -189,7 +189,7 @@ export function ReportButton({ type, id }: { type: "topic" | "post" | "user"; id
             setBusy(true);
             try {
               await post("/api/forum/reports", { type, id, reason, note: note || undefined });
-              setDone("Bildirildi. Moderatörler inceleyecek.");
+              setDone("Şikâyetin alındı. Moderatörler inceleyecek.");
             } catch (err) {
               setError(err instanceof Error ? err.message : "Gönderilemedi.");
             } finally {
@@ -222,15 +222,20 @@ export function BlockButton({
   const [error, setError] = useState<string | null>(null);
   return (
     <>
-      <button type="button" onClick={() => setAsking(true)} className={btnGhost}>
-        Engelle
+      <button
+        type="button"
+        onClick={() => setAsking(true)}
+        className={btnGhost}
+        aria-label={`@${username} adlı üyeyi engelle`}
+      >
+        Üyeyi engelle
       </button>
       <ConfirmDialog
         open={asking}
         title={`@${username} ENGELLENSİN Mİ?`}
         body={
           <>
-            <p>Yazılarını görmezsin, sana bildirim gönderemez.</p>
+            <p>Bu üyenin konularını ve yorumlarını görmezsin, sana bildirim gönderemez, konularına yazamaz.</p>
             <p className="mt-2 opacity-80">
               Engellemeyi Hesabım → Engellediklerim bölümünden kaldırabilirsin.
             </p>

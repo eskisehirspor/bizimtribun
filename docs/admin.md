@@ -66,6 +66,23 @@ following week. The old monthly `forum_leaders` records are kept but no longer s
 Province tribunes were removed. Their old topics stay in the database, hidden; old
 `/forum/il/...` links redirect to the province count page.
 
+## Forum rules that run on their own
+
+- **No editing.** Topics and replies can't be edited once published; authors can only delete them.
+- **Sub-forums.** Every tribune has the same ten categories (`src/lib/forum-category.ts`). Topics from
+  the old five categories were moved by migration `013_forum_categories_v2`; old `?category=` links map
+  to the new ones.
+- **Reports.** When 3 different members have an open report on the same topic or reply, it is held
+  (hidden) and shows up in the held-content queue as `auto:review:reports`. Staff texts and texts a
+  moderator already approved are never auto-held.
+- **Spam.** A member waits 15 seconds between two texts and can't send the same text again within 24
+  hours (`src/lib/forum-spam.ts`). Texts with more than 2 links, links from accounts younger than a
+  day, and betting/casino ads are held for a moderator.
+- **Profanity.** Clear profanity, threats and slurs are refused; milder words fans use loosely
+  (`şerefsiz`, `yavşak`, `mk`, …) are held for a moderator instead (`src/lib/moderation/rules.ts`).
+- **Blocking** is per member (nickname), never per topic: the blocker stops seeing that member's
+  topics and replies, and the blocked member can't reply to the blocker's topics or notify them.
+
 ## Site settings (`/admin/ayarlar`)
 
 Each block is saved on its own and audited as `setting_<key>`. Text is stored as plain text

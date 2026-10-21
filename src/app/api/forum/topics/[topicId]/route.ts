@@ -1,16 +1,8 @@
-import { z } from "zod";
 import { isBrowserSameSite } from "@/lib/request";
-import { noStoreJson, readJsonBody } from "@/lib/http";
+import { noStoreJson } from "@/lib/http";
 import { getSessionUser, requireForumWriter } from "@/lib/auth";
-import { isStaffRole } from "@/lib/permissions";
-import { FORUM_BODY_MAX, FORUM_TITLE_MAX, FORUM_TITLE_MIN } from "@/lib/policy";
-import { parseForumCategoryInput } from "@/lib/forum-category";
 import {
-  cleanForumText,
-  cleanForumTitle,
-  FORUM_LOCKED_EDIT_ERROR,
   findLiveTopic,
-  forumEditLimited,
   listPosts,
   parseIdParam,
   parsePageLimit,
@@ -18,21 +10,9 @@ import {
   topicBoardOpen,
   serializeTopic,
   softDeleteTopic,
-  updateTopic,
 } from "@/lib/forum";
-import {
-  FORUM_CONTENT_BLOCKED_ERROR,
-  FORUM_CONTENT_REVIEW_ERROR,
-  forumWriteMode,
-  moderateForumPublication,
-  recordAutoModeration,
-} from "@/lib/moderation";
 
-const UpdateBody = z.object({
-  title: z.string().min(FORUM_TITLE_MIN).max(FORUM_TITLE_MAX),
-  content: z.string().min(1).max(FORUM_BODY_MAX),
-  category: z.unknown().optional(),
-});
+// Topics can't be edited once published, only deleted by their author.
 
 export async function GET(
   req: Request,
@@ -64,102 +44,6 @@ export async function GET(
     limit,
     total,
     posts,
-  });
-}
-
-export async function PUT(
-  req: Request,
-  ctx: { params: Promise<{ topicId: string }> },
-) {
-  const { topicId: raw } = await ctx.params;
-  const topicId = parseIdParam(raw);
-  if (topicId == null) {
-    return noStoreJson({ error: "Konu bulunamadı." }, 404);
-  }
-
-  const body = await readJsonBody(req);
-  if ("error" in body) {
-    return noStoreJson({ error: body.error }, 400);
-  }
-
-  const active = requireForumWriter(await getSessionUser(req));
-  if (!active.ok) {
-    return noStoreJson({ error: active.error }, active.status);
-  }
-
-  const topic = findLiveTopic(topicId);
-  if (!topic || !topicBoardOpen(topic)) {
-    return noStoreJson({ error: "Konu bulunamadı." }, 404);
-  }
-  const access = topicAccess(topic, active.user, "write");
-  if (!access.ok) {
-    return noStoreJson({ error: access.error, code: access.code }, access.status);
-  }
-  if (topic.user_id !== active.user.id) {
-    return noStoreJson({ error: "Bu konuyu düzenleyemezsin." }, 403);
-  }
-  if (topic.locked_at && !isStaffRole(active.user.role)) {
-    return noStoreJson({ error: FORUM_LOCKED_EDIT_ERROR }, 409);
-  }
-  if (forumEditLimited(active.user.id)) {
-    return noStoreJson({ error: "Çok fazla düzenleme. Biraz sonra dene." }, 429);
-  }
-
-  const parsed = UpdateBody.safeParse(body.data);
-  if (!parsed.success) {
-    return noStoreJson({ error: "Başlık ve yazı gerekli." }, 400);
-  }
-  const title = cleanForumTitle(parsed.data.title);
-  const content = cleanForumText(parsed.data.content, FORUM_BODY_MAX);
-  if (!title || !content) {
-    return noStoreJson(
-      { error: "Başlık veya yazı boş olamaz. Limitleri aşma." },
-      400,
-    );
-  }
-  const cat = parseForumCategoryInput(parsed.data.category, null);
-  if (!cat.ok) {
-    return noStoreJson({ error: "Geçersiz kategori." }, 400);
-  }
-
-  const verdict = moderateForumPublication([title, content], {
-    surface: "topic",
-    field: "body",
-    userId: active.user.id,
-    teamId: topic.team_id ?? undefined,
-    topicId: topic.id,
-  });
-  const mode = forumWriteMode(verdict.decision);
-  if (mode === "none") {
-    recordAutoModeration({
-      userId: active.user.id,
-      result: verdict,
-      targetTopicId: topic.id,
-    });
-    return noStoreJson({ error: FORUM_CONTENT_BLOCKED_ERROR }, 422);
-  }
-
-  if (
-    !updateTopic(topic.id, active.user.id, {
-      title,
-      content,
-      category: cat.category ?? undefined,
-      holdForReview: mode === "hold",
-    })
-  ) {
-    return noStoreJson({ error: "Konu güncellenemedi." }, 409);
-  }
-  if (mode === "hold") {
-    recordAutoModeration({
-      userId: active.user.id,
-      result: verdict,
-      targetTopicId: topic.id,
-    });
-    return noStoreJson({ error: FORUM_CONTENT_REVIEW_ERROR }, 422);
-  }
-  return noStoreJson({
-    ok: true,
-    topic: serializeTopic(findLiveTopic(topic.id)!, active.user.id),
   });
 }
 

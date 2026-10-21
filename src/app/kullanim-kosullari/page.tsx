@@ -97,6 +97,7 @@ export default function TermsPage() {
         Ancak yasal yükümlülükler ve moderasyon kayıtları için gereken kopyalar saklanabilir.
       </p>
       <p>
+        Yayınladığın konu ve yorumlar sonradan düzenlenemez, ama istediğin zaman silebilirsin.
         Hesabını silmeden önce yazılarını kendin silebilirsin. Hesabını sildiğinde silmediğin yazılar,
         tartışmaların bütünlüğü için &quot;Silinmiş üye&quot; adıyla kalır.
       </p>
@@ -113,7 +114,7 @@ export default function TermsPage() {
       <p>
         Platform, 5651 sayılı Kanun kapsamında üyelerin içeriklerine yer sağlayıcıdır. İçerikleri
         yayından önce kontrol etme yükümlülüğümüz yoktur. Hukuka aykırı olduğunu düşündüğün bir içeriği
-        sitedeki &quot;Bildir&quot; düğmesiyle ya da {LEGAL_ENTITY.email} adresinden bize bildirebilirsin.
+        sitedeki &quot;Şikâyet et&quot; düğmesiyle ya da {LEGAL_ENTITY.email} adresinden bize bildirebilirsin.
         Haberdar olduğumuz hukuka aykırı içerikleri ve mahkeme ya da yetkili makam kararlarını
         mevzuata uygun şekilde yerine getiririz.
       </p>

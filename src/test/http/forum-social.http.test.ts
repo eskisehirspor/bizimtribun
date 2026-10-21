@@ -2,7 +2,9 @@ import "./env-init";
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { GET as listGeneral, POST as createGeneral } from "../../app/api/forum/genel/topics/route";
-import { GET as getTopic, PUT as putTopic } from "../../app/api/forum/topics/[topicId]/route";
+import * as topicRoute from "../../app/api/forum/topics/[topicId]/route";
+import * as postRoute from "../../app/api/forum/posts/[postId]/route";
+const getTopic = topicRoute.GET;
 import { POST as createPost } from "../../app/api/forum/topics/[topicId]/posts/route";
 import { POST as like } from "../../app/api/forum/likes/route";
 import { POST as report } from "../../app/api/forum/reports/route";
@@ -48,7 +50,7 @@ async function reply(cookie: string, topicId: number, content: string) {
   });
 }
 
-test("Genel Tribün lists and creates topics", async () => {
+test("Milli Takım Tribünü lists and creates topics", async () => {
   const a = await member();
   const id = await generalTopic(a.cookie);
   const list = await invoke(listGeneral, { path: "/api/forum/genel/topics" });
@@ -173,20 +175,49 @@ test("reports: one per member per item, moderators close all at once, audited", 
   assert.equal(audit.length, 1);
 });
 
-test("editing a topic keeps the previous version for moderators", async () => {
+test("topics and replies can't be edited after publishing, only deleted", () => {
+  assert.equal("PUT" in topicRoute, false);
+  assert.equal("PATCH" in topicRoute, false);
+  assert.equal("PUT" in postRoute, false);
+  assert.equal("PATCH" in postRoute, false);
+  assert.equal(typeof topicRoute.DELETE, "function");
+  assert.equal(typeof postRoute.DELETE, "function");
+});
+
+test("three members reporting a reply hide it until a moderator looks; staff replies stay", async () => {
   const author = await member();
   const id = await generalTopic(author.cookie);
-  const res = await invoke(putTopic, {
-    method: "PUT",
-    path: `/api/forum/topics/${id}`,
-    cookie: author.cookie,
-    params: { topicId: String(id) },
-    body: { title: "Milli takım kadrosu (güncel)", content: "Yeni liste geldi." },
-  });
-  assert.equal(res.status, 200, res.text);
-  assert.ok((res.json as { topic: { editedAt: string | null } }).topic.editedAt);
-  const edit = getDb()
-    .prepare(`SELECT old_title, old_content FROM forum_edits WHERE target_type = 'topic' AND target_id = ?`)
-    .get(id) as { old_title: string; old_content: string };
-  assert.deepEqual(edit, { old_title: TOPIC.title, old_content: TOPIC.content });
+  const res = await reply(author.cookie, id, "Hakem bugün çok kötüydü.");
+  assert.equal(res.status, 201, res.text);
+  const postId = (res.json as { post: { id: number } }).post.id;
+  const fileOn = (cookie: string, target: number) =>
+    invoke(report, { method: "POST", path: "/api/forum/reports", cookie, body: { type: "post", id: target, reason: "hakaret" } });
+  const held = () =>
+    (getDb().prepare(`SELECT held_at FROM forum_posts WHERE id = ?`).get(postId) as { held_at: string | null }).held_at;
+
+  for (let i = 0; i < 2; i++) assert.equal((await fileOn((await member()).cookie, postId)).status, 201);
+  assert.equal(held(), null);
+  assert.equal((await fileOn((await member()).cookie, postId)).status, 201);
+  assert.ok(held());
+  const action = getDb()
+    .prepare(`SELECT action, reason FROM moderation_actions WHERE target_post_id = ?`)
+    .get(postId) as { action: string; reason: string };
+  assert.equal(action.action, "auto_review");
+  assert.match(action.reason, /^auto:review:reports:/);
+
+  const mod = await member("moderator");
+  const modReply = await reply(mod.cookie, id, "Lütfen kurallara uyalım.");
+  const modPostId = (modReply.json as { post: { id: number } }).post.id;
+  for (let i = 0; i < 3; i++) await fileOn((await member()).cookie, modPostId);
+  const modHeld = getDb().prepare(`SELECT held_at FROM forum_posts WHERE id = ?`).get(modPostId) as { held_at: string | null };
+  assert.equal(modHeld.held_at, null);
+});
+
+test("the same reply can't be sent twice", async () => {
+  const a = await member();
+  const id = await generalTopic(a.cookie);
+  assert.equal((await reply(a.cookie, id, "Kadroda sol bek eksik.")).status, 201);
+  const again = await reply(a.cookie, id, "  kadroda SOL bek   eksik. ");
+  assert.equal(again.status, 409);
+  assert.match(again.text, /zaten gönderdin/);
 });

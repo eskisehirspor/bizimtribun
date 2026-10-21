@@ -42,6 +42,8 @@ export type ForumModerationContext = {
   userId?: number;
   teamId?: string;
   topicId?: number;
+  /** Account younger than a day: links are held for a moderator. */
+  newAccount?: boolean;
 };
 
 export type ForumModerationResult = {

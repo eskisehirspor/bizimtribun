@@ -67,8 +67,6 @@ export const ADMIN_PAGE_DEFAULT = 25;
 export const ADMIN_PAGE_MAX = 100;
 export const FORUM_TOPICS_PER_USER_HOUR = 8;
 export const FORUM_POSTS_PER_USER_HOUR = 40;
-/** Edits of own topics/posts; each keeps the old version for moderators. */
-export const FORUM_EDITS_PER_USER_HOUR = 30;
 export const FORUM_TOPICS_PER_IP_HOUR = 12;
 export const FORUM_POSTS_PER_IP_HOUR = 60;
 export const TEAM_REQUEST_NAME_MIN = 3;

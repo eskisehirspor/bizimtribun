@@ -7,14 +7,8 @@ import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
 import TeamBoardGate, { isTeamBoardCode } from "@/components/forum/TeamBoardGate";
 import TeamMark from "@/components/TeamMark";
-import { FORUM_BODY_MAX, FORUM_POST_MAX, FORUM_TITLE_MAX, FORUM_TITLE_MIN } from "@/lib/policy";
-import {
-  FORUM_CATEGORIES,
-  FORUM_CATEGORY_META,
-  isForumCategory,
-  tribunTitle,
-  type ForumCategory,
-} from "@/lib/forum-category";
+import { FORUM_POST_MAX } from "@/lib/policy";
+import { FORUM_CATEGORY_META, isForumCategory, tribunTitle, type ForumCategory } from "@/lib/forum-category";
 import { useTeamCatalog } from "@/components/useTeamCatalog";
 import { formatForumDate, forumApiError } from "@/lib/forum-ui";
 import ForumAuthorName from "@/components/ForumAuthorName";
@@ -31,11 +25,7 @@ import { NATIONAL_BOARD_NAME, NATIONAL_BOARD_PATH } from "@/lib/national-board";
 import {
   btnPrimary,
   btnSecondary,
-  btnSm,
   btnSmDanger,
-  btnSmPrimary,
-  chipClass,
-  fieldClass,
   hintClass,
   inputClass,
   labelClass,
@@ -86,13 +76,6 @@ export default function KonuPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
-  const [editing, setEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState("");
-  const [editBody, setEditBody] = useState("");
-  const [editCategory, setEditCategory] = useState<ForumCategory>("gundem");
-  const [editPostId, setEditPostId] = useState<number | null>(null);
-  const [editPostBody, setEditPostBody] = useState("");
-  const [editError, setEditError] = useState<string | null>(null);
   /** Pending delete: the topic itself or one of the viewer's comments. */
   const [deleting, setDeleting] = useState<{ kind: "topic" } | { kind: "post"; id: number } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -195,40 +178,6 @@ export default function KonuPage() {
     }
   }
 
-  async function saveTopic() {
-    const title = editTitle.replace(/\s+/g, " ").trim();
-    const content = editBody.trim();
-    if (title.length < FORUM_TITLE_MIN || title.length > FORUM_TITLE_MAX) {
-      setEditError(`Başlık ${FORUM_TITLE_MIN}–${FORUM_TITLE_MAX} karakter olmalı.`);
-      return;
-    }
-    if (!content.replace(/\s/g, "").length) {
-      setEditError("Yazı boş olamaz.");
-      return;
-    }
-    setEditError(null);
-    setSending(true);
-    setPostError(null);
-    try {
-      const res = await fetch(`/api/forum/topics/${topicId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, content, category: editCategory }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setEditError(forumApiError(res.status, data.error));
-        return;
-      }
-      setTopic(data.topic);
-      setEditing(false);
-    } catch {
-      setEditError("Bağlantı kopuk.");
-    } finally {
-      setSending(false);
-    }
-  }
-
   async function deleteTopic() {
     setSending(true);
     setDeleteError(null);
@@ -243,35 +192,6 @@ export default function KonuPage() {
       router.push(boardHref);
     } catch {
       setDeleteError("Bağlantı kopuk.");
-    } finally {
-      setSending(false);
-    }
-  }
-
-  async function savePost(id: number) {
-    const content = editPostBody.trim();
-    if (!content.replace(/\s/g, "").length) {
-      setEditError("Yorum boş olamaz.");
-      return;
-    }
-    setEditError(null);
-    setSending(true);
-    setPostError(null);
-    try {
-      const res = await fetch(`/api/forum/posts/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setEditError(forumApiError(res.status, data.error));
-        return;
-      }
-      setPosts((prev) => prev.map((p) => (p.id === id ? data.post : p)));
-      setEditPostId(null);
-    } catch {
-      setEditError("Bağlantı kopuk.");
     } finally {
       setSending(false);
     }
@@ -333,72 +253,7 @@ export default function KonuPage() {
       </BackLink>
 
       <article className="mt-3 border-[4px] border-black bg-[#FFFEFA] shadow-[6px_6px_0_black] p-4 sm:p-5">
-        {editing ? (
-          <div className="space-y-3">
-            <label className="block">
-              <span className={labelClass}>
-                BAŞLIK ({FORUM_TITLE_MIN}–{FORUM_TITLE_MAX} karakter)
-              </span>
-              <input
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value.slice(0, FORUM_TITLE_MAX))}
-                className={`mt-1 ${titleField}`}
-              />
-            </label>
-            <div>
-              <span className={labelClass}>KATEGORİ</span>
-              <div className="mt-1 flex flex-wrap gap-2" role="group" aria-label="Kategori">
-                {FORUM_CATEGORIES.map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    aria-pressed={editCategory === key}
-                    onClick={() => setEditCategory(key)}
-                    className={chipClass(editCategory === key)}
-                  >
-                    {FORUM_CATEGORY_META[key].tab}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <label className="block">
-              <span className={labelClass}>YAZI</span>
-              <textarea
-                value={editBody}
-                onChange={(e) => setEditBody(e.target.value.slice(0, FORUM_BODY_MAX))}
-                rows={8}
-                className={inputClass}
-              />
-            </label>
-            {editError && (
-              <p role="alert" className="font-mono text-[13px] border-[2px] border-dashed border-black p-2 bg-[#C8102E]/10">
-                {editError}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={sending}
-                aria-busy={sending || undefined}
-                onClick={() => void saveTopic()}
-                className={btnPrimary}
-              >
-                {sending ? "KAYDEDİLİYOR…" : "KAYDET"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditing(false);
-                  setEditError(null);
-                }}
-                className={btnSecondary}
-              >
-                VAZGEÇ
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
+        <>
             <h1 className="font-anton text-[28px] sm:text-[36px] leading-[0.95]">
               {topic.isPinned ? (
                 <span className="mr-2 font-mono text-[11px] bg-[#FFEA00] border-[2px] border-black px-1 align-middle">
@@ -410,7 +265,7 @@ export default function KonuPage() {
             <p className="font-mono text-[12px] opacity-75 mt-2">
               {isForumCategory(topic.category)
                 ? FORUM_CATEGORY_META[topic.category].label
-                : "Gündem"}{" "}
+                : "Genel Sohbet"}{" "}
               •{" "}
               {topic.author ? (
                 <ForumAuthorName
@@ -448,21 +303,6 @@ export default function KonuPage() {
               <div className="mt-4 pt-3 border-t-[2px] border-dashed border-black flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setEditTitle(topic.title);
-                    setEditBody(topic.content);
-                    setEditCategory(
-                      isForumCategory(topic.category) ? topic.category : "gundem",
-                    );
-                    setEditError(null);
-                    setEditing(true);
-                  }}
-                  className={btnSm}
-                >
-                  DÜZENLE
-                </button>
-                <button
-                  type="button"
                   disabled={sending}
                   onClick={() => {
                     setDeleteError(null);
@@ -474,8 +314,7 @@ export default function KonuPage() {
                 </button>
               </div>
             )}
-          </>
-        )}
+        </>
       </article>
 
       <h2 className="font-anton text-[22px] mt-6">YORUMLAR ({total})</h2>
@@ -496,47 +335,7 @@ export default function KonuPage() {
                   • {formatForumDate(p.createdAt)}
                   {p.editedAt ? " • düzenlendi" : ""}
                 </p>
-                {editPostId === p.id ? (
-                  <div className="mt-2 space-y-2">
-                    <label className="block">
-                      <span className="sr-only">Yorumu düzenle</span>
-                      <textarea
-                        value={editPostBody}
-                        onChange={(e) => setEditPostBody(e.target.value.slice(0, FORUM_POST_MAX))}
-                        rows={4}
-                        className={inputClass}
-                      />
-                    </label>
-                    {editError && (
-                      <p role="alert" className="font-mono text-[13px] text-[#C8102E]">
-                        {editError}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        disabled={sending}
-                        aria-busy={sending || undefined}
-                        onClick={() => void savePost(p.id)}
-                        className={btnSmPrimary}
-                      >
-                        {sending ? "KAYDEDİLİYOR…" : "KAYDET"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditPostId(null);
-                          setEditError(null);
-                        }}
-                        className={btnSm}
-                      >
-                        VAZGEÇ
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="font-mono text-[15px] mt-1 whitespace-pre-wrap leading-[1.5]">{p.content}</p>
-                )}
+                <p className="font-mono text-[15px] mt-1 whitespace-pre-wrap leading-[1.5]">{p.content}</p>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <LikeButton
                     type="post"
@@ -554,19 +353,8 @@ export default function KonuPage() {
                       onBlocked={() => void load()}
                     />
                   )}
-                  {mine && user?.phoneVerified && editPostId !== p.id && (
+                  {mine && user?.phoneVerified && (
                     <span className="ml-auto flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditPostId(p.id);
-                          setEditPostBody(p.content);
-                          setEditError(null);
-                        }}
-                        className={btnSm}
-                      >
-                        DÜZENLE
-                      </button>
                       <button
                         type="button"
                         disabled={sending}
@@ -629,7 +417,7 @@ export default function KonuPage() {
               />
             </label>
             <p id="yorum-sayac" className={`${hintClass} mt-1`}>
-              {draft.length}/{FORUM_POST_MAX} karakter
+              {draft.length}/{FORUM_POST_MAX} karakter • Gönderdikten sonra düzenlenemez, silebilirsin.
             </p>
             {postError && (
               <p
@@ -673,4 +461,3 @@ export default function KonuPage() {
   );
 }
 
-const titleField = fieldClass.replace("font-mono text-base sm:text-[14px]", "font-anton text-[20px]");

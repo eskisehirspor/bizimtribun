@@ -599,7 +599,8 @@ INSERT OR IGNORE INTO legal_acceptances (user_id, doc, version, accepted_at, sou
   FROM users WHERE terms_version IS NOT NULL;`);
       }
     },
-  },  {
+  },
+  {
     id: "012_fan_of_week",
     up(db) {
       // "Haftanın Taraftarı" replaces the monthly tribune leader: one winner
@@ -619,6 +620,23 @@ CREATE TABLE IF NOT EXISTS fan_of_week (
 );
 CREATE INDEX IF NOT EXISTS idx_fan_of_week_team ON fan_of_week(team_id, week_start DESC);
 `);
+    },
+  },
+  {
+    id: "013_forum_categories_v2",
+    up(db) {
+      // Every tribune now has the same ten sub-forums. Old categories move to
+      // the closest new one; nothing is deleted.
+      // Values are written out so later changes to the category list can't
+      // change what this migration did.
+      db.exec(`
+UPDATE forum_topics SET category = 'genel-sohbet' WHERE category IN ('gundem', 'tartisma');
+UPDATE forum_topics SET category = 'mac-gundemi' WHERE category = 'mac-gunu';
+UPDATE forum_topics SET category = 'kulup-tarihi' WHERE category = 'anilar';
+UPDATE forum_topics SET category = 'genel-sohbet' WHERE category NOT IN (
+  'genel-sohbet', 'mac-gundemi', 'kadro-oyuncular', 'teknik-direktor-taktik', 'kulup-yonetimi',
+  'altyapi', 'tribun-kulturu', 'deplasman', 'kulup-tarihi', 'haberler-duyurular'
+);`);
     },
   },
 ];

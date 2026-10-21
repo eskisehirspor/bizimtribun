@@ -283,6 +283,7 @@ export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, acti
             {error}
           </p>
         )}
+        <p className={hintClass}>Yayınladıktan sonra konu düzenlenemez. İstersen silebilirsin.</p>
         <div className="flex flex-col-reverse sm:flex-row gap-2">
           <Link href={forumPath} onClick={leave} className={btnSecondary}>
             İPTAL

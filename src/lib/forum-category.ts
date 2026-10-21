@@ -1,44 +1,83 @@
+/** The fixed sub-forums of every tribune, in display order. */
 export const FORUM_CATEGORIES = [
-  "gundem",
-  "mac-gunu",
+  "genel-sohbet",
+  "mac-gundemi",
+  "kadro-oyuncular",
+  "teknik-direktor-taktik",
+  "kulup-yonetimi",
+  "altyapi",
+  "tribun-kulturu",
   "deplasman",
-  "tartisma",
-  "anilar",
+  "kulup-tarihi",
+  "haberler-duyurular",
 ] as const;
 
 export type ForumCategory = (typeof FORUM_CATEGORIES)[number];
 
-export const FORUM_CATEGORY_DEFAULT: ForumCategory = "gundem";
+export const FORUM_CATEGORY_DEFAULT: ForumCategory = "genel-sohbet";
 
 export const FORUM_CATEGORY_META: Record<
   ForumCategory,
   { label: string; tab: string; blurb: string }
 > = {
-  gundem: {
-    label: "Gündem",
-    tab: "GÜNDEM",
-    blurb: "Maç, transfer, oyuncu, teknik direktör, takım haberleri.",
+  "genel-sohbet": {
+    label: "Genel Sohbet",
+    tab: "GENEL SOHBET",
+    blurb: "Takımla ilgili genel konuşmalar, taraftar görüşleri ve gündem.",
   },
-  "mac-gunu": {
-    label: "Maç Günü",
-    tab: "MAÇ GÜNÜ",
-    blurb: "Maç önü, canlı yorum, maç sonu. Kadro, skor, tribün havası.",
+  "mac-gundemi": {
+    label: "Maç Gündemi",
+    tab: "MAÇ GÜNDEMİ",
+    blurb: "Maç öncesi değerlendirmeler, maç sırasındaki yorumlar ve maç sonu tartışmaları.",
+  },
+  "kadro-oyuncular": {
+    label: "Takım Kadrosu ve Oyuncular",
+    tab: "KADRO VE OYUNCULAR",
+    blurb: "Futbolcu performansları, ilk 11, oyuncu değerlendirmeleri.",
+  },
+  "teknik-direktor-taktik": {
+    label: "Teknik Direktör ve Taktik",
+    tab: "TEKNİK DİREKTÖR VE TAKTİK",
+    blurb: "Oyun sistemi, takım dizilişi, teknik direktör kararları.",
+  },
+  "kulup-yonetimi": {
+    label: "Kulüp Yönetimi",
+    tab: "KULÜP YÖNETİMİ",
+    blurb: "Yönetim kararları, kulübün hedefleri, mali durum ve kurumsal gelişmeler.",
+  },
+  altyapi: {
+    label: "Altyapı ve Genç Yetenekler",
+    tab: "ALTYAPI VE GENÇLER",
+    blurb: "Akademi, genç futbolcular ve geleceğin oyuncuları.",
+  },
+  "tribun-kulturu": {
+    label: "Tribün ve Taraftar Kültürü",
+    tab: "TRİBÜN KÜLTÜRÜ",
+    blurb: "Tribün grupları, tezahüratlar, taraftar gelenekleri ve atmosfer.",
   },
   deplasman: {
-    label: "Deplasman",
+    label: "Deplasman ve Organizasyon",
     tab: "DEPLASMAN",
-    blurb: "Yolculuk, bilet, ulaşım, buluşma, organizasyon.",
+    blurb: "Deplasman yolculukları, taraftar buluşmaları ve maç organizasyonları.",
   },
-  tartisma: {
-    label: "Tartışma",
-    tab: "TARTIŞMA",
-    blurb: "Rakiple sportif rekabet. Küfür, nefret ve siyaset yok.",
+  "kulup-tarihi": {
+    label: "Kulüp Tarihi ve Efsaneler",
+    tab: "TARİH VE EFSANELER",
+    blurb: "Unutulmaz maçlar, eski futbolcular, tarihî başarılar ve anılar.",
   },
-  anilar: {
-    label: "Anılar",
-    tab: "ANILAR",
-    blurb: "İlk maç, tribün hatırası, aileden gelen sevgi.",
+  "haberler-duyurular": {
+    label: "Kulüp Haberleri ve Duyurular",
+    tab: "HABERLER VE DUYURULAR",
+    blurb: "Resmî açıklamalar, sakatlık haberleri, kulüp duyuruları ve önemli gelişmeler.",
   },
+};
+
+/** Categories before the fixed list, and where their topics moved (migration 013). */
+export const LEGACY_FORUM_CATEGORIES: Record<string, ForumCategory> = {
+  gundem: "genel-sohbet",
+  tartisma: "genel-sohbet",
+  "mac-gunu": "mac-gundemi",
+  anilar: "kulup-tarihi",
 };
 
 export const PINNED_STARTER_TOPICS = [
@@ -70,14 +109,15 @@ export function isForumCategory(value: unknown): value is ForumCategory {
   );
 }
 
-/** GET: missing → no filter. Invalid → null. */
+/** GET: missing → no filter. Old category links map to their new one. Invalid → null. */
 export function parseForumCategoryParam(raw: string | null) {
   if (raw == null || raw === "") return { ok: true as const, category: null };
+  if (LEGACY_FORUM_CATEGORIES[raw]) return { ok: true as const, category: LEGACY_FORUM_CATEGORIES[raw] };
   if (!isForumCategory(raw)) return { ok: false as const };
   return { ok: true as const, category: raw };
 }
 
-/** POST/PUT: missing uses defaultGundem on create. Invalid → null. */
+/** POST: missing uses the fallback. Invalid → null. */
 export function parseForumCategoryInput(
   raw: unknown,
   fallback: ForumCategory | null,

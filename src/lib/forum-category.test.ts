@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import Database from "better-sqlite3";
 import { moderateForumContent } from "./moderation/engine";
+import { MIGRATIONS } from "./migrations";
 import {
   FORUM_CATEGORIES,
   FORUM_CATEGORY_DEFAULT,
+  FORUM_CATEGORY_META,
   isForumCategory,
   parseForumCategoryInput,
   parseForumCategoryParam,
@@ -12,14 +14,22 @@ import {
   topicOrderSql,
 } from "./forum-category";
 
-test("5 kategori geçerli", () => {
-  assert.deepEqual(FORUM_CATEGORIES, [
-    "gundem",
-    "mac-gunu",
-    "deplasman",
-    "tartisma",
-    "anilar",
-  ]);
+test("her tribünde aynı 10 başlık, verilen sırayla", () => {
+  assert.deepEqual(
+    FORUM_CATEGORIES.map((c) => FORUM_CATEGORY_META[c].label),
+    [
+      "Genel Sohbet",
+      "Maç Gündemi",
+      "Takım Kadrosu ve Oyuncular",
+      "Teknik Direktör ve Taktik",
+      "Kulüp Yönetimi",
+      "Altyapı ve Genç Yetenekler",
+      "Tribün ve Taraftar Kültürü",
+      "Deplasman ve Organizasyon",
+      "Kulüp Tarihi ve Efsaneler",
+      "Kulüp Haberleri ve Duyurular",
+    ],
+  );
   for (const cat of FORUM_CATEGORIES) {
     assert.equal(isForumCategory(cat), true);
     assert.equal(parseForumCategoryParam(cat).ok, true);
@@ -34,10 +44,34 @@ test("geçersiz kategori reddedilir", () => {
   assert.equal(parseForumCategoryInput(1, FORUM_CATEGORY_DEFAULT).ok, false);
 });
 
-test("POST kategori yoksa gündem", () => {
+test("POST kategori yoksa Genel Sohbet", () => {
   const parsed = parseForumCategoryInput(undefined, FORUM_CATEGORY_DEFAULT);
   assert.equal(parsed.ok, true);
-  if (parsed.ok) assert.equal(parsed.category, "gundem");
+  if (parsed.ok) assert.equal(parsed.category, "genel-sohbet");
+});
+
+test("eski kategori linkleri yeni başlığa gider", () => {
+  assert.deepEqual(parseForumCategoryParam("gundem"), { ok: true, category: "genel-sohbet" });
+  assert.deepEqual(parseForumCategoryParam("mac-gunu"), { ok: true, category: "mac-gundemi" });
+  assert.deepEqual(parseForumCategoryParam("anilar"), { ok: true, category: "kulup-tarihi" });
+  // New topics can't be filed under an old category.
+  assert.equal(parseForumCategoryInput("gundem", null).ok, false);
+});
+
+test("013 migration eski konuları yeni başlıklara taşır", () => {
+  const db = new Database(":memory:");
+  db.exec(`CREATE TABLE forum_topics (id INTEGER PRIMARY KEY, category TEXT NOT NULL)`);
+  const ins = db.prepare(`INSERT INTO forum_topics (id, category) VALUES (?, ?)`);
+  const old = ["gundem", "tartisma", "mac-gunu", "deplasman", "anilar", "bilinmeyen"];
+  old.forEach((c, i) => ins.run(i + 1, c));
+  MIGRATIONS.find((m) => m.id === "013_forum_categories_v2")!.up(db);
+  const rows = db.prepare(`SELECT category FROM forum_topics ORDER BY id`).all() as { category: string }[];
+  assert.deepEqual(
+    rows.map((r) => r.category),
+    ["genel-sohbet", "genel-sohbet", "mac-gundemi", "deplasman", "kulup-tarihi", "genel-sohbet"],
+  );
+  for (const r of rows) assert.equal(isForumCategory(r.category), true);
+  db.close();
 });
 
 test("mevcut topicler migration sonrası gundem", () => {

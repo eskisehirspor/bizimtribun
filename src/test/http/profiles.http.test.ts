@@ -26,7 +26,8 @@ async function topic(cookie: string) {
     method: "POST",
     path: "/api/forum/genel/topics",
     cookie,
-    body: { title: "Derbi öncesi kadro", content: "İlk on biri yazın bakalım." },
+    // The same text can't be sent twice, so each topic gets its own.
+    body: { title: "Derbi öncesi kadro", content: `İlk on biri yazın bakalım. (${++n})` },
   });
   assert.equal(res.status, 201, res.text);
   return (res.json as { topic: { id: number } }).topic.id;

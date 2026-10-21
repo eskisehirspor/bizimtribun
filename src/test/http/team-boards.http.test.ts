@@ -29,6 +29,12 @@ async function member(teamId = "galatasaray", role: "user" | "moderator" | "admi
 }
 
 const TOPIC = { title: "Derbi öncesi kadro", content: "İlk on bir nasıl olmalı, yazın." };
+let seq = 0;
+/** The same text can't be sent twice, so each topic gets its own. */
+function topicBody() {
+  seq += 1;
+  return { ...TOPIC, content: `${TOPIC.content} (${seq})` };
+}
 
 async function teamTopic(cookie: string, team = "galatasaray") {
   const res = await invoke(createTeamTopic, {
@@ -36,7 +42,7 @@ async function teamTopic(cookie: string, team = "galatasaray") {
     path: `/api/forum/teams/${team}/topics`,
     params: { teamSlug: team },
     cookie,
-    body: TOPIC,
+    body: topicBody(),
   });
   assert.equal(res.status, 201, res.text);
   return (res.json as { topic: { id: number } }).topic.id;
@@ -67,7 +73,7 @@ test("admins get a notice for every new topic; members and moderators do not; ad
   assert.equal((await inbox(fan.cookie)).length, 0);
 
   // An admin's own topic does not notify them.
-  const general = await invoke(createGeneral, { method: "POST", path: "/api/forum/genel/topics", cookie: admin.cookie, body: TOPIC });
+  const general = await invoke(createGeneral, { method: "POST", path: "/api/forum/genel/topics", cookie: admin.cookie, body: topicBody() });
   assert.equal(general.status, 201);
   assert.equal((await inbox(admin.cookie)).length, 1);
   assert.equal((await inbox(sup.cookie)).length, 2);

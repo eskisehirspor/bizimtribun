@@ -8,7 +8,6 @@ import {
   FORUM_PAGE_MAX,
   FORUM_POST_MAX,
   FORUM_POSTS_PER_IP_HOUR,
-  FORUM_EDITS_PER_USER_HOUR,
   FORUM_POSTS_PER_USER_HOUR,
   FORUM_TITLE_MAX,
   FORUM_TITLE_MIN,
@@ -475,53 +474,6 @@ export function createTopic(input: {
   return findTopic(Number(info.lastInsertRowid))!;
 }
 
-function recordEdit(
-  type: "topic" | "post",
-  id: number,
-  userId: number,
-  oldTitle: string | null,
-  oldContent: string,
-  now: string,
-) {
-  getDb()
-    .prepare(
-      `INSERT INTO forum_edits (target_type, target_id, user_id, old_title, old_content, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-    )
-    .run(type, id, userId, oldTitle, oldContent, now);
-}
-
-/** Author edit. The previous version is kept in forum_edits for moderators. */
-export function updateTopic(
-  id: number,
-  userId: number,
-  patch: {
-    title: string;
-    content: string;
-    category?: ForumCategory;
-    holdForReview?: boolean;
-  },
-) {
-  const now = new Date().toISOString();
-  const heldAt = patch.holdForReview ? now : null;
-  return getDb().transaction(() => {
-    const before = findTopic(id);
-    if (!before || before.user_id !== userId || before.deleted_at || before.held_at) return false;
-    const result = getDb()
-      .prepare(
-        `UPDATE forum_topics
-         SET title = ?, content = ?, category = ?, updated_at = ?, held_at = ?, edited_at = ?
-         WHERE id = ? AND user_id = ? AND deleted_at IS NULL AND held_at IS NULL`,
-      )
-      .run(patch.title, patch.content, patch.category ?? before.category, now, heldAt, now, id, userId);
-    if (result.changes !== 1) return false;
-    if (before.title !== patch.title || before.content !== patch.content) {
-      recordEdit("topic", id, userId, before.title, before.content, now);
-    }
-    return true;
-  })();
-}
-
 export function softDeleteTopic(id: number, userId: number) {
   const now = new Date().toISOString();
   const result = getDb()
@@ -552,30 +504,6 @@ export function createPost(input: {
     .prepare(`UPDATE forum_topics SET updated_at = ? WHERE id = ?`)
     .run(now, input.topicId);
   return findPost(Number(info.lastInsertRowid))!;
-}
-
-export function updatePost(
-  id: number,
-  userId: number,
-  content: string,
-  holdForReview = false,
-) {
-  const now = new Date().toISOString();
-  const heldAt = holdForReview ? now : null;
-  return getDb().transaction(() => {
-    const before = findPost(id);
-    if (!before || before.user_id !== userId || before.deleted_at || before.held_at) return false;
-    const result = getDb()
-      .prepare(
-        `UPDATE forum_posts
-         SET content = ?, updated_at = ?, held_at = ?, edited_at = ?
-         WHERE id = ? AND user_id = ? AND deleted_at IS NULL AND held_at IS NULL`,
-      )
-      .run(content, now, heldAt, now, id, userId);
-    if (result.changes !== 1) return false;
-    if (before.content !== content) recordEdit("post", id, userId, null, before.content, now);
-    return true;
-  })();
 }
 
 export function softDeletePost(id: number, userId: number) {
@@ -677,16 +605,6 @@ export function noteForumPostAttempt(ip: string, userId: number) {
   noteAuthAttempt(hashedIp(`forum-post:${ip}`));
   noteAuthAttempt(hmac(`forum-post-user:${userId}`));
 }
-
-/** Counts the edit and says whether the member is over the hourly edit limit. */
-export function forumEditLimited(userId: number) {
-  const key = hmac(`forum-edit-user:${userId}`);
-  if (registerAttemptCount(key) >= FORUM_EDITS_PER_USER_HOUR) return true;
-  noteAuthAttempt(key);
-  return false;
-}
-
-export const FORUM_LOCKED_EDIT_ERROR = "Bu konu kilitli. Konu ve yorumlar düzenlenemez.";
 
 export { FORUM_BODY_MAX, FORUM_POST_MAX, FORUM_TITLE_MAX, FORUM_TITLE_MIN };
 

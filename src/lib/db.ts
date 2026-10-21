@@ -341,7 +341,7 @@ CREATE TABLE IF NOT EXISTS forum_topics (
   locked_at TEXT,
   deleted_at TEXT,
   held_at TEXT,
-  category TEXT NOT NULL DEFAULT 'gundem',
+  category TEXT NOT NULL DEFAULT 'genel-sohbet',
   is_pinned INTEGER NOT NULL DEFAULT 0
 );
 
@@ -373,7 +373,7 @@ if (!forumTopicCols.includes("held_at")) {
 }
 if (!forumTopicCols.includes("category")) {
   db.exec(
-    `ALTER TABLE forum_topics ADD COLUMN category TEXT NOT NULL DEFAULT 'gundem'`,
+    `ALTER TABLE forum_topics ADD COLUMN category TEXT NOT NULL DEFAULT 'genel-sohbet'`,
   );
 }
 if (!forumTopicCols.includes("is_pinned")) {
@@ -382,7 +382,7 @@ if (!forumTopicCols.includes("is_pinned")) {
   );
 }
 db.exec(
-  `UPDATE forum_topics SET category = 'gundem' WHERE category IS NULL OR trim(category) = ''`,
+  `UPDATE forum_topics SET category = 'genel-sohbet' WHERE category IS NULL OR trim(category) = ''`,
 );
 db.exec(`
 CREATE INDEX IF NOT EXISTS idx_forum_topics_team_cat_pin

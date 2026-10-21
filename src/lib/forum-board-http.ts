@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getSessionUser, requireForumWriter } from "./auth";
+import { forumFloodCheck, isNewAccount } from "./forum-spam";
 import {
   boardAccess,
   cleanForumText,
@@ -118,11 +119,14 @@ export async function boardTopicsPost(req: Request, board: ResolvedBoard | null)
     return noStoreJson({ error: "Çok fazla konu açtın. Biraz sonra dene." }, 429);
   }
   noteForumTopicAttempt(ip, active.user.id);
+  const flood = forumFloodCheck(getDb(), active.user.id, content);
+  if (!flood.ok) return noStoreJson({ error: flood.error }, flood.status);
 
   const verdict = moderateForumPublication([title, content], {
     surface: "topic",
     userId: active.user.id,
     teamId: board.ref.kind === "team" ? board.ref.teamId : undefined,
+    newAccount: isNewAccount(getDb(), active.user.id),
   });
   const mode = forumWriteMode(verdict.decision);
   if (mode === "none") {

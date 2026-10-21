@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { forumFloodCheck, isNewAccount } from "@/lib/forum-spam";
 import { getDb } from "@/lib/db";
 import { notifyReply } from "@/lib/notifications";
 import { clientIp } from "@/lib/request";
@@ -83,12 +84,15 @@ export async function POST(
     return noStoreJson({ error: "Çok fazla yorum. Biraz sonra dene." }, 429);
   }
   noteForumPostAttempt(ip, active.user.id);
+  const flood = forumFloodCheck(getDb(), active.user.id, content);
+  if (!flood.ok) return noStoreJson({ error: flood.error }, flood.status);
 
   const verdict = moderateForumPublication([content], {
     surface: "post",
     userId: active.user.id,
     teamId: topic.team_id ?? undefined,
     topicId: topic.id,
+    newAccount: isNewAccount(getDb(), active.user.id),
   });
   const mode = forumWriteMode(verdict.decision);
   if (mode === "none") {

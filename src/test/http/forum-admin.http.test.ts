@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { POST as login } from "../../app/api/auth/login/route";
 import { GET as listTopics, POST as createTopic } from "../../app/api/forum/teams/[teamSlug]/topics/route";
-import { GET as getTopic, PUT as putTopic, DELETE as deleteTopic } from "../../app/api/forum/topics/[topicId]/route";
+import { GET as getTopic, DELETE as deleteTopic } from "../../app/api/forum/topics/[topicId]/route";
 import { POST as createPost } from "../../app/api/forum/topics/[topicId]/posts/route";
 import { GET as heldList } from "../../app/api/admin/moderation/held/route";
 import { POST as heldApprove } from "../../app/api/admin/moderation/[type]/[id]/approve/route";
@@ -39,6 +39,12 @@ const ALLOW = {
   title: "Derbi analizi temiz",
   content: "Rakip kaleci büyük hata yaptı, defans da çok açıktı.",
 };
+let seq = 0;
+/** The same text can't be sent twice, so each request gets its own. */
+function allowBody() {
+  seq += 1;
+  return { title: ALLOW.title, content: `${ALLOW.content} (${seq})` };
+}
 const REVIEW = {
   title: "Ofsayt tartışması",
   content: "Sen aptalsın, ofsaytı göremedin.",
@@ -112,7 +118,7 @@ test("HTTP team tribune: guests and rival fans locked out, own fans and staff in
     method: "POST",
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
-    body: ALLOW,
+    body: allowBody(),
   });
   assert.equal(postTopic.status, 401);
 
@@ -137,7 +143,7 @@ test("HTTP team tribune: guests and rival fans locked out, own fans and staff in
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: rival.cookie,
-    body: ALLOW,
+    body: allowBody(),
     ip: "203.0.113.151",
   });
   assert.equal(rivalTopic.status, 403);
@@ -146,7 +152,7 @@ test("HTTP team tribune: guests and rival fans locked out, own fans and staff in
     path: `/api/forum/topics/${seedId}/posts`,
     params: { topicId: String(seedId) },
     cookie: rival.cookie,
-    body: { content: ALLOW.content },
+    body: { content: allowBody().content },
     ip: "203.0.113.151",
   });
   assert.equal(rivalReply.status, 403);
@@ -165,7 +171,7 @@ test("HTTP team tribune: guests and rival fans locked out, own fans and staff in
     path: `/api/forum/topics/${seedId}/posts`,
     params: { topicId: String(seedId) },
     cookie: mod.cookie,
-    body: { content: ALLOW.content },
+    body: { content: allowBody().content },
     ip: "203.0.113.153",
   });
   assert.equal(modReply.status, 403);
@@ -179,19 +185,19 @@ test("HTTP forum auth CRUD, 403, lock 409, pagination, category", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-      body: { ...ALLOW, category: "tartisma" },
+      body: { ...allowBody(), category: "teknik-direktor-taktik" },
     ip: "203.0.113.140",
   });
   assert.equal(created.status, 201, JSON.stringify(created.json));
   const id = (created.json as { topic: { id: number; category: string } }).topic.id;
-  assert.equal((created.json as { topic: { category: string } }).topic.category, "tartisma");
+  assert.equal((created.json as { topic: { category: string } }).topic.category, "teknik-direktor-taktik");
 
   const badCat = await invoke(createTopic, {
     method: "POST",
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: { ...ALLOW, category: "yok-boyle" },
+    body: { ...allowBody(), category: "yok-boyle" },
     ip: "203.0.113.140",
   });
   assert.equal(badCat.status, 400);
@@ -215,28 +221,10 @@ test("HTTP forum auth CRUD, 403, lock 409, pagination, category", async () => {
     path: `/api/forum/topics/${id}/posts`,
     params: { topicId: String(id) },
     cookie: a.cookie,
-    body: { content: ALLOW.content },
+    body: { content: allowBody().content },
     ip: "203.0.113.140",
   });
   assert.equal(reply.status, 201, JSON.stringify(reply.json));
-
-  const edited = await invoke(putTopic, {
-    method: "PUT",
-    path: `/api/forum/topics/${id}`,
-    params: { topicId: String(id) },
-    cookie: a.cookie,
-    body: { title: "Güncel derbi notu", content: ALLOW.content },
-  });
-  assert.equal(edited.status, 200);
-
-  const stolen = await invoke(putTopic, {
-    method: "PUT",
-    path: `/api/forum/topics/${id}`,
-    params: { topicId: String(id) },
-    cookie: b.cookie,
-    body: { title: "Başkasının konusu", content: ALLOW.content },
-  });
-  assert.equal(stolen.status, 403);
 
   const admin = await adminCookie("203.0.113.142");
   const lock = await invoke(lockTopic, {
@@ -252,7 +240,7 @@ test("HTTP forum auth CRUD, 403, lock 409, pagination, category", async () => {
     path: `/api/forum/topics/${id}/posts`,
     params: { topicId: String(id) },
     cookie: a.cookie,
-    body: { content: ALLOW.content },
+    body: { content: allowBody().content },
   });
   assert.equal(lockedPost.status, 409);
 
@@ -281,7 +269,7 @@ test("HTTP forum banned mutation 403", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: ALLOW,
+    body: allowBody(),
   });
   assert.ok(topic.status === 401 || topic.status === 403);
 });
@@ -295,7 +283,7 @@ test("HTTP forum topic rate limit", async () => {
       params: { teamSlug: "galatasaray" },
       cookie: a.cookie,
       ip: "203.0.113.145",
-      body: { title: `${ALLOW.title} ${i}`, content: ALLOW.content },
+      body: { title: `${ALLOW.title} ${i}`, content: allowBody().content },
     });
     assert.equal(r.status, 201, JSON.stringify(r.json));
   }
@@ -305,7 +293,7 @@ test("HTTP forum topic rate limit", async () => {
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
     ip: "203.0.113.145",
-    body: ALLOW,
+    body: allowBody(),
   });
   assert.equal(blocked.status, 429);
 });
@@ -318,7 +306,7 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: ALLOW,
+    body: allowBody(),
     ip: "203.0.113.146",
   });
   assert.equal(allow.status, 201);
@@ -423,7 +411,7 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: { title: "İkinci tartışma", content: REVIEW.content },
+    body: { title: "İkinci tartışma", content: `${REVIEW.content} Yine aynı.` },
     ip: "203.0.113.146",
   });
   assert.equal(review2.status, 422);
@@ -460,7 +448,7 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: { title: "Üçüncü tartışma", content: REVIEW.content },
+    body: { title: "Üçüncü tartışma", content: `${REVIEW.content} Üçüncü kez.` },
     ip: "203.0.113.146",
   });
   assert.equal(review3.status, 422);
@@ -496,7 +484,7 @@ test("HTTP held post public GET'te yok", async () => {
     path: "/api/forum/teams/galatasaray/topics",
     params: { teamSlug: "galatasaray" },
     cookie: a.cookie,
-    body: ALLOW,
+    body: allowBody(),
     ip: "203.0.113.148",
   });
   const topicId = (created.json as { topic: { id: number } }).topic.id;

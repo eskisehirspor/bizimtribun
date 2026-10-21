@@ -2,8 +2,6 @@ import "./env-init";
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { POST as createGeneral } from "../../app/api/forum/genel/topics/route";
-import { PUT as putTopic } from "../../app/api/forum/topics/[topicId]/route";
-import { POST as lockTopic } from "../../app/api/admin/forum/topics/[id]/lock/route";
 import { DELETE as adminDeleteTopic } from "../../app/api/admin/forum/topics/[id]/route";
 import { POST as like } from "../../app/api/forum/likes/route";
 import { POST as block } from "../../app/api/account/blocks/route";
@@ -43,28 +41,6 @@ test("login redirect stays on the site", () => {
     assert.equal(safeNextPath(bad), "/takimlar", JSON.stringify(bad));
   }
   assert.equal(safeNextPath("/forum/genel?x=1"), "/forum/genel?x=1");
-});
-
-test("a locked topic can't be rewritten by its author", async () => {
-  const author = await member();
-  const mod = await member("moderator");
-  const id = await topic(author.cookie);
-  const locked = await invoke(lockTopic, {
-    method: "POST",
-    path: `/api/admin/forum/topics/${id}/lock`,
-    params: { id: String(id) },
-    cookie: mod.cookie,
-    body: { reason: "tartışma çığırından çıktı" },
-  });
-  assert.equal(locked.status, 200, locked.text);
-  const edit = await invoke(putTopic, {
-    method: "PUT",
-    path: `/api/forum/topics/${id}`,
-    params: { topicId: String(id) },
-    cookie: author.cookie,
-    body: { title: "Yeni başlık burada", content: "Tamamen başka bir şey." },
-  });
-  assert.equal(edit.status, 409);
 });
 
 test("moderators can't remove an admin's topic", async () => {

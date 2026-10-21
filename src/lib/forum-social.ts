@@ -3,6 +3,7 @@ import { writeAudit } from "./audit";
 import { rateCount, rateNote } from "./auth-otp";
 import { hmac } from "./crypto";
 import { findLivePost, findLiveTopic, topicAccess, topicBoardOpen } from "./forum";
+import { FORUM_REPORTS_TO_HOLD } from "./forum-spam";
 
 /**
  * Likes, reports and member blocks. All writes come from a phone-verified,
@@ -139,7 +140,52 @@ export function fileReport(
   if (res.changes !== 1) {
     return { ok: false, error: "Bunu zaten bildirdin; moderatörler inceleyecek.", status: 409 };
   }
+  if (input.type !== "user") holdWhenReportedEnough(db, input.type, input.id);
   return { ok: true, id: Number(res.lastInsertRowid) };
+}
+
+/**
+ * Enough members reporting the same text hides it until a moderator looks,
+ * unless a moderator already approved it. Staff texts are never auto-hidden.
+ */
+function holdWhenReportedEnough(db: Database.Database, type: ContentType, id: number) {
+  const open = (
+    db
+      .prepare(
+        `SELECT COUNT(DISTINCT reporter_user_id) as c FROM forum_reports
+         WHERE target_type = ? AND target_id = ? AND status = 'open'`,
+      )
+      .get(type, id) as { c: number }
+  ).c;
+  if (open < FORUM_REPORTS_TO_HOLD) return;
+  const table = type === "topic" ? "forum_topics" : "forum_posts";
+  const row = db
+    .prepare(
+      `SELECT c.id, c.user_id, c.held_at, u.role ${type === "post" ? ", c.topic_id" : ""}
+       FROM ${table} c JOIN users u ON u.id = c.user_id
+       WHERE c.id = ? AND c.deleted_at IS NULL`,
+    )
+    .get(id) as { id: number; user_id: number; held_at: string | null; role: string; topic_id?: number } | undefined;
+  if (!row || row.held_at || row.role !== "user") return;
+  const targetCol = type === "topic" ? "target_topic_id = ? AND target_post_id IS NULL" : "target_post_id = ?";
+  const approved = db
+    .prepare(`SELECT 1 FROM moderation_actions WHERE action = 'approve_moderation' AND ${targetCol} LIMIT 1`)
+    .get(id);
+  if (approved) return;
+  const now = new Date().toISOString();
+  db.prepare(`UPDATE ${table} SET held_at = ? WHERE id = ? AND held_at IS NULL`).run(now, id);
+  db.prepare(
+    `INSERT INTO moderation_actions
+     (moderator_user_id, target_user_id, target_topic_id, target_post_id, action, reason, created_at)
+     VALUES (?, ?, ?, ?, 'auto_review', ?, ?)`,
+  ).run(
+    row.user_id,
+    row.user_id,
+    type === "topic" ? id : (row.topic_id ?? null),
+    type === "post" ? id : null,
+    `auto:review:reports:medium:reports.${open}`,
+    now,
+  );
 }
 
 export type ReportRow = {
