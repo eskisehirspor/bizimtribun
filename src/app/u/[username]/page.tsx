@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ForumShell from "@/components/ForumShell";
+import JsonLd from "@/components/JsonLd";
 import ProfileActions from "@/components/profile/ProfileActions";
 import ProfileActivity from "@/components/profile/ProfileActivity";
 import { getSessionUser } from "@/lib/auth";
@@ -11,6 +12,7 @@ import { AVATAR_EMOJI, getPublicProfile, listProfileActivity, XP_PER_LIKE } from
 import { getCatalogTeam } from "@/lib/team-catalog";
 import { initials, teamBadge } from "@/lib/teams";
 import { btnAccent, btnSm, labelClass } from "@/components/ui";
+import { absoluteUrl, graph } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -73,9 +75,31 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const team = p.teamId ? getCatalogTeam(p.teamId) : undefined;
   const isSelf = viewer?.id === p.id;
   const firstPage = listProfileActivity(db, p.id, 0, 21, viewer);
+  // Only profiles open to everyone are described to search engines.
+  const profileJsonLd =
+    p.visibility === "public"
+      ? graph({
+          "@type": "ProfilePage",
+          url: absoluteUrl(`/u/${p.username}`),
+          dateCreated: p.memberSince,
+          mainEntity: {
+            "@type": "Person",
+            name: p.username,
+            alternateName: `@${p.username}`,
+            identifier: String(p.id),
+            url: absoluteUrl(`/u/${p.username}`),
+            agentInteractionStatistic: {
+              "@type": "InteractionCounter",
+              interactionType: "https://schema.org/WriteAction",
+              userInteractionCount: p.counts.topics + p.counts.posts,
+            },
+          },
+        })
+      : null;
 
   return (
     <ForumShell>
+      {profileJsonLd && <JsonLd data={profileJsonLd} />}
       <section className="bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black]">
         <div
           className="flex flex-wrap items-center gap-4 p-5 border-b-[4px] border-black"

@@ -1,4 +1,5 @@
 import HomeClient from "@/components/HomeClient";
+import JsonLd from "@/components/JsonLd";
 import { getDb } from "@/lib/db";
 import type { Metadata } from "next";
 import { featuredPublicTopics, recentPublicTopics } from "@/lib/home-feed";
@@ -6,6 +7,7 @@ import { getSettings } from "@/lib/site-settings";
 import { cityLeaders, cityStandings, teamCounts, totalVerified } from "@/lib/stats";
 import { currentSeason } from "@/lib/team-admin";
 import { listLeagues } from "@/lib/team-catalog";
+import { graph, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -35,17 +37,20 @@ export default function Home() {
   const standings = cityStandings();
   const settings = getSettings();
   return (
-    <HomeClient
-      initialTeams={teamCounts()}
-      initialTotal={totalVerified()}
-      initialCities={cityLeaders(standings)}
-      initialStandings={standings}
-      leagues={listLeagues()}
-      season={currentSeason(getDb())?.label ?? null}
-      recentTopics={recentPublicTopics(8)}
-      featuredTopics={featuredPublicTopics(settings.featuredTopics.ids)}
-      homeLeagueIds={settings.homeLeagues.ids}
-      generatedAt={new Date().toISOString()}
-    />
+    <>
+      <JsonLd data={graph(organizationJsonLd(), websiteJsonLd())} />
+      <HomeClient
+        initialTeams={teamCounts()}
+        initialTotal={totalVerified()}
+        initialCities={cityLeaders(standings)}
+        initialStandings={standings}
+        leagues={listLeagues()}
+        season={currentSeason(getDb())?.label ?? null}
+        recentTopics={recentPublicTopics(8)}
+        featuredTopics={featuredPublicTopics(settings.featuredTopics.ids)}
+        homeLeagueIds={settings.homeLeagues.ids}
+        generatedAt={new Date().toISOString()}
+      />
+    </>
   );
 }

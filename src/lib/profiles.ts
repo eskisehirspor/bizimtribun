@@ -446,3 +446,17 @@ export function updateProfileSettings(
   );
   return { ok: true, settings: getProfileSettings(db, userId)! };
 }
+
+/** Which of these usernames have a profile anyone (and any crawler) may open. */
+export function publicUsernames(db: Database.Database, usernames: string[]) {
+  const unique = [...new Set(usernames)];
+  if (unique.length === 0) return new Set<string>();
+  const rows = db
+    .prepare(
+      `SELECT username FROM users
+       WHERE username IN (${unique.map(() => "?").join(",")})
+         AND profile_visibility = 'public' AND deleted_at IS NULL AND status = 'active' AND banned_at IS NULL`,
+    )
+    .all(...unique) as { username: string }[];
+  return new Set(rows.map((r) => r.username));
+}

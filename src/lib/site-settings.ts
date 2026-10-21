@@ -67,7 +67,8 @@ export const DEFAULT_SETTINGS: Settings = {
   socialLinks: { x: "", instagram: "", youtube: "", tiktok: "" },
   seo: {
     siteTitle: "Bizim Tribün — Türkiye'nin Taraftar Haritası",
-    siteDescription: "Doğrulanmış taraftar sayımı, 81 il haritası ve takım tribünleri.",
+    siteDescription:
+      "Türkiye'nin en büyük takımı hangisi? Doğrulanmış hesap başına tek oyla gerçek taraftar sayımı, 81 il haritası, takım tribünleri ve Milli Takım Tribünü.",
   },
   homeLeagues: { ids: [...LEAGUE_ORDER] },
   maintenance: { enabled: false, message: "" },

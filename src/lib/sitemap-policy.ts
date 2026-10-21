@@ -49,9 +49,10 @@ export function staticSitemapEntries(base: string, now = new Date()): SitemapEnt
       changeFrequency: "hourly",
       priority: 0.8,
     },
+    // No lastModified: these change rarely, and a date that moves on every
+    // request teaches Google to ignore the dates that do matter.
     ...["/kvkk", "/kullanim-kosullari", "/cerez-politikasi"].map((path) => ({
       url: `${root}${path}`,
-      lastModified: now,
       changeFrequency: "yearly" as const,
       priority: 0.3,
     })),

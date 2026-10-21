@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import CityPageView from "@/components/CityPageView";
+import JsonLd from "@/components/JsonLd";
 import { CITIES, getCityBySlug } from "@/lib/cities";
 import { cityPageMetadata } from "@/lib/city-seo";
+import { HOME_CRUMB, breadcrumbJsonLd, graph } from "@/lib/seo";
 import { cityHistory, cityLastVoteAt, cityVoteTotals } from "@/lib/city-stats";
 import { getSessionUser } from "@/lib/auth";
 import { memberTeamId } from "@/lib/forum";
@@ -37,15 +39,20 @@ export default async function CityPage({
   const viewer = await getSessionUser();
   const viewerTeamId = viewer ? memberTeamId(viewer.id) : null;
   return (
-    <CityPageView
-      city={city}
-      total={total}
-      rows={rows}
-      history={cityHistory(city.name)}
-      lastVoteAt={cityLastVoteAt(city.name)}
-      generatedAt={new Date().toISOString()}
-      viewerTeamId={viewerTeamId}
-      viewerIsStaff={Boolean(viewer && isStaffRole(viewer.role))}
-    />
+    <>
+      <JsonLd
+        data={graph(breadcrumbJsonLd([HOME_CRUMB, { name: `${city.name} taraftar sayımı`, path: `/il/${city.slug}` }]))}
+      />
+      <CityPageView
+        city={city}
+        total={total}
+        rows={rows}
+        history={cityHistory(city.name)}
+        lastVoteAt={cityLastVoteAt(city.name)}
+        generatedAt={new Date().toISOString()}
+        viewerTeamId={viewerTeamId}
+        viewerIsStaff={Boolean(viewer && isStaffRole(viewer.role))}
+      />
+    </>
   );
 }

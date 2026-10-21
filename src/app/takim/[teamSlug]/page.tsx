@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import ForumShell from "@/components/ForumShell";
+import JsonLd from "@/components/JsonLd";
 import TeamMark from "@/components/TeamMark";
 import { citySlug } from "@/lib/cities";
 import { teamSummary } from "@/lib/stats";
 import { getCatalogTeam, leagueLabels } from "@/lib/team-catalog";
 import { teamPageMetadata } from "@/lib/team-seo";
+import { HOME_CRUMB, absoluteUrl, breadcrumbJsonLd, graph } from "@/lib/seo";
 import BackLink from "@/components/BackLink";
 import { btnPrimary, btnSecondary } from "@/components/ui";
 import { getSessionUser } from "@/lib/auth";
@@ -39,6 +41,26 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
 
   return (
     <ForumShell>
+      <JsonLd
+        data={graph(
+          {
+            "@type": "SportsTeam",
+            "@id": `${absoluteUrl(`/takim/${team.id}`)}#takim`,
+            name: team.name,
+            sport: "Futbol",
+            location: {
+              "@type": "Place",
+              name: team.city,
+              address: { "@type": "PostalAddress", addressLocality: team.city, addressCountry: "TR" },
+            },
+          },
+          breadcrumbJsonLd([
+            HOME_CRUMB,
+            { name: "Takımlar", path: "/takimlar" },
+            { name: team.name, path: `/takim/${team.id}` },
+          ]),
+        )}
+      />
       <BackLink href="/takimlar">Takım tribünleri</BackLink>
       <section className="mt-3 border-[4px] border-black shadow-[8px_8px_0_black]" style={{ background: team.paper }}>
         <div className="flex flex-wrap items-center gap-4 p-5 border-b-[4px] border-black">

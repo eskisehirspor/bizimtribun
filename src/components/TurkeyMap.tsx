@@ -67,6 +67,11 @@ export default function TurkeyMap({ leaders, standings }: Props) {
       >
         <title>Türkiye illeri</title>
         <defs>
+          {/* Each outline is drawn three times (gap, halo, fill); keeping one copy and
+              reusing it cuts the home page HTML by roughly two thirds. */}
+          {data.provinces.map((il, idx) =>
+            il.paths.map((d, i) => <path key={`${idx}-${i}`} id={`${uid}-p-${idx}-${i}`} d={d} />),
+          )}
           <pattern
             id={`${uid}-tie`}
             width="6"
@@ -96,12 +101,12 @@ export default function TurkeyMap({ leaders, standings }: Props) {
             );
           })}
         </defs>
-        {data.provinces.map((il) => (
+        {data.provinces.map((il, idx) => (
           <g key={`gap-${il.name}`} className="pointer-events-none">
-            {il.paths.map((d, i) => (
-              <path
+            {il.paths.map((_, i) => (
+              <use
                 key={i}
-                d={d}
+                href={`#${uid}-p-${idx}-${i}`}
                 fill="#F2EFE6"
                 stroke="#F2EFE6"
                 strokeWidth={4.6}
@@ -139,10 +144,10 @@ export default function TurkeyMap({ leaders, standings }: Props) {
               aria-label={`${il.name} il sayfası`}
               className="cursor-pointer"
             >
-              {il.paths.map((d, i) => (
-                <path
+              {il.paths.map((_, i) => (
+                <use
                   key={`halo-${i}`}
-                  d={d}
+                  href={`#${uid}-p-${idx}-${i}`}
                   fill="none"
                   stroke={active ? "#FFEA00" : "transparent"}
                   strokeWidth={active && !t ? 5 : 3.4}
@@ -150,10 +155,10 @@ export default function TurkeyMap({ leaders, standings }: Props) {
                   className="pointer-events-none"
                 />
               ))}
-              {il.paths.map((d, i) => (
-                <path
+              {il.paths.map((_, i) => (
+                <use
                   key={i}
-                  d={d}
+                  href={`#${uid}-p-${idx}-${i}`}
                   fill={fill}
                   stroke={active ? "#111" : "#1A1A1A"}
                   strokeWidth={active ? 2.15 : 1.5}

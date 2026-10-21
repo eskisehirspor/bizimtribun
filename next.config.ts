@@ -20,6 +20,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: globalSecurityHeaders },
+      // JSON is for the pages, never a search result of its own.
+      { source: "/api/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
       { source: "/dogrula", headers: noReferrer },
       { source: "/uye-dogrula", headers: noReferrer },
       { source: "/admin/:path*", headers: noReferrer },

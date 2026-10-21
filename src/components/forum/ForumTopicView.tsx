@@ -7,7 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
 import TeamBoardGate, { isTeamBoardCode } from "@/components/forum/TeamBoardGate";
 import TeamMark from "@/components/TeamMark";
-import { FORUM_POST_MAX } from "@/lib/policy";
+import { FORUM_PAGE_DEFAULT, FORUM_POST_MAX } from "@/lib/policy";
 import { FORUM_CATEGORY_META, isForumCategory, tribunTitle, type ForumCategory } from "@/lib/forum-category";
 import { useTeamCatalog } from "@/components/useTeamCatalog";
 import { formatForumDate, forumApiError } from "@/lib/forum-ui";
@@ -61,15 +61,20 @@ type Post = {
   author: Author;
 };
 
-export default function KonuPage() {
+const limit = FORUM_PAGE_DEFAULT;
+
+/** First page as the server rendered it, so the topic is in the HTML for readers and search engines. */
+export type TopicInitial = { topic: Topic; posts: Post[]; total: number };
+
+export default function KonuPage({ initial }: { initial?: TopicInitial }) {
   const { topicId } = useParams<{ topicId: string }>();
   const router = useRouter();
   const { user, banned, message, loading } = useAuth();
   const catalog = useTeamCatalog();
-  const [topic, setTopic] = useState<Topic | null>(null);
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [topic, setTopic] = useState<Topic | null>(initial?.topic ?? null);
+  const [posts, setPosts] = useState<Post[]>(initial?.posts ?? []);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
+  const [total, setTotal] = useState(initial?.total ?? 0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [gated, setGated] = useState(false);
   const [busy, setBusy] = useState(true);
@@ -79,7 +84,6 @@ export default function KonuPage() {
   /** Pending delete: the topic itself or one of the viewer's comments. */
   const [deleting, setDeleting] = useState<{ kind: "topic" } | { kind: "post"; id: number } | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const limit = 20;
 
   const load = useCallback(async () => {
     setBusy(true);
