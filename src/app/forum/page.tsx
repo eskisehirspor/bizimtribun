@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AyYildiz, MilliPanel } from "@/components/AyYildiz";
+import { MilliPanel } from "@/components/AyYildiz";
 import ForumShell from "@/components/ForumShell";
 import { getDb } from "@/lib/db";
 import { NATIONAL_BOARD_PATH, NATIONAL_BOARD_TITLE } from "@/lib/national-board";
@@ -42,10 +42,7 @@ export default function ForumIndexPage() {
         </Link>
         <Link href={NATIONAL_BOARD_PATH} className="block">
           <MilliPanel className="h-full p-4 pb-6">
-            <p className="font-anton text-[26px] leading-none flex items-center gap-2">
-              <AyYildiz size={20} />
-              {NATIONAL_BOARD_TITLE}
-            </p>
+            <p className="font-anton text-[26px] leading-none">{NATIONAL_BOARD_TITLE}</p>
             <p className="font-mono text-[13px] mt-2 max-w-[34ch]">
               Ay yıldızlılar ve takım ayırmadan futbol. Herkese açık. {general} konu.
             </p>
