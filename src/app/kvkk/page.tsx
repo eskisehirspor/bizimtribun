@@ -151,9 +151,10 @@ export default function KvkkPage() {
       <h2>4. Kimlere aktarılır?</h2>
       <ul>
         <li>
-          <strong>SMS sağlayıcısı:</strong> SMS doğrulaması kullanıldığında, kodu iletmek için
-          telefon numaran ve kod SMS sağlayıcısına iletilir: Netgsm (Türkiye) veya Twilio Inc. (ABD).
-          Hangisinin kullanıldığı: [KULLANILAN SMS SAĞLAYICISI].
+          <strong>SMS sağlayıcısı:</strong> Şu anda SMS gönderilmiyor ve telefon numaran hiçbir SMS
+          sağlayıcısına aktarılmıyor. SMS ile doğrulama ya da izin verdiğin kampanya SMS&apos;leri
+          başladığında, kullanılan sağlayıcı bu metne eklenecek ve metnin yeni sürümü sana
+          gösterilecek.
         </li>
         <li>
           <strong>Bot koruması:</strong> Doğrulama kodu istenmeden önce, tarayıcı ve IP bilgilerin Cloudflare
