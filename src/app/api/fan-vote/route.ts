@@ -30,6 +30,7 @@ export async function GET(req: Request) {
   return noStoreJson({
     ok: true,
     phoneVerified: Boolean(active.user.phone_verified_at),
+    verified: Boolean(active.user.phone_verified_at || active.user.email_verified_at),
     vote: voteView(findFanVote(getDb(), active.user.id)),
   });
 }

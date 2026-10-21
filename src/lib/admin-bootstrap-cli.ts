@@ -21,14 +21,20 @@ export function bootstrapSuperAdmin(
     }
     const user = db
       .prepare(
-        `SELECT id, phone_verified_at, deleted_at, status FROM users WHERE username_norm = ?`,
+        `SELECT id, phone_verified_at, email_verified_at, deleted_at, status FROM users WHERE username_norm = ?`,
       )
       .get(username) as
-      | { id: number; phone_verified_at: string | null; deleted_at: string | null; status: string }
+      | {
+          id: number;
+          phone_verified_at: string | null;
+          email_verified_at: string | null;
+          deleted_at: string | null;
+          status: string;
+        }
       | undefined;
     if (!user || user.deleted_at) return { ok: false as const, error: "No such account." };
-    if (!user.phone_verified_at) {
-      return { ok: false as const, error: "Account must verify its phone by SMS first." };
+    if (!user.phone_verified_at && !user.email_verified_at) {
+      return { ok: false as const, error: "Account must verify its phone or e-mail first." };
     }
     if (user.status !== "active") return { ok: false as const, error: "Account is not active." };
     const now = new Date().toISOString();

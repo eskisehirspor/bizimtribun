@@ -22,9 +22,10 @@ Copy `.env.example` and set at least:
 | `APP_URL` | Public HTTPS origin, no trailing slash |
 | `TRUST_PROXY` | **Required in production:** `forwarded` (nginx) or `cloudflare`. `none` is for development only. |
 | `TRUST_PROXY_HOPS` | Hop count when `TRUST_PROXY=forwarded` (usually `1`) |
-| `RESEND_API_KEY` | Required to send mail |
+| `VERIFY_CHANNEL` | `email` (default) or `sms`: how sign-up and code sign-in prove the member |
+| `RESEND_API_KEY` | Required to send mail; with `VERIFY_CHANNEL=email` production answers 503 to code requests without it |
 | `MAIL_FROM` | From address Resend accepts |
-| `SMS_PROVIDER` | `netgsm` or `twilio` (plus that provider's credentials). Unset = SMS sign-up/login closed (503) |
+| `SMS_PROVIDER` | `netgsm` or `twilio` (plus that provider's credentials), used with `VERIFY_CHANNEL=sms`. Unset = SMS sign-up/login closed (503) |
 | `TURNSTILE_SECRET_KEY` / `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Bot check before every SMS send. Required in production (fails closed) |
 | `DB_BACKUP_DIR` | Optional backup directory (default: `<db-dir>/backups`) |
 | `DB_BACKUP_RETENTION` | Optional; default `7` daily files |
@@ -101,9 +102,13 @@ The team catalog in `src/lib/teams.ts` is synced on boot only into rows an admin
 
 Open Graph images (`/opengraph-image`, `/takim/<id>/opengraph-image`, `/il/<slug>/opengraph-image`) are drawn per request from live counts and carry the data time. They read the fonts in `assets/fonts` (SIL Open Font License, licence files next to them), so run `next start` from the repository directory or copy `assets/` alongside the build.
 
+## E-mail codes
+
+With `VERIFY_CHANNEL=email` (the default) sign-up and sign-in are by a 6-digit code sent with Resend. Set `RESEND_API_KEY` and a `MAIL_FROM` on a domain verified in Resend (SPF/DKIM), or codes land in spam. The code is only in the mail body, never in logs or responses. Throwaway domains are refused, and one browser can open at most 2 accounts a year (device cookie, see [data-policy.md](data-policy.md)). Send one real code to your own inbox before opening sign-ups.
+
 ## SMS
 
-Sign-up and sign-in are by SMS code. Set `SMS_PROVIDER` and that provider's credentials (see `.env.example`). Without them production answers 503 to code requests and creates no codes. `SMS_PROVIDER=dev` is refused in production. The Netgsm and Twilio adapters are written against their public APIs but **have not been tested with a live account**; send one real code to your own phone before opening sign-ups.
+With `VERIFY_CHANNEL=sms` sign-up and sign-in are by SMS code. Set `SMS_PROVIDER` and that provider's credentials (see `.env.example`). Without them production answers 503 to code requests and creates no codes. `SMS_PROVIDER=dev` is refused in production. The Netgsm and Twilio adapters are written against their public APIs but **have not been tested with a live account**; send one real code to your own phone before opening sign-ups.
 
 ## First super admin
 

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
-import PhoneOtpStep from "@/components/auth/PhoneOtpStep";
+import CodeSignInStep, { useVerifyChannel } from "@/components/auth/CodeSignInStep";
 import { forumApiError, safeNextPath } from "@/lib/forum-ui";
 import { inputClass, primaryButton, secondaryButton } from "@/components/auth/ui";
 import { labelClass } from "@/components/ui";
@@ -19,8 +19,9 @@ function Form() {
   const [password, setPassword] = useState("");
   const [totp, setTotp] = useState("");
   const [need2fa, setNeed2fa] = useState(params.get("adim") === "2fa");
-  const [method, setMethod] = useState<"sms" | "password">(
-    params.get("yontem") === "sifre" ? "password" : "sms",
+  const channel = useVerifyChannel();
+  const [method, setMethod] = useState<"code" | "password">(
+    params.get("yontem") === "sifre" ? "password" : "code",
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,11 +83,10 @@ function Form() {
           <br />
           <span className="bg-[#FFEA00] px-2 inline-block rotate-1">YAP</span>
         </h1>
-        {method === "sms" && !need2fa && (
+        {method === "code" && !need2fa && (
           <div className="mt-5">
-            <PhoneOtpStep
-              requestUrl="/api/auth/otp/request"
-              verifyUrl="/api/auth/otp/verify"
+            <CodeSignInStep
+              channel={channel}
               submitLabel="GİRİŞ YAP"
               onVerified={(data) => {
                 if (data.next === "signup") {
@@ -159,8 +159,8 @@ function Form() {
             {busy ? (need2fa ? "DOĞRULANIYOR…" : "GİRİŞ YAPILIYOR…") : need2fa ? "DOĞRULA" : "GİRİŞ YAP"}
           </button>
           {!need2fa && (
-            <button type="button" onClick={() => setMethod("sms")} className={secondaryButton}>
-              SMS KODUYLA GİRİŞ YAP
+            <button type="button" onClick={() => setMethod("code")} className={secondaryButton}>
+              {channel === "sms" ? "SMS KODUYLA GİRİŞ YAP" : "E-POSTA KODUYLA GİRİŞ YAP"}
             </button>
           )}
         </form>
@@ -171,7 +171,7 @@ function Form() {
             ÜYE OL
           </Link>
           <p className="font-mono text-[12px] mt-3 opacity-70">
-            Şifreyle açılmış eski hesaplar oy vermek ve tribünde yazmak için telefonunu bir kez
+            Şifreyle açılmış eski hesaplar oy vermek ve tribünde yazmak için hesabını bir kez
             doğrulamalı.
           </p>
         </div>

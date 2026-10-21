@@ -2,7 +2,7 @@
 
 Türkiye'nin il bazında taraftar sayımı ve taraftar forumu. Next.js 16 + SQLite (`better-sqlite3`).
 
-- Üyelik ve giriş SMS koduyla; her hesap bir kez, kalıcı olarak bir takıma oy verir (veritabanı tetikleyicileriyle korunur).
+- Üyelik ve giriş e-posta koduyla (`VERIFY_CHANNEL=sms` ile SMS koduna geçer); aynı tarayıcıdan en fazla 2 hesap açılır; her hesap bir kez, kalıcı olarak bir takıma oy verir (veritabanı tetikleyicileriyle korunur).
 - Sayaçlar yalnızca aktif `fan_votes` kayıtlarından gelir; 81 il haritası, il ve takım sayfaları, eşitlikler eşitlik olarak gösterilir.
 - Forum: Milli Takım Tribünü (herkese açık, eski Genel Tribün), takım tribünleri (haftanın taraftarı meşalesiyle), Maç Günü kategorisi; beğeni, bildirim (site içi), rapor, engelleme.
 - Profil (`/u/<kullanıcı>`), rozetler ve katkı puanı (oylarla ilgisi yok).
@@ -18,7 +18,7 @@ cd bizimtribun
 git fetch origin claude/production-platform-qhdqfe
 git checkout claude/production-platform-qhdqfe
 npm ci
-cp .env.example .env.local     # SMS_PROVIDER=dev: kod ekranda görünür, SMS gitmez
+cp .env.example .env.local     # RESEND_API_KEY boşken kod ekranda görünür, mail gitmez
 npm run dev                    # http://localhost:3000
 ```
 

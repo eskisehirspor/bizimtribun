@@ -2,24 +2,45 @@
 
 ## Identity
 
-- One account = one row in `users`. New accounts are created only after an SMS code proves
-  the phone (`/api/auth/otp/request` → `/api/auth/otp/verify` → `/api/auth/signup`).
-- A phone number can be *verified* on at most one non-deleted account
-  (`idx_users_phone_norm` unique index + checks in `accounts.ts`).
+- One account = one row in `users`. New accounts are created only after a code proves the
+  e-mail address, or the phone when `VERIFY_CHANNEL=sms`
+  (`/api/auth/otp/request` → `/api/auth/otp/verify` → `/api/auth/signup`). E-mail is the
+  default while no SMS sender name is approved. A member is *verified* (may vote and write)
+  with either `phone_verified_at` or `email_verified_at`; switching the channel keeps both kinds
+  of account working.
+- A phone number or e-mail can be *verified* on at most one non-deleted account
+  (`idx_users_phone_norm` / `email_norm` unique + checks in `accounts.ts`). E-mails are
+  normalised before lookup: lower case, `+tag` dropped, dots ignored for Gmail, so
+  `a.li+2@gmail.com` is the same inbox as `ali@gmail.com`.
+- The sign-up form also asks for first and last name, birth date (13+ only) and, on e-mail
+  sign-ups, a mobile number stored *unverified* (one account per number; a later SMS check
+  can confirm it). None of these is ever public; admins with PII rights see them. Campaign SMS
+  needs a separate, unticked, optional consent (`marketing_consent_at`), withdrawable on
+  `/hesap`. Before any campaign SMS is sent the consent must be registered in İYS and the
+  sender needs ETK-compliant opt-out; none of that sending exists yet.
+- Throwaway inbox domains (`disposable.ts`, subdomains included) cannot ask for a code. The
+  list is not exhaustive.
+- **Device limit:** the code request sets `bt_device`, a random id in an httpOnly cookie
+  (2 years). A browser can open at most `DEVICE_SIGNUP_MAX` (2) accounts per year. The server
+  keeps only `HMAC(id)` and the sign-up time in `device_signups`, with no link to the account,
+  and purges rows after a year. Sign-up without the cookie is refused. This stops repeat
+  sign-ups from the same browser; it does not stop someone who clears cookies, opens a private
+  window or uses another browser or device. The per-IP limits and Turnstile cover part of that.
 - Older password accounts keep working. To vote or post they verify a phone once
   (`/api/account/phone/*`). If a newer account verifies a number that an older account only
   *typed* (never verified), the verified owner keeps it and the older claim is cleared.
-- SMS verification proves control of a phone number at a point in time. It does not prove
+- Code verification proves control of an inbox or a phone number at a point in time. It does not prove
   that one real person stands behind one account, and nothing in the product claims that.
 - Codes: 6 digits, 5 minutes, 5 wrong tries, stored only as salted HMACs, never logged or
   returned (except by the dev provider outside production).
-- Limits: per IP 10 sends/hour, per phone 3/hour and 8/day, 60 s resend cooldown, per IP 30
-  and per phone 10 code checks/hour, 5 sign-ups per IP/hour. Turnstile before every send.
+- Limits: per IP 10 sends/hour, per phone or e-mail 3/hour and 8/day, 60 s resend cooldown,
+  per IP 30 and per phone or e-mail 10 code checks/hour, 5 sign-ups per IP/hour and 20/day,
+  2 per device/year. Turnstile before every send.
 
 ## Census
 
 - `fan_votes`: one row per account (`user_id UNIQUE`), team and city immutable (trigger),
-  never deleted (trigger), insert only for phone-verified, non-deleted accounts and active
+  never deleted (trigger), insert only for phone- or e-mail-verified, non-deleted accounts and active
   teams (trigger). Account + vote are created in one transaction, so a failed vote leaves no
   half-registered account.
 - **"Doğrulanmış taraftar"** = `COUNT(*) FROM fan_votes WHERE status = 'active'`.
@@ -43,7 +64,7 @@
   becomes `silinmis_<id>`, display name "Silinmiş üye"; sessions are revoked;
 - clears bio, avatar and profile choices, and deletes the member's badges and notifications;
 - keeps forum posts, shown under "Silinmiş üye";
-- stores a keyed HMAC of the phone (never the number) in `phone_holds` so the same number
+- stores a keyed HMAC of the verified phone and e-mail (never the values) in `phone_holds` so the same number
   cannot re-register and vote again right away:
   - **30 days** for an account that never voted (`PHONE_HOLD_MS`);
   - **1 year** for an account that cast a vote (`PHONE_HOLD_VOTED_MS`);
@@ -97,7 +118,8 @@ builds are removed at boot; nothing seeds fans or votes any more.
 | Account data | while the account exists |
 | `auth_otps`, rate-limit counters | ≤ 2 days |
 | `signup_tickets` | 15 minutes (purged after expiry) |
-| `phone_holds` | 30 days after deletion; 1 year if the account voted; no end date if it was banned |
+| `phone_holds` (phone and e-mail HMACs) | 30 days after deletion; 1 year if the account voted; no end date if it was banned |
+| `device_signups` (device-id HMAC + time) | 1 year |
 | `notifications` | 90 days (read or not) |
 | `sessions` | 30 days after expiry or sign-out |
 | `security_events` (hashed IP / browser only) | 1 year |

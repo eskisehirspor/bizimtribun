@@ -212,7 +212,7 @@ export function requireForumWriter(
 } | { ok: false; error: string; status: number } {
   const active = requireActiveUser(user);
   if (!active.ok) return active;
-  if (!active.user.phone_verified_at) {
+  if (!active.user.phone_verified_at && !active.user.email_verified_at) {
     return {
       ok: false,
       error: FORUM_PHONE_UNVERIFIED_ERROR,

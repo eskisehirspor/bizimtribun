@@ -204,9 +204,9 @@ export default function ForumBoardView({
           <p className="font-mono text-[13px] border-[2px] border-black p-2 bg-[#C8102E]/10">
             {message || "Hesabın askıda. Yazı yazamazsın."}
           </p>
-        ) : user && !user.phoneVerified ? (
+        ) : user && !user.verified ? (
           <Link href="/takim-sec" className={btnAccent}>
-            YAZMAK İÇİN TELEFONUNU DOĞRULA
+            YAZMAK İÇİN HESABINI DOĞRULA
           </Link>
         ) : user ? (
           <Link href={newHref} className={btnPrimary}>

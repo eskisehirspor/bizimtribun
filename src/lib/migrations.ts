@@ -639,6 +639,81 @@ UPDATE forum_topics SET category = 'genel-sohbet' WHERE category NOT IN (
 );`);
     },
   },
+  {
+    id: "014_email_verification_and_device_limit",
+    up(db) {
+      // Accounts can now be verified by an e-mail code as well as by SMS.
+      // A member counts as verified with either; the vote guards follow.
+      // Sign-up tickets are short-lived (15 min), so the table is rebuilt
+      // empty to carry e-mail tickets.
+      // device_signups holds only an HMAC of a random cookie id and the
+      // sign-up time, no account link, and is purged after a year.
+      db.exec(`
+DROP TABLE IF EXISTS signup_tickets;
+CREATE TABLE signup_tickets (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  token_hash TEXT NOT NULL UNIQUE,
+  channel TEXT NOT NULL CHECK (channel IN ('sms', 'email')),
+  phone_norm TEXT,
+  email TEXT,
+  email_norm TEXT,
+  identity_hash TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_signup_tickets_expires ON signup_tickets(expires_at);
+
+CREATE TABLE IF NOT EXISTS device_signups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  device_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_device_signups ON device_signups(device_hash, created_at);
+
+DROP TRIGGER IF EXISTS fan_votes_insert_guard;
+CREATE TRIGGER fan_votes_insert_guard
+BEFORE INSERT ON fan_votes
+BEGIN
+  SELECT RAISE(ABORT, 'VOTE_NOT_ACTIVE') WHERE NEW.status != 'active';
+  SELECT RAISE(ABORT, 'VOTE_USER_NOT_ELIGIBLE')
+  WHERE NOT EXISTS (
+    SELECT 1 FROM users
+    WHERE id = NEW.user_id AND deleted_at IS NULL
+      AND (phone_verified_at IS NOT NULL OR email_verified_at IS NOT NULL)
+  );
+  SELECT RAISE(ABORT, 'VOTE_TEAM_INACTIVE')
+  WHERE NOT EXISTS (SELECT 1 FROM teams WHERE id = NEW.team_id AND is_active = 1);
+END;
+
+DROP TRIGGER IF EXISTS fan_votes_void_once;
+CREATE TRIGGER fan_votes_void_once
+BEFORE UPDATE ON fan_votes
+WHEN OLD.status = 'void' AND NOT (
+  NEW.status = 'active'
+  AND NEW.restored_at IS NOT NULL
+  AND EXISTS (SELECT 1 FROM fan_vote_restores r WHERE r.vote_id = OLD.id AND r.created_at = NEW.restored_at)
+  AND EXISTS (
+    SELECT 1 FROM users u
+    WHERE u.id = OLD.user_id AND u.deleted_at IS NULL
+      AND (u.phone_verified_at IS NOT NULL OR u.email_verified_at IS NOT NULL)
+  )
+)
+BEGIN
+  SELECT RAISE(ABORT, 'VOTE_IMMUTABLE');
+END;
+`);
+    },
+  },
+  {
+    id: "015_marketing_consent",
+    up(db) {
+      // Optional, separate consent to campaign SMS (ETK / İYS). NULL = no
+      // consent; set to the time the member ticked it, cleared on withdrawal.
+      const cols = new Set((db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[]).map((c) => c.name));
+      if (!cols.has("marketing_consent_at")) db.exec(`ALTER TABLE users ADD COLUMN marketing_consent_at TEXT`);
+    },
+  },
 ];
 
 export function appliedMigrationIds(db: Database.Database) {

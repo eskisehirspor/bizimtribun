@@ -98,6 +98,10 @@ test("requireForumWriter: unverified 403, verified ok, banned first", () => {
   );
   assert.equal(verified.ok, true);
 
+  // An e-mail proven by code or link counts the same as an SMS-verified phone.
+  const emailVerified = w(row({ email_verified_at: "2026-01-03T00:00:00.000Z" }));
+  assert.equal(emailVerified.ok, true);
+
   const active = requireActiveUser(row());
   assert.equal(active.ok, true);
 

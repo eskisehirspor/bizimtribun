@@ -8,6 +8,7 @@ import ForumShell from "@/components/ForumShell";
 import { errorText, inputClass, Notice, postJson, secondaryButton } from "@/components/auth/ui";
 import { useTeamCatalog } from "@/components/useTeamCatalog";
 import ProfileSettingsForm from "@/components/profile/ProfileSettingsForm";
+import MarketingConsentToggle from "@/components/profile/MarketingConsentToggle";
 import { btnDanger, btnPrimary, labelClass } from "@/components/ui";
 
 const CONFIRM = "HESABIMI SİL";
@@ -53,8 +54,14 @@ function Account() {
         <p className={labelClass}>KULLANICI ADI</p>
         <p className="font-anton text-[26px] leading-none">@{user.username}</p>
         <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[12px]">
-          <dt className="opacity-70">Telefon</dt>
-          <dd>{user.phoneVerified ? "SMS ile doğrulandı" : "Doğrulanmadı"}</dd>
+          <dt className="opacity-70">Doğrulama</dt>
+          <dd>
+            {user.phoneVerified
+              ? "Telefon SMS ile doğrulandı"
+              : user.emailVerified
+                ? "E-posta doğrulandı"
+                : "Doğrulanmadı"}
+          </dd>
           <dt className="opacity-70">Takım</dt>
           <dd>{team ? `${team.name} (kalıcı)` : "Henüz seçilmedi"}</dd>
         </dl>
@@ -63,7 +70,7 @@ function Account() {
             href="/takim-sec"
             className={`mt-3 ${btnPrimary}`}
           >
-            {user.phoneVerified ? "TAKIMINI SEÇ" : "TELEFONU DOĞRULA VE TAKIM SEÇ"}
+            {user.verified ? "TAKIMINI SEÇ" : "HESABINI DOĞRULA VE TAKIM SEÇ"}
           </Link>
         )}
         {team && team.isForumActive && (
@@ -76,6 +83,11 @@ function Account() {
       <section id="profil" className="border-[3px] border-black bg-white p-4 space-y-2">
         <h2 className="font-anton text-[20px]">PROFİL VE BİLDİRİMLER</h2>
         <ProfileSettingsForm username={user.username} />
+      </section>
+
+      <section className="border-[3px] border-black bg-white p-4 space-y-2">
+        <h2 className="font-anton text-[20px]">KAMPANYA İZNİ</h2>
+        <MarketingConsentToggle />
       </section>
 
       <section className="border-[3px] border-black bg-white p-4 space-y-2">

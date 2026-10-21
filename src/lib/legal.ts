@@ -17,7 +17,7 @@ export const LEGAL_ENTITY = {
   taxNo: "0860443493",
   email: "kvkk@asd.web.tr",
   kep: "asdtasarim@hs01.kep.tr",
-  verbis: "[VERBİS KAYIT DURUMU]",
+  verbis: "Veri sorumlusu henüz VERBİS’e kayıtlı değildir.",
   court: "Eskişehir Mahkemeleri ve İcra Daireleri",
 } as const;
 

@@ -1,7 +1,8 @@
 import { runHousekeepingIfDue } from "./housekeeping";
 import { randomBytes, randomInt } from "crypto";
 import type Database from "better-sqlite3";
-import { hmac, identityPhoneHash, safeEqual } from "./crypto";
+import { hmac, identityEmailHash, identityPhoneHash, safeEqual } from "./crypto";
+import { isDevMailInbox, mailConfigured, sendOtpEmail } from "./mail";
 import {
   OTP_MAX_ATTEMPTS,
   OTP_PER_IP_HOUR,
@@ -11,6 +12,7 @@ import {
   OTP_TTL_MS,
   OTP_VERIFY_PER_IP_HOUR,
   OTP_VERIFY_PER_PHONE_HOUR,
+  DEVICE_SIGNUP_WINDOW_MS,
 } from "./policy";
 import { getSmsProvider, isDevSmsInbox, SmsSendError } from "./sms";
 
@@ -30,6 +32,10 @@ const DAY_MS = 24 * HOUR_MS;
 
 export function phoneKeyHash(phoneNorm: string) {
   return identityPhoneHash(phoneNorm);
+}
+
+export function emailKeyHash(emailNorm: string) {
+  return identityEmailHash(emailNorm);
 }
 
 function codeHash(salt: string, phoneHash: string, code: string) {
@@ -66,6 +72,55 @@ export type OtpRequestResult =
   | { ok: true; expiresInSec: number; devCode?: string }
   | { ok: false; status: number; error: string };
 
+/** Where a code goes: an SMS to a phone or a mail to an inbox. */
+type OtpTarget = {
+  /** HMAC of the phone or the normalised e-mail; stored in auth_otps.phone_hash. */
+  keyHash: string;
+  tooManyError: string;
+  unavailableError: string;
+  /** Returns false when the channel is not configured. */
+  available(): boolean;
+  /** Throws "NOT_CONFIGURED" when the channel cannot send. */
+  send(code: string): Promise<void>;
+  devInbox(): boolean;
+};
+
+const SMS_UNAVAILABLE = "SMS doğrulama şu anda kullanılamıyor. Daha sonra tekrar dene.";
+const MAIL_UNAVAILABLE = "E-posta doğrulama şu anda kullanılamıyor. Daha sonra tekrar dene.";
+
+function smsTarget(phoneNorm: string): OtpTarget {
+  return {
+    keyHash: phoneKeyHash(phoneNorm),
+    tooManyError: "Bu numaraya çok fazla kod gönderildi. Daha sonra tekrar dene.",
+    unavailableError: SMS_UNAVAILABLE,
+    available: () => getSmsProvider().name !== "none",
+    async send(code) {
+      try {
+        await getSmsProvider().sendOtp({ phoneNorm, code });
+      } catch (err) {
+        if (err instanceof SmsSendError && err.message === "SMS_NOT_CONFIGURED") {
+          throw new Error("NOT_CONFIGURED");
+        }
+        throw err;
+      }
+    },
+    devInbox: isDevSmsInbox,
+  };
+}
+
+function emailTarget(emailNorm: string, emailTo: string): OtpTarget {
+  return {
+    keyHash: emailKeyHash(emailNorm),
+    tooManyError: "Bu adrese çok fazla kod gönderildi. Daha sonra tekrar dene.",
+    unavailableError: MAIL_UNAVAILABLE,
+    available: mailConfigured,
+    async send(code) {
+      await sendOtpEmail(emailTo, code);
+    },
+    devInbox: isDevMailInbox,
+  };
+}
+
 /**
  * Creates and sends a code. The caller has already validated the phone and
  * the CAPTCHA. Limits: per IP per hour, per phone per hour and per day,
@@ -80,8 +135,31 @@ export async function requestOtp(
     userId?: number | null;
   },
 ): Promise<OtpRequestResult> {
+  return requestCode(db, smsTarget(input.phoneNorm), input);
+}
+
+/** Same as requestOtp, for an e-mail address (already normalised and checked). */
+export async function requestEmailOtp(
+  db: Database.Database,
+  input: {
+    emailNorm: string;
+    /** The address as typed; the mail goes here. */
+    emailTo: string;
+    ipKey: string;
+    purpose: OtpPurpose;
+    userId?: number | null;
+  },
+): Promise<OtpRequestResult> {
+  return requestCode(db, emailTarget(input.emailNorm, input.emailTo), input);
+}
+
+async function requestCode(
+  db: Database.Database,
+  target: OtpTarget,
+  input: { ipKey: string; purpose: OtpPurpose; userId?: number | null },
+): Promise<OtpRequestResult> {
   runHousekeepingIfDue(db);
-  const phoneHash = phoneKeyHash(input.phoneNorm);
+  const phoneHash = target.keyHash;
   const ipRateKey = hmac(`otp-send-ip:${input.ipKey}`);
 
   if (rateCount(db, ipRateKey, HOUR_MS) >= OTP_PER_IP_HOUR) {
@@ -101,11 +179,7 @@ export async function requestOtp(
     last: string | null;
   };
   if ((phoneCounts.hour ?? 0) >= OTP_PER_PHONE_HOUR || phoneCounts.day >= OTP_PER_PHONE_DAY) {
-    return {
-      ok: false,
-      status: 429,
-      error: "Bu numaraya çok fazla kod gönderildi. Daha sonra tekrar dene.",
-    };
+    return { ok: false, status: 429, error: target.tooManyError };
   }
   if (
     phoneCounts.last &&
@@ -121,13 +195,8 @@ export async function requestOtp(
     };
   }
 
-  const provider = getSmsProvider();
-  if (provider.name === "none") {
-    return {
-      ok: false,
-      status: 503,
-      error: "SMS doğrulama şu anda kullanılamıyor. Daha sonra tekrar dene.",
-    };
+  if (!target.available()) {
+    return { ok: false, status: 503, error: target.unavailableError };
   }
 
   rateNote(db, ipRateKey);
@@ -159,18 +228,14 @@ export async function requestOtp(
   })();
 
   try {
-    await provider.sendOtp({ phoneNorm: input.phoneNorm, code });
+    await target.send(code);
   } catch (err) {
     db.prepare(`UPDATE auth_otps SET voided_at = ? WHERE id = ? AND voided_at IS NULL`).run(
       new Date().toISOString(),
       id,
     );
-    if (err instanceof SmsSendError && err.message === "SMS_NOT_CONFIGURED") {
-      return {
-        ok: false,
-        status: 503,
-        error: "SMS doğrulama şu anda kullanılamıyor. Daha sonra tekrar dene.",
-      };
+    if (err instanceof Error && err.message === "NOT_CONFIGURED") {
+      return { ok: false, status: 503, error: target.unavailableError };
     }
     return { ok: false, status: 502, error: "Kod gönderilemedi. Biraz sonra tekrar dene." };
   }
@@ -178,7 +243,7 @@ export async function requestOtp(
   return {
     ok: true,
     expiresInSec: Math.floor(OTP_TTL_MS / 1000),
-    ...(isDevSmsInbox() ? { devCode: code } : {}),
+    ...(target.devInbox() ? { devCode: code } : {}),
   };
 }
 
@@ -203,7 +268,27 @@ export function verifyOtp(
     userId?: number | null;
   },
 ): OtpVerifyResult {
-  const phoneHash = phoneKeyHash(input.phoneNorm);
+  return verifyCode(db, phoneKeyHash(input.phoneNorm), input);
+}
+
+export function verifyEmailOtp(
+  db: Database.Database,
+  input: {
+    emailNorm: string;
+    code: string;
+    ipKey: string;
+    purpose: OtpPurpose;
+    userId?: number | null;
+  },
+): OtpVerifyResult {
+  return verifyCode(db, emailKeyHash(input.emailNorm), input);
+}
+
+function verifyCode(
+  db: Database.Database,
+  phoneHash: string,
+  input: { code: string; ipKey: string; purpose: OtpPurpose; userId?: number | null },
+): OtpVerifyResult {
   const ipRateKey = hmac(`otp-verify-ip:${input.ipKey}`);
   const phoneRateKey = hmac(`otp-verify-phone:${phoneHash}`);
   if (
@@ -254,12 +339,13 @@ export function verifyOtp(
   })();
 }
 
-/** Housekeeping: drop expired codes, tickets and finished phone holds. */
+/** Housekeeping: drop expired codes, tickets, finished holds and old device rows. */
 export function purgeExpiredAuthRows(db: Database.Database) {
   const now = new Date().toISOString();
   db.prepare(`DELETE FROM auth_otps WHERE created_at < ?`).run(since(2 * DAY_MS));
   db.prepare(`DELETE FROM signup_tickets WHERE expires_at < ?`).run(now);
   db.prepare(`DELETE FROM phone_holds WHERE release_at < ?`).run(now);
+  db.prepare(`DELETE FROM device_signups WHERE created_at < ?`).run(since(DEVICE_SIGNUP_WINDOW_MS));
   db.prepare(`DELETE FROM register_attempts WHERE created_at < ?`).run(since(2 * DAY_MS));
   // Ended sessions are kept 30 days for "where am I signed in" questions, then dropped.
   db.prepare(`DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?`).run(since(30 * DAY_MS), since(30 * DAY_MS));

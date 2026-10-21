@@ -15,6 +15,7 @@ type Dashboard = {
   activeForumTeams: number;
   validVotes: number;
   phoneVerifiedMembers: number;
+  emailVerifiedMembers: number;
   legacyCensusVotes: number;
   signups: { day: number; week: number; month: number };
   newTopicsWeek: number;
@@ -143,6 +144,7 @@ function DashboardView() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
         <AdminCard title="AKTİF HESAP" value={data.activeMembers} hint="Silinmemiş ve banlı olmayan" />
         <AdminCard title="TELEFONU DOĞRULANMIŞ" value={data.phoneVerifiedMembers} hint="SMS ile doğrulanmış, silinmemiş" />
+        <AdminCard title="E-POSTASI DOĞRULANMIŞ" value={data.emailVerifiedMembers} hint="Yalnızca e-posta ile doğrulanmış, silinmemiş" />
         <AdminCard title="GEÇERLİ TAKIM OYU" value={data.validVotes} hint="Durumu aktif fan_votes kaydı" />
         <AdminCard title="AKTİF BAN" value={data.activeBans} />
         <AdminCard title="YENİ KAYIT (24 SAAT)" value={data.signups.day} />

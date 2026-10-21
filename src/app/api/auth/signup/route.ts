@@ -1,4 +1,4 @@
-import { maskPhone } from "@/lib/privacy";
+import { maskEmail, maskPhone } from "@/lib/privacy";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { noStoreJson, readJsonBody } from "@/lib/http";
@@ -13,7 +13,13 @@ import {
 } from "@/lib/auth";
 import { hmac } from "@/lib/crypto";
 import { requestIpKey } from "@/lib/otp-http";
-import { SIGNUP_PER_IP_HOUR, SIGNUP_TICKET_COOKIE } from "@/lib/policy";
+import { DEVICE_COOKIE_ERROR, deviceHash, isDeviceId } from "@/lib/device-limit";
+import {
+  DEVICE_COOKIE,
+  SIGNUP_PER_IP_DAY,
+  SIGNUP_PER_IP_HOUR,
+  SIGNUP_TICKET_COOKIE,
+} from "@/lib/policy";
 import { findUserById, toPublicUser } from "@/lib/users";
 import { getSettings, MAINTENANCE_ERROR } from "@/lib/site-settings";
 
@@ -31,12 +37,23 @@ const Body = z.object({
   confirmAge: z.literal(true),
   termsVersion: z.string().max(20),
   privacyVersion: z.string().max(20),
+  firstName: z.string().max(40),
+  lastName: z.string().max(40),
+  birthDate: z.string().max(10),
+  phone: z.string().max(24).optional().nullable(),
+  marketingConsent: z.boolean().optional(),
 });
 
 export async function GET(req: Request) {
   const ticket = lookupSignupTicket(getDb(), await readCookie(req, SIGNUP_TICKET_COOKIE));
   if (!ticket) return noStoreJson({ ok: true, ticket: false });
-  return noStoreJson({ ok: true, ticket: true, phoneMasked: maskPhone(ticket.phoneNorm) });
+  return noStoreJson({
+    ok: true,
+    ticket: true,
+    channel: ticket.channel,
+    phoneMasked: ticket.channel === "sms" ? maskPhone(ticket.phoneNorm) : null,
+    emailMasked: ticket.channel === "email" ? maskEmail(ticket.email) : null,
+  });
 }
 
 export async function POST(req: Request) {
@@ -45,7 +62,10 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) {
     return noStoreJson(
-      { error: "Kullanıcı adı, takım, takımın kalıcı olduğu, Kullanım Koşulları ve Aydınlatma Metni onayı gerekiyor." },
+      {
+        error:
+          "Takma ad, ad soyad, doğum tarihi, takım, takımın kalıcı olduğu, Kullanım Koşulları ve Aydınlatma Metni onayı gerekiyor.",
+      },
       400,
     );
   }
@@ -58,18 +78,29 @@ export async function POST(req: Request) {
 
   const db = getDb();
   const ipKey = hmac(`signup-ip:${await requestIpKey()}`);
-  if (rateCount(db, ipKey, 60 * 60 * 1000) >= SIGNUP_PER_IP_HOUR) {
+  if (
+    rateCount(db, ipKey, 60 * 60 * 1000) >= SIGNUP_PER_IP_HOUR ||
+    rateCount(db, ipKey, 24 * 60 * 60 * 1000) >= SIGNUP_PER_IP_DAY
+  ) {
     return noStoreJson({ error: "Çok fazla deneme. Biraz sonra tekrar dene." }, 429);
   }
+  const device = await readCookie(req, DEVICE_COOKIE);
+  if (!isDeviceId(device)) return noStoreJson({ error: DEVICE_COOKIE_ERROR }, 400);
   rateNote(db, ipKey);
 
   const result = signupWithTicket(db, {
     ticketRaw: await readCookie(req, SIGNUP_TICKET_COOKIE),
+    deviceHash: deviceHash(device),
     username: parsed.data.username,
     displayName: parsed.data.displayName,
     city: parsed.data.city,
     teamId: parsed.data.teamId,
     legal: { termsVersion: parsed.data.termsVersion, privacyVersion: parsed.data.privacyVersion },
+    firstName: parsed.data.firstName,
+    lastName: parsed.data.lastName,
+    birthDate: parsed.data.birthDate,
+    phone: parsed.data.phone,
+    marketingConsent: parsed.data.marketingConsent === true,
   });
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
 

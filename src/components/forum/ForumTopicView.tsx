@@ -123,7 +123,7 @@ export default function KonuPage() {
     : team
       ? tribunTitle(team.name)
       : NATIONAL_BOARD_NAME;
-  const canWrite = Boolean(user && user.phoneVerified && !banned);
+  const canWrite = Boolean(user && user.verified && !banned);
   const pages = Math.max(1, Math.ceil(total / limit));
   const isOwner = Boolean(user && topic && user.id === topic.author?.id);
   const locked = Boolean(topic?.lockedAt);
@@ -137,7 +137,7 @@ export default function KonuPage() {
         : "guest"
       : banned
         ? "none"
-        : !user.phoneVerified
+        : !user.verified
           ? "unverified"
           : user.id === authorId
             ? "author"
@@ -299,7 +299,7 @@ export default function KonuPage() {
                 />
               )}
             </div>
-            {isOwner && user?.phoneVerified && (
+            {isOwner && user?.verified && (
               <div className="mt-4 pt-3 border-t-[2px] border-dashed border-black flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -353,7 +353,7 @@ export default function KonuPage() {
                       onBlocked={() => void load()}
                     />
                   )}
-                  {mine && user?.phoneVerified && (
+                  {mine && user?.verified && (
                     <span className="ml-auto flex flex-wrap gap-2">
                       <button
                         type="button"
@@ -389,11 +389,11 @@ export default function KonuPage() {
               GİRİŞ YAP
             </Link>
           </div>
-        ) : user && !user.phoneVerified ? (
+        ) : user && !user.verified ? (
           <div className="flex flex-wrap items-center gap-3">
-            <p className="font-mono text-[14px]">Yorum yazmak için telefonunu bir kez doğrula.</p>
+            <p className="font-mono text-[14px]">Yorum yazmak için hesabını bir kez doğrula.</p>
             <Link href="/takim-sec" className={btnPrimary}>
-              TELEFONUNU DOĞRULA
+              HESABINI DOĞRULA
             </Link>
           </div>
         ) : (

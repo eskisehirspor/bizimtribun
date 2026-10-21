@@ -34,12 +34,15 @@ export default function TermsPage() {
           açıldığı anlaşılan hesaplar kapatılır.
         </li>
         <li>
-          <strong>Tek hesap:</strong> Her hesap, SMS koduyla doğrulanmış ve sana ait bir cep telefonu
-          numarasına bağlıdır. Bir numarayla aynı anda yalnızca bir hesap açılabilir. Başkasının
-          numarasını kullanmak yasaktır.
+          <strong>Tek hesap:</strong> Her hesap, kodla doğrulanmış ve sana ait bir e-posta adresine
+          (SMS doğrulaması kullanıldığında cep telefonu numarasına) bağlıdır. Bir adresle ya da
+          numarayla aynı anda yalnızca bir hesap açılabilir ve bir cihazdan sınırlı sayıda hesap
+          açılabilir. Geçici e-posta adresi ya da başkasının adresini veya numarasını kullanmak, oy
+          çoğaltmak için birden fazla hesap açmak yasaktır.
         </li>
         <li>
-          <strong>Hesap güvenliği:</strong> Hesabına giriş SMS koduyla yapılır. Kodu kimseyle paylaşma.
+          <strong>Hesap güvenliği:</strong> Hesabına giriş e-postana (ya da SMS ile) gelen kodla
+          yapılır. Kodu kimseyle paylaşma.
           Hesabından yapılan işlemlerden sen sorumlusun. Yetkisiz kullanım fark edersen bize hemen bildir.
         </li>
         <li>
@@ -55,11 +58,11 @@ export default function TermsPage() {
           değiştirilemez, başka bir takıma taşınamaz.
         </li>
         <li>
-          Sayımlar, SMS ile doğrulanmış telefon numaralarının tercihlerini gösterir. Bir kişinin kimliğini
+          Sayımlar, doğrulanmış hesapların tercihlerini gösterir. Bir kişinin kimliğini
           kesin olarak kanıtlamaz, resmi bir istatistik ya da anket değildir.
         </li>
         <li>
-          Hesabını silersen oyun sayımdan düşer. Aynı numarayla yeniden üye olabilmek için beklenmesi
+          Hesabını silersen oyun sayımdan düşer. Aynı numara ya da adresle yeniden üye olabilmek için beklenmesi
           gereken süreler{" "}
           <Link className="underline" href="/kvkk">
             Aydınlatma Metni

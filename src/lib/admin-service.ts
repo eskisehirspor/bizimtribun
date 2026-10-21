@@ -95,6 +95,14 @@ export function getDashboardStats() {
       )
       .get() as { c: number }
   ).c;
+  const emailVerifiedMembers = (
+    db
+      .prepare(
+        `SELECT COUNT(*) as c FROM users
+         WHERE email_verified_at IS NOT NULL AND phone_verified_at IS NULL AND deleted_at IS NULL`,
+      )
+      .get() as { c: number }
+  ).c;
   /** Old e-mail census ballots: kept for the record, not part of any public count. */
   const legacyCensusVotes = (
     db.prepare(`SELECT COUNT(*) as c FROM votes WHERE revoked_at IS NULL`).get() as { c: number }
@@ -133,6 +141,7 @@ export function getDashboardStats() {
     activeForumTeams,
     validVotes,
     phoneVerifiedMembers,
+    emailVerifiedMembers,
     legacyCensusVotes,
     recent: recent.map((row) => ({
       id: row.id,
@@ -319,7 +328,7 @@ export function listAdminUsers(filters: UserListFilters) {
     .prepare(
       `SELECT u.id, u.username, u.display_name, u.team_id, u.status, u.role,
               u.created_at, u.last_login_at, u.banned_at, u.ban_reason, u.ban_expires_at,
-              u.phone_verified_at, u.deleted_at, tm.name as team_name
+              u.phone_verified_at, u.email_verified_at, u.deleted_at, tm.name as team_name
        FROM users u
        LEFT JOIN teams tm ON tm.id = u.team_id
        WHERE ${whereSql}
@@ -339,6 +348,7 @@ export function listAdminUsers(filters: UserListFilters) {
     ban_reason: string | null;
     ban_expires_at: string | null;
     phone_verified_at: string | null;
+    email_verified_at: string | null;
     deleted_at: string | null;
     team_name: string | null;
   }>;
@@ -354,6 +364,7 @@ export function listAdminUsers(filters: UserListFilters) {
       status: row.status,
       role: row.role,
       phoneVerified: Boolean(row.phone_verified_at),
+      emailVerified: Boolean(row.email_verified_at),
       deleted: Boolean(row.deleted_at),
       createdAt: row.created_at,
       lastLoginAt: row.last_login_at,
@@ -451,6 +462,7 @@ export function getAdminUserDetail(id: number, viewerRole: string) {
     email: pii ? user.email : maskEmail(user.email),
     phoneMasked: maskPhone(user.phone_norm ?? user.phone),
     phoneVerified: Boolean(user.phone_verified_at),
+    emailVerified: Boolean(user.email_verified_at),
     firstName: pii ? user.first_name : null,
     lastName: pii ? user.last_name : null,
     birthDate: pii ? user.birth_date : null,

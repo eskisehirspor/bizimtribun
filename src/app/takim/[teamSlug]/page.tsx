@@ -103,7 +103,7 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
           <p className="font-mono text-[12px] opacity-70 mt-4">
             Veri zamanı:{" "}
             {generatedAt.toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", dateStyle: "short", timeStyle: "short" })}.
-            Yalnızca SMS ile doğrulanmış hesapların tek ve kalıcı oyları sayılır.
+            Yalnızca doğrulanmış hesapların tek ve kalıcı oyları sayılır.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             {team.isForumActive && canReadTribune && (

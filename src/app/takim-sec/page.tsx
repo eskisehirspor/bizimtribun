@@ -6,16 +6,19 @@ import { Suspense, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
 import PhoneOtpStep from "@/components/auth/PhoneOtpStep";
+import { useVerifyChannel } from "@/components/auth/CodeSignInStep";
 import TeamPicker from "@/components/auth/TeamPicker";
-import { errorText, Notice, postJson } from "@/components/auth/ui";
+import { errorText, Notice, postJson, primaryButton } from "@/components/auth/ui";
 
 /** One-time team choice for accounts that exist but have not voted (e.g. older accounts). */
 function Flow() {
   const router = useRouter();
   const params = useSearchParams();
   const { user, loading, refresh } = useAuth();
+  const channel = useVerifyChannel();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mailInfo, setMailInfo] = useState<string | null>(null);
 
   if (loading) return <p className="font-mono text-[12px]">Yükleniyor…</p>;
   if (!user) {
@@ -33,7 +36,37 @@ function Flow() {
       </Notice>
     );
   }
-  if (!user.phoneVerified) {
+  if (!user.verified && channel === "email") {
+    return (
+      <div className="space-y-3">
+        <Notice tone="info">
+          Oy vermeden ve yazmadan önce hesabındaki e-posta adresini doğrulaman gerekiyor. Sana bir
+          doğrulama bağlantısı gönderelim.
+        </Notice>
+        {mailInfo && <Notice tone="success">{mailInfo}</Notice>}
+        {error && <Notice tone="error">{error}</Notice>}
+        <button
+          type="button"
+          disabled={busy}
+          className={primaryButton}
+          onClick={async () => {
+            setBusy(true);
+            setError(null);
+            const r = await postJson("/api/auth/resend-verification", {});
+            setBusy(false);
+            if (!r.ok) {
+              setError(errorText(r));
+              return;
+            }
+            setMailInfo(typeof r.data.message === "string" ? r.data.message : "Bağlantı gönderildi.");
+          }}
+        >
+          {busy ? "GÖNDERİLİYOR…" : "DOĞRULAMA BAĞLANTISI GÖNDER"}
+        </button>
+      </div>
+    );
+  }
+  if (!user.verified) {
     return (
       <div className="space-y-3">
         <Notice tone="info">

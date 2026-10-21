@@ -20,6 +20,7 @@ type Detail = {
   email: string | null;
   phoneMasked: string | null;
   phoneVerified: boolean;
+  emailVerified: boolean;
   deleted: boolean;
   vote: {
     teamId: string;
@@ -100,7 +101,7 @@ export default function AdminUserDetailPage() {
 
       <div className="grid sm:grid-cols-2 gap-2 mt-4 font-mono text-[12px]">
         {[
-          ["E-posta", user.email || "—"],
+          ["E-posta", `${user.email || "—"}${user.email ? (user.emailVerified ? " (doğrulandı)" : " (doğrulanmadı)") : ""}`],
           ["Telefon", `${user.phoneMasked || "—"}${user.phoneVerified ? " (doğrulandı)" : " (doğrulanmadı)"}`],
           ...(can("users.pii")
             ? [
