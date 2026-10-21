@@ -21,7 +21,6 @@ function openBoardSql() {
     AND (
       0
       ${features.generalBoardOpen ? "OR t.board = 'general'" : ""}
-      ${features.cityBoardsOpen ? "OR t.board = 'city'" : ""}
     )`;
 }
 

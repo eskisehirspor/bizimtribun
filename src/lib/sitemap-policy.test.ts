@@ -147,7 +147,7 @@ test("topic query respects sitemap URL budget", () => {
   assert.equal(sliced.length, 0);
 });
 
-test("team pages, general and city topics, and only public profiles", () => {
+test("team pages, general topics (not old province topics), and only public profiles", () => {
   const db = openDb();
   seedCatalog(db);
   db.prepare(`UPDATE teams SET is_active = 0 WHERE id IN ('bandirmaspor', 'sakaryaspor')`).run();
@@ -171,11 +171,11 @@ test("team pages, general and city topics, and only public profiles", () => {
   assert.ok(urls.includes(`${BASE}/takim/sakaryaspor`), "inactive team with votes stays");
   assert.equal(urls.includes(`${BASE}/takim/bandirmaspor`), false);
   assert.ok(urls.includes(`${BASE}/forum/konu/${general}`));
-  assert.ok(urls.includes(`${BASE}/forum/konu/${city}`));
+  assert.equal(urls.includes(`${BASE}/forum/konu/${city}`), false);
   assert.ok(urls.includes(`${BASE}/u/acik`));
   assert.equal(urls.some((u) => u.endsWith("/u/kapali") || u.endsWith("/u/silinen")), false);
 
-  const closed = buildPublicSitemap(db, BASE, new Date(), { generalBoardOpen: false, cityBoardsOpen: false }).map(
+  const closed = buildPublicSitemap(db, BASE, new Date(), { generalBoardOpen: false }).map(
     (e) => e.url,
   );
   assert.equal(closed.includes(`${BASE}/forum/konu/${general}`), false);

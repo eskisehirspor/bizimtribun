@@ -599,6 +599,27 @@ INSERT OR IGNORE INTO legal_acceptances (user_id, doc, version, accepted_at, sou
   FROM users WHERE terms_version IS NOT NULL;`);
       }
     },
+  },  {
+    id: "012_fan_of_week",
+    up(db) {
+      // "Haftanın Taraftarı" replaces the monthly tribune leader: one winner
+      // per team and Istanbul week, stored once the week is over.
+      // forum_leaders keeps the old monthly records untouched.
+      db.exec(`
+CREATE TABLE IF NOT EXISTS fan_of_week (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  team_id TEXT NOT NULL REFERENCES teams(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  week_start TEXT NOT NULL,
+  post_count INTEGER NOT NULL,
+  active_days INTEGER NOT NULL,
+  like_count INTEGER NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE (team_id, week_start)
+);
+CREATE INDEX IF NOT EXISTS idx_fan_of_week_team ON fan_of_week(team_id, week_start DESC);
+`);
+    },
   },
 ];
 

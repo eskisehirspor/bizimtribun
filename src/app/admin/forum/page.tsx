@@ -269,7 +269,6 @@ export default function AdminForumPage() {
           >
             <option value="">Hepsi</option>
             <option value="board:general">Genel Tribün</option>
-            <option value="board:city">İl tribünleri</option>
             <optgroup label="Takım tribünleri">
               {forumTeams.map((t) => (
                 <option key={t.id} value={t.id}>

@@ -24,7 +24,6 @@ import {
   ReportButton,
   type LikeViewer,
 } from "@/components/forum/ForumActions";
-import { citySlug } from "@/lib/cities";
 import BackLink from "@/components/BackLink";
 import ConfirmDialog from "@/components/ConfirmDialog";
 import Pager from "@/components/Pager";
@@ -41,7 +40,7 @@ import {
   labelClass,
 } from "@/components/ui";
 
-type Author = { id: number; username: string; isTribunLeader?: boolean };
+type Author = { id: number; username: string; isFanOfWeek?: boolean };
 type Topic = {
   id: number;
   board: "team" | "general" | "city";
@@ -134,16 +133,12 @@ export default function KonuPage() {
     ? "/forum"
     : topic.board === "team" && topic.teamId
       ? `/takim/${topic.teamId}/forum`
-      : topic.board === "city" && topic.province
-        ? `/forum/il/${citySlug(topic.province)}`
-        : "/forum/genel";
+      : "/forum/genel";
   const boardLabel = !topic
     ? "Tribün"
     : team
       ? tribunTitle(team.name)
-      : topic.board === "city" && topic.province
-        ? `${topic.province} Tribünü`
-        : "Genel Tribün";
+      : "Genel Tribün";
   const canWrite = Boolean(user && user.phoneVerified && !banned);
   const pages = Math.max(1, Math.ceil(total / limit));
   const isOwner = Boolean(user && topic && user.id === topic.author?.id);
@@ -420,7 +415,7 @@ export default function KonuPage() {
                 <ForumAuthorName
                   link
                   username={topic.author.username}
-                  isTribunLeader={topic.author.isTribunLeader}
+                  isFanOfWeek={topic.author.isFanOfWeek}
                 />
               ) : null}{" "}
               • {formatForumDate(topic.createdAt)}
@@ -495,7 +490,7 @@ export default function KonuPage() {
                   <ForumAuthorName
                     link
                     username={p.author.username}
-                    isTribunLeader={p.author.isTribunLeader}
+                    isFanOfWeek={p.author.isFanOfWeek}
                   />{" "}
                   • {formatForumDate(p.createdAt)}
                   {p.editedAt ? " • düzenlendi" : ""}

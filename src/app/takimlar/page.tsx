@@ -57,7 +57,7 @@ export default function TakimlarPage() {
 
   return (
     <ForumShell>
-      <BackLink href="/forum">Tribün: Genel Tribün ve il tribünleri</BackLink>
+      <BackLink href="/forum">Tribün: Genel Tribün</BackLink>
       <p className="font-mono text-[11px] tracking-[0.16em] mt-3">BİZİM TRİBÜN • TRİBÜN</p>
       <h1 className="font-anton text-[40px] sm:text-[52px] leading-[0.85] mt-2">
         TAKIM

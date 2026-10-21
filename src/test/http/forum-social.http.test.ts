@@ -2,7 +2,6 @@ import "./env-init";
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 import { GET as listGeneral, POST as createGeneral } from "../../app/api/forum/genel/topics/route";
-import { GET as listCity, POST as createCity } from "../../app/api/forum/il/[citySlug]/topics/route";
 import { GET as getTopic, PUT as putTopic } from "../../app/api/forum/topics/[topicId]/route";
 import { POST as createPost } from "../../app/api/forum/topics/[topicId]/posts/route";
 import { POST as like } from "../../app/api/forum/likes/route";
@@ -49,7 +48,7 @@ async function reply(cookie: string, topicId: number, content: string) {
   });
 }
 
-test("Genel Tribün and province boards list and create topics", async () => {
+test("Genel Tribün lists and creates topics", async () => {
   const a = await member();
   const id = await generalTopic(a.cookie);
   const list = await invoke(listGeneral, { path: "/api/forum/genel/topics" });
@@ -57,23 +56,6 @@ test("Genel Tribün and province boards list and create topics", async () => {
   const topics = (list.json as { topics: { id: number; board: string; teamId: string | null }[] }).topics;
   assert.deepEqual(topics.map((t) => [t.id, t.board, t.teamId]), [[id, "general", null]]);
 
-  const city = await invoke(createCity, {
-    method: "POST",
-    path: "/api/forum/il/eskisehir/topics",
-    cookie: a.cookie,
-    params: { citySlug: "eskisehir" },
-    body: { ...TOPIC, category: "mac-gunu" },
-  });
-  assert.equal(city.status, 201, city.text);
-  const cityList = await invoke(listCity, {
-    path: "/api/forum/il/eskisehir/topics",
-    params: { citySlug: "eskisehir" },
-  });
-  const row = (cityList.json as { topics: { province: string; category: string }[] }).topics[0]!;
-  assert.deepEqual([row.province, row.category], ["Eskişehir", "mac-gunu"]);
-
-  const missing = await invoke(listCity, { path: "/api/forum/il/atlantis/topics", params: { citySlug: "atlantis" } });
-  assert.equal(missing.status, 404);
   const guest = await invoke(createGeneral, { method: "POST", path: "/api/forum/genel/topics", body: TOPIC });
   assert.equal(guest.status, 401);
 });

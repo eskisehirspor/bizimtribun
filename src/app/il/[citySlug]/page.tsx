@@ -7,7 +7,6 @@ import { cityHistory, cityLastVoteAt, cityVoteTotals } from "@/lib/city-stats";
 import { getSessionUser } from "@/lib/auth";
 import { memberTeamId } from "@/lib/forum";
 import { isStaffRole } from "@/lib/permissions";
-import { getSettings } from "@/lib/site-settings";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +46,6 @@ export default async function CityPage({
       generatedAt={new Date().toISOString()}
       viewerTeamId={viewerTeamId}
       viewerIsStaff={Boolean(viewer && isStaffRole(viewer.role))}
-      cityBoardOpen={getSettings().features.cityBoardsOpen}
     />
   );
 }

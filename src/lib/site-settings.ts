@@ -52,7 +52,6 @@ export const SETTING_SCHEMAS = {
     teamRequestsOpen: z.boolean(),
     likesEnabled: z.boolean(),
     generalBoardOpen: z.boolean(),
-    cityBoardsOpen: z.boolean(),
   }),
 } as const;
 
@@ -77,7 +76,6 @@ export const DEFAULT_SETTINGS: Settings = {
     teamRequestsOpen: true,
     likesEnabled: true,
     generalBoardOpen: true,
-    cityBoardsOpen: true,
   },
 };
 

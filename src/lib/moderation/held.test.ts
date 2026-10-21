@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import Database from "better-sqlite3";
-import { getMonthlyForumLeader } from "../forum-leaders";
+import { getWeeklyFanOfWeek } from "../forum-leaders";
 import {
   approveHeldContent,
   banHeldAuthor,
@@ -273,7 +273,7 @@ test("held içerik yorum sayısına ve son aktiviteye dahil olmaz", () => {
   db.close();
 });
 
-test("held içerik Tribün Lideri hesabına dahil olmaz", () => {
+test("held içerik Haftanın Taraftarı hesabına dahil olmaz", () => {
   const db = openDb();
   const a = addUser(db, "ali");
   const b = addUser(db, "berk");
@@ -281,13 +281,7 @@ test("held içerik Tribün Lideri hesabına dahil olmaz", () => {
   addPost(db, topic, a, { heldAt: NOW, createdAt: "2026-09-01T10:00:00.000Z" });
   addPost(db, topic, a, { heldAt: NOW, createdAt: "2026-09-02T10:00:00.000Z" });
   addPost(db, topic, b, { createdAt: "2026-09-01T11:00:00.000Z" });
-  const leader = getMonthlyForumLeader(
-    "fenerbahce",
-    2026,
-    9,
-    db,
-    NOW,
-  );
+  const leader = getWeeklyFanOfWeek("fenerbahce", "2026-08-31", db, NOW);
   assert.equal(leader?.userId, b);
   assert.equal(leader?.postCount, 1);
   db.close();

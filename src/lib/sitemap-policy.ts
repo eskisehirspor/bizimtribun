@@ -64,8 +64,8 @@ export function staticSitemapEntries(base: string, now = new Date()): SitemapEnt
   ];
 }
 
-export type BoardFlags = { generalBoardOpen: boolean; cityBoardsOpen: boolean };
-const ALL_BOARDS: BoardFlags = { generalBoardOpen: true, cityBoardsOpen: true };
+export type BoardFlags = { generalBoardOpen: boolean };
+const ALL_BOARDS: BoardFlags = { generalBoardOpen: true };
 
 export function publicTopicSitemapEntries(
   db: Database.Database,
@@ -84,7 +84,6 @@ export function publicTopicSitemapEntries(
          AND (
            0
            ${boards.generalBoardOpen ? "OR ft.board = 'general'" : ""}
-           ${boards.cityBoardsOpen ? "OR ft.board = 'city'" : ""}
          )
        ORDER BY ft.updated_at DESC, ft.id DESC
        LIMIT ?`,

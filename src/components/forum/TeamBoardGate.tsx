@@ -21,7 +21,7 @@ export default function TeamBoardGate({ title, next }: { title: string; next: st
         <h1 className="font-anton text-[32px] leading-none mt-1">{title.toLocaleUpperCase("tr")}</h1>
         <p className="font-mono text-[14px] mt-3">
           {user
-            ? "Takım tribünleri yalnızca o takıma oy veren taraftarlara açık. Kendi takımının tribününde yazabilir, Genel Tribün ve il tribünlerinde herkesle konuşabilirsin."
+            ? "Takım tribünleri yalnızca o takıma oy veren taraftarlara açık. Kendi takımının tribününde yazabilir, Genel Tribün'de herkesle konuşabilirsin."
             : "Takım tribünleri yalnızca o takıma oy veren taraftarlara açık. Giriş yaparsan kendi takımının tribününe girebilirsin."}
         </p>
         <div className="mt-5 flex flex-wrap gap-3">

@@ -7,10 +7,13 @@ import {
   isForumSystemAccount,
 } from "./forum-system";
 import {
-  getCurrentForumLeaderUserId,
-  getForumLeaderHistory,
-  getMonthlyForumLeader,
-  saveForumLeader,
+  formatWeek,
+  getCurrentFanOfWeekUserId,
+  getFanOfWeekHistory,
+  getWeeklyFanOfWeek,
+  previousWeekStart,
+  saveFanOfWeek,
+  weekStartOf,
 } from "./forum-leaders";
 
 const NOW = new Date("2026-09-03T12:00:00+03:00");
@@ -77,17 +80,16 @@ function openDb() {
       deleted_at TEXT,
       held_at TEXT
     );
-    CREATE TABLE forum_leaders (
+    CREATE TABLE fan_of_week (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       team_id TEXT NOT NULL REFERENCES teams(id),
       user_id INTEGER NOT NULL REFERENCES users(id),
-      year INTEGER NOT NULL,
-      month INTEGER NOT NULL,
+      week_start TEXT NOT NULL,
       post_count INTEGER NOT NULL,
-      active_days INTEGER,
-      like_count INTEGER,
+      active_days INTEGER NOT NULL,
+      like_count INTEGER NOT NULL,
       created_at TEXT NOT NULL,
-      UNIQUE (team_id, year, month)
+      UNIQUE (team_id, week_start)
     );
   `);
   db.prepare(`INSERT INTO teams (id, name, league) VALUES (?, ?, ?)`).run(
@@ -171,11 +173,38 @@ function addPost(
   );
 }
 
+/** NOW falls in the Istanbul week of Monday 31 Aug to Sunday 6 Sep 2026. */
+const THIS_WEEK = "2026-08-31";
+
 function sepLeader(db: Database.Database, teamId: string) {
-  return getMonthlyForumLeader(teamId, 2026, 9, db, NOW_ISO);
+  return getWeeklyFanOfWeek(teamId, THIS_WEEK, db, NOW_ISO);
 }
 
-test("en çok gün aktif olan lider", () => {
+test("hafta İstanbul saatiyle pazartesi başlar", () => {
+  assert.equal(weekStartOf(NOW), THIS_WEEK);
+  // Sunday 23:30 Istanbul is still the same week; Monday 00:30 starts the next.
+  assert.equal(weekStartOf(new Date("2026-09-06T23:30:00+03:00")), THIS_WEEK);
+  assert.equal(weekStartOf(new Date("2026-09-07T00:30:00+03:00")), "2026-09-07");
+  assert.equal(previousWeekStart(THIS_WEEK), "2026-08-24");
+  assert.equal(formatWeek("2026-10-12"), "12–18 Eki 2026");
+  assert.equal(formatWeek(THIS_WEEK), "31 Ağu – 6 Eyl 2026");
+  assert.equal(formatWeek("2026-12-28"), "28 Ara 2026 – 3 Oca 2027");
+});
+
+test("geçen haftanın yazıları bu haftanın seçimine girmez", () => {
+  const db = openDb();
+  const a = addUser(db, "ali");
+  const b = addUser(db, "berk");
+  const topic = addTopic(db, "galatasaray", addUser(db, "acan"), "mac");
+  addPost(db, topic, a, at(2026, 8, 28));
+  addPost(db, topic, a, at(2026, 8, 29));
+  addPost(db, topic, a, at(2026, 8, 30, 23));
+  addPost(db, topic, b, at(2026, 8, 31, 1));
+  assert.equal(sepLeader(db, "galatasaray")?.userId, b);
+  db.close();
+});
+
+test("en çok gün aktif olan haftanın taraftarı", () => {
   const db = openDb();
   const a = addUser(db, "ali");
   const b = addUser(db, "berk");
@@ -279,7 +308,7 @@ test("başka takım forumundaki post sayılmaz", () => {
   db.close();
 });
 
-test("farklı takımlarda aynı kullanıcı lider olabilir", () => {
+test("farklı takımlarda aynı kullanıcı haftanın taraftarı olabilir", () => {
   const db = openDb();
   const a = addUser(db, "ali");
   const fb = addTopic(db, "fenerbahce", a, "fb");
@@ -316,23 +345,23 @@ test("eşitlik deterministic", () => {
   db2.close();
 });
 
-test("aynı ay ikinci leader kaydı oluşmaz", () => {
+test("aynı hafta ikinci kayıt oluşmaz", () => {
   const db = openDb();
   const a = addUser(db, "ali");
   const topic = addTopic(db, "fenerbahce", a, "mac");
   addPost(db, topic, a, at(2026, 8, 10));
-  const first = saveForumLeader("fenerbahce", 2026, 8, db, NOW_ISO);
-  const second = saveForumLeader("fenerbahce", 2026, 8, db, NOW_ISO);
+  const first = saveFanOfWeek("fenerbahce", "2026-08-10", db, NOW_ISO);
+  const second = saveFanOfWeek("fenerbahce", "2026-08-10", db, NOW_ISO);
   assert.equal(first.saved, true);
   assert.equal(second.saved, false);
   const n = (
-    db.prepare(`SELECT COUNT(*) as c FROM forum_leaders`).get() as { c: number }
+    db.prepare(`SELECT COUNT(*) as c FROM fan_of_week`).get() as { c: number }
   ).c;
   assert.equal(n, 1);
   db.close();
 });
 
-test("banned kullanıcı lider olamaz", () => {
+test("banned kullanıcı haftanın taraftarı olamaz", () => {
   const db = openDb();
   const a = addUser(db, "ali", { status: "banned", bannedAt: NOW_ISO });
   const b = addUser(db, "berk");
@@ -350,31 +379,44 @@ test("geçmiş liderler korunur", () => {
   const a = addUser(db, "ali");
   const topic = addTopic(db, "fenerbahce", a, "mac");
   addPost(db, topic, a, at(2026, 8, 5));
-  saveForumLeader("fenerbahce", 2026, 8, db, NOW_ISO);
+  saveFanOfWeek("fenerbahce", "2026-08-03", db, NOW_ISO);
   db.prepare(
     `UPDATE users SET status = 'banned', banned_at = ? WHERE id = ?`,
   ).run(NOW_ISO, a);
-  const history = getForumLeaderHistory("fenerbahce", db, 12, NOW);
+  const history = getFanOfWeekHistory("fenerbahce", db, 12, NOW);
   assert.equal(history.length, 1);
   assert.equal(history[0].username, "ali");
-  assert.equal(history[0].year, 2026);
-  assert.equal(history[0].month, 8);
-  assert.equal(history[0].postCount, 1);
+  assert.equal(history[0].weekStart, "2026-08-03");
+  assert.equal(history[0].activeDays, 1);
   assert.equal(history[0].teamId, "fenerbahce");
   db.close();
 });
 
-test("mevcut ay badge doğru kullanıcıda görünür", () => {
+test("meşale geçen haftanın kazananında görünür, bu hafta yazılanlar değiştirmez", () => {
   const db = openDb();
   const a = addUser(db, "ali");
   const b = addUser(db, "berk");
+  const topic = addTopic(db, "fenerbahce", b, "mac");
+  addPost(db, topic, a, at(2026, 8, 24));
+  addPost(db, topic, a, at(2026, 8, 25));
+  addPost(db, topic, b, at(2026, 8, 26));
+  // b is far ahead this week, but the torch is last week's.
+  for (const d of [1, 2, 3]) addPost(db, topic, b, at(2026, 9, d));
+  const leaderId = getCurrentFanOfWeekUserId("fenerbahce", db, NOW);
+  assert.equal(leaderId, a);
+  assert.equal(sepLeader(db, "fenerbahce")?.userId, b);
+  // Once picked it stays, even if last week's content is later removed.
+  db.prepare(`UPDATE forum_posts SET deleted_at = ? WHERE user_id = ?`).run(NOW_ISO, a);
+  assert.equal(getCurrentFanOfWeekUserId("fenerbahce", db, NOW), a);
+  db.close();
+});
+
+test("geçen hafta kimse yazmadıysa meşale yok", () => {
+  const db = openDb();
+  const a = addUser(db, "ali");
   const topic = addTopic(db, "fenerbahce", a, "mac");
   addPost(db, topic, a, at(2026, 9, 1));
-  addPost(db, topic, a, at(2026, 9, 2));
-  addPost(db, topic, b, at(2026, 9, 3));
-  const leaderId = getCurrentForumLeaderUserId("fenerbahce", db, NOW);
-  assert.equal(leaderId, a);
-  assert.notEqual(leaderId, b);
+  assert.equal(getCurrentFanOfWeekUserId("fenerbahce", db, NOW), null);
   db.close();
 });
 
@@ -432,14 +474,14 @@ test("beğeni puan katar; aynı kişinin beğenisi en çok 3 kez sayılır, kend
   db.close();
 });
 
-test("lider kaydı aktif gün ve beğeniyi saklar", () => {
+test("haftanın taraftarı kaydı aktif gün ve beğeniyi saklar", () => {
   const db = openDb();
   const a = addUser(db, "ali");
   const topic = addTopic(db, "fenerbahce", a, "mac");
   addPost(db, topic, a, at(2026, 8, 10));
   addPost(db, topic, a, at(2026, 8, 11));
-  saveForumLeader("fenerbahce", 2026, 8, db, NOW_ISO);
-  const [row] = getForumLeaderHistory("fenerbahce", db, 12, NOW);
+  saveFanOfWeek("fenerbahce", "2026-08-10", db, NOW_ISO);
+  const [row] = getFanOfWeekHistory("fenerbahce", db, 12, NOW);
   assert.equal(row.activeDays, 2);
   assert.equal(row.likeCount, 0);
   db.close();

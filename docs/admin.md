@@ -53,18 +53,23 @@ topics is not counted as a member.
 | Başarısız yönetici girişi | Other failed security events (password / 2FA) in the last 24 h |
 | İptal edilen oy (30 gün) | Votes voided in the last 30 days |
 
-## Tribune leader
+## Haftanın Taraftarı (fan of the week)
 
-Each month's leader of a team tribune is the member with the highest score on that board:
-active days (Istanbul calendar days with at least one public topic or reply) × 3, plus likes
-received that month from other members, at most 3 from any one liker. Ties go to more active
-days, then the earliest post. Removed or held content, banned accounts and the system
-account don't count. Records from before this rule show only their post count.
+Each week (Monday to Sunday, Istanbul time) a team tribune's fan of the week is the member
+with the highest score on that board: active days (days with at least one public topic or
+reply) × 3, plus likes received that week from other members, at most 3 from any one liker.
+Ties go to more active days, then the earliest post. Removed or held content, banned
+accounts and the system account don't count. The winner is stored once the week is over
+(`fan_of_week`) and wears a small torch next to their nickname in that tribune for the
+following week. The old monthly `forum_leaders` records are kept but no longer shown.
+
+Province tribunes were removed. Their old topics stay in the database, hidden; old
+`/forum/il/...` links redirect to the province count page.
 
 ## Site settings (`/admin/ayarlar`)
 
 Each block is saved on its own and audited as `setting_<key>`. Text is stored as plain text
 (control characters and `<` `>` removed); links must be `https://` or a same-site path.
 Featured topic ids must point at live topics. Feature flags: new sign-ups, team requests,
-likes, the general board and the province boards. Closing a board hides it and its topics
+likes and the general board. Closing a board hides it and its topics
 (including from the sitemap) without deleting anything; reopening brings them back.

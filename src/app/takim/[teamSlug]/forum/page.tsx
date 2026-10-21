@@ -11,11 +11,11 @@ import { tribunTitle } from "@/lib/forum-category";
 import { isStaffRole } from "@/lib/permissions";
 
 type LeaderRow = {
+  weekStart: string;
   period: string;
   username: string;
-  postCount: number;
-  activeDays: number | null;
-  likeCount: number | null;
+  activeDays: number;
+  likeCount: number;
 };
 
 export default function TeamForumPage() {
@@ -34,7 +34,7 @@ export default function TeamForumPage() {
   useEffect(() => {
     if (!active || !canRead) return;
     let cancelled = false;
-    void fetch(`/api/forum/teams/${teamSlug}/leaders?limit=6`, { cache: "no-store" })
+    void fetch(`/api/forum/teams/${teamSlug}/leaders?limit=4`, { cache: "no-store" })
       .then((res) => res.json())
       .then((data) => {
         if (cancelled || !data.ok) return;
@@ -77,17 +77,15 @@ export default function TeamForumPage() {
             </div>
             {leaders.length > 0 ? (
               <div className="mt-4 border-[3px] border-black bg-white p-3">
-                <p className="font-anton text-[15px]">TRİBÜN LİDERLERİ</p>
+                <p className="font-anton text-[15px]">HAFTANIN TARAFTARLARI</p>
                 <p className="font-mono text-[11px] opacity-70">
-                  Her ay en çok günde katılan ve beğeni alan taraftar seçilir.
+                  Her hafta en çok günde yazan ve beğeni alan taraftar seçilir. Bir hafta boyunca adının
+                  yanında meşale taşır.
                 </p>
                 <ul className="mt-1 font-mono text-[12px] space-y-0.5">
                   {leaders.map((row) => (
-                    <li key={`${row.period}-${row.username}`}>
-                      {row.period} — {row.username}{" "}
-                      {row.activeDays != null
-                        ? `(${row.activeDays} aktif gün • ${row.likeCount ?? 0} beğeni)`
-                        : `(${row.postCount} yazı)`}
+                    <li key={row.weekStart}>
+                      {row.period} — {row.username.startsWith("silinmis_") ? "Silinmiş üye" : row.username} ({row.activeDays} aktif gün • {row.likeCount} beğeni)
                     </li>
                   ))}
                 </ul>

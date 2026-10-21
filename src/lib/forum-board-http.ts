@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { getSessionUser, requireForumWriter } from "./auth";
-import { getCityBySlug } from "./cities";
 import {
   boardAccess,
   cleanForumText,
@@ -58,15 +57,6 @@ export function resolveTeamBoard(teamSlug: string): ResolvedBoard | null {
 export function resolveGeneralBoard(): ResolvedBoard | null {
   if (!getSettings().features.generalBoardOpen) return null;
   return { ref: { kind: "general" }, info: { kind: "general", id: "genel", name: "Genel Tribün" } };
-}
-
-export function resolveCityBoard(citySlug: string): ResolvedBoard | null {
-  const city = getCityBySlug(citySlug);
-  if (!city || !getSettings().features.cityBoardsOpen) return null;
-  return {
-    ref: { kind: "city", city: city.name },
-    info: { kind: "city", id: city.slug, name: `${city.name} Tribünü`, city: city.name },
-  };
 }
 
 const CreateBody = z.object({

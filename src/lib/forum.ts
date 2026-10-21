@@ -1,5 +1,4 @@
 import { getDb } from "./db";
-import { isProvince } from "./provinces";
 import { hmac } from "./crypto";
 import { hashedIp, registerAttemptCount } from "./stats";
 import { noteAuthAttempt } from "./users";
@@ -24,9 +23,8 @@ import {
   type TopicSort,
 } from "./forum-category";
 import {
-  getCurrentForumLeaderUserId,
-  getForumLeaderHistory as queryForumLeaderHistory,
-  getMonthlyForumLeader as queryMonthlyForumLeader,
+  getCurrentFanOfWeekUserId,
+  getFanOfWeekHistory as queryFanOfWeekHistory,
 } from "./forum-leaders";
 import { isPublicForumRow } from "./moderation/forum-gate";
 import { getSettings } from "./site-settings";
@@ -88,7 +86,7 @@ export type ForumPost = {
 export type ForumAuthor = {
   id: number;
   username: string;
-  isTribunLeader: boolean;
+  isFanOfWeek: boolean;
 };
 
 function authorOf(userId: number, leaderUserId: number | null): ForumAuthor | undefined {
@@ -99,7 +97,7 @@ function authorOf(userId: number, leaderUserId: number | null): ForumAuthor | un
   return {
     id: row.id,
     username: row.username,
-    isTribunLeader: leaderUserId != null && row.id === leaderUserId,
+    isFanOfWeek: leaderUserId != null && row.id === leaderUserId,
   };
 }
 
@@ -142,7 +140,8 @@ export function topicBoardOpen(topic: Pick<ForumTopic, "board" | "team_id" | "ci
   const board = boardOfTopic(topic);
   if (board.kind === "team") return Boolean(requireForumBoard(board.teamId));
   const { features } = getSettings();
-  if (board.kind === "city") return features.cityBoardsOpen && isProvince(board.city);
+  // Province boards were removed; their old topics stay stored but hidden.
+  if (board.kind === "city") return false;
   return features.generalBoardOpen;
 }
 
@@ -222,9 +221,9 @@ export function boardOfTopic(topic: Pick<ForumTopic, "board" | "team_id" | "city
   return { kind: "team", teamId: topic.team_id ?? "" };
 }
 
-/** Monthly tribune leaders exist only on team boards. */
+/** "Haftanın Taraftarı" exists only on team boards: last week's winner wears the torch. */
 function leaderForBoard(board: ForumBoardRef) {
-  return board.kind === "team" ? getCurrentForumLeaderUserId(board.teamId, getDb()) : null;
+  return board.kind === "team" ? getCurrentFanOfWeekUserId(board.teamId, getDb()) : null;
 }
 
 /** Hides members the viewer blocked. `col` is the author column. */
@@ -344,7 +343,7 @@ export function listTopics(
       author: {
         id: t.user_id,
         username: t.username,
-        isTribunLeader: leaderUserId != null && t.user_id === leaderUserId,
+        isFanOfWeek: leaderUserId != null && t.user_id === leaderUserId,
       },
     })),
   };
@@ -398,7 +397,7 @@ export function listPosts(
       author: {
         id: p.user_id,
         username: p.username,
-        isTribunLeader: leaderUserId != null && p.user_id === leaderUserId,
+        isFanOfWeek: leaderUserId != null && p.user_id === leaderUserId,
       },
     })),
   };
@@ -691,10 +690,6 @@ export const FORUM_LOCKED_EDIT_ERROR = "Bu konu kilitli. Konu ve yorumlar düzen
 
 export { FORUM_BODY_MAX, FORUM_POST_MAX, FORUM_TITLE_MAX, FORUM_TITLE_MIN };
 
-export function getMonthlyForumLeader(teamId: string, year: number, month: number) {
-  return queryMonthlyForumLeader(teamId, year, month, getDb());
-}
-
-export function getForumLeaderHistory(teamId: string, limit?: number) {
-  return queryForumLeaderHistory(teamId, getDb(), limit);
+export function getFanOfWeekHistory(teamId: string, limit?: number) {
+  return queryFanOfWeekHistory(teamId, getDb(), limit);
 }

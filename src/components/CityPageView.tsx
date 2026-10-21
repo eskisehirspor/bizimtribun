@@ -9,7 +9,7 @@ import type { CityTeamRow } from "@/lib/city-rank";
 import type { CityHistoryPoint } from "@/lib/city-stats";
 import BackLink from "@/components/BackLink";
 import CityShare from "@/components/CityShare";
-import { btnPrimary, btnSecondary } from "@/components/ui";
+import { btnSecondary } from "@/components/ui";
 import TeamColors from "@/components/TeamColors";
 import { getCatalogTeam as getTeam } from "@/lib/team-catalog";
 
@@ -24,7 +24,6 @@ type Props = {
   viewerTeamId?: string | null;
   /** Staff may read every team tribune. */
   viewerIsStaff?: boolean;
-  cityBoardOpen?: boolean;
 };
 
 function fmt(iso: string) {
@@ -46,7 +45,6 @@ export default function CityPageView({
   generatedAt,
   viewerTeamId = null,
   viewerIsStaff = false,
-  cityBoardOpen = true,
 }: Props) {
   const locative = cityLocative(city.name);
   const headline = `${locative} tribün dağılımı`;
@@ -175,11 +173,6 @@ export default function CityPageView({
         <section className="mt-6">
           <h2 className="font-anton text-[22px]">TRİBÜNLER</h2>
           <div className="mt-2 flex flex-wrap gap-2">
-            {cityBoardOpen && (
-              <Link href={`/forum/il/${city.slug}`} className={btnPrimary}>
-                {city.name.toLocaleUpperCase("tr")} TRİBÜNÜ
-              </Link>
-            )}
             {forumRows
               .filter((row) => viewerIsStaff || row.teamId === viewerTeamId)
               .map((row) => (
@@ -189,7 +182,10 @@ export default function CityPageView({
               ))}
           </div>
           <p className="font-mono text-[12px] mt-2 opacity-70">
-            {cityBoardOpen ? "İl tribünü herkese açık. " : ""}Takım tribünleri yalnızca o takımın taraftarlarına açık.
+            Takım tribünleri yalnızca o takımın taraftarlarına açık.{" "}
+            <Link href="/takimlar" className="underline">
+              Tüm takım tribünleri
+            </Link>
           </p>
         </section>
       </div>

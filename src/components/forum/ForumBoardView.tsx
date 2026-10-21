@@ -29,7 +29,7 @@ type TopicRow = {
   isPinned: boolean;
   postCount: number;
   likeCount?: number;
-  author: { id: number; username: string; isTribunLeader?: boolean };
+  author: { id: number; username: string; isFanOfWeek?: boolean };
 };
 
 type Props = {
@@ -294,7 +294,7 @@ export default function ForumBoardView({
                       {!category && FORUM_CATEGORY_META[t.category] ? `${FORUM_CATEGORY_META[t.category].label} • ` : ""}
                       <ForumAuthorName
                         username={t.author.username}
-                        isTribunLeader={t.author.isTribunLeader}
+                        isFanOfWeek={t.author.isFanOfWeek}
                       />{" "}
                       • {formatForumDate(t.createdAt)}
                     </div>

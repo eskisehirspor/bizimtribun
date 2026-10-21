@@ -96,7 +96,7 @@ test("feature flags close boards, likes and sign-ups", async () => {
   const created = await invoke(createGeneral, { method: "POST", path: "/api/forum/genel/topics", cookie: fan.cookie, body: TOPIC });
   const id = (created.json as { topic: { id: number } }).topic.id;
 
-  const flags = { signupsOpen: false, teamRequestsOpen: true, likesEnabled: false, generalBoardOpen: false, cityBoardsOpen: true };
+  const flags = { signupsOpen: false, teamRequestsOpen: true, likesEnabled: false, generalBoardOpen: false };
   assert.equal((await put(sup.cookie, "features", flags)).status, 200);
   assert.equal((await invoke(listGeneral, { path: "/api/forum/genel/topics" })).status, 404);
   const liked = await invoke(like, { method: "POST", path: "/api/forum/likes", cookie: other.cookie, body: { type: "topic", id, liked: true } });

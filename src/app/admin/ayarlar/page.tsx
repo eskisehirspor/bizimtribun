@@ -17,7 +17,6 @@ type Settings = {
     teamRequestsOpen: boolean;
     likesEnabled: boolean;
     generalBoardOpen: boolean;
-    cityBoardsOpen: boolean;
   };
 };
 type Key = keyof Settings;
@@ -30,7 +29,6 @@ const FEATURE_LABELS: Record<keyof Settings["features"], string> = {
   teamRequestsOpen: "Takım talepleri açık",
   likesEnabled: "Beğeniler açık",
   generalBoardOpen: "Genel Tribün açık",
-  cityBoardsOpen: "İl tribünleri açık",
 };
 
 export default function SettingsPage() {

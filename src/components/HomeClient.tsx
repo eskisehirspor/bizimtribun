@@ -439,7 +439,7 @@ export default function HomeClient({
                       <TeamColors team={team} size={10} />
                     ) : (
                       <span className="shrink-0 border border-black px-1 text-[11px]">
-                        {row.board === "city" ? row.province : "GENEL"}
+                        GENEL
                       </span>
                     )}
                     <span className="min-w-0 flex-1 truncate">{row.title}</span>
