@@ -17,8 +17,14 @@ const COOKIES = [
   },
   {
     name: "bt_signup",
-    purpose: "Telefon doğrulandıktan sonra üyelik formunu tamamlamak.",
+    purpose: "E-posta ya da telefon doğrulandıktan sonra üyelik formunu tamamlamak.",
     duration: "15 dakika",
+  },
+  {
+    name: "bt_device",
+    purpose:
+      "Aynı tarayıcıdan açılan hesap sayısını sınırlamak. Rastgele bir kimlik taşır; sunucuda yalnızca anahtarlı özeti ve hesap açılış tarihi 1 yıl tutulur.",
+    duration: "2 yıl",
   },
   {
     name: "bt_admin_2fa",

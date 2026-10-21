@@ -59,13 +59,14 @@ export function castFanVote(
   const run = db.transaction((): CastFanVoteResult => {
     const user = db
       .prepare(
-        `SELECT id, phone_verified_at, deleted_at, status, banned_at, ban_expires_at
+        `SELECT id, phone_verified_at, email_verified_at, deleted_at, status, banned_at, ban_expires_at
          FROM users WHERE id = ?`,
       )
       .get(input.userId) as
       | {
           id: number;
           phone_verified_at: string | null;
+          email_verified_at: string | null;
           deleted_at: string | null;
           status: string;
           banned_at: string | null;
@@ -75,11 +76,11 @@ export function castFanVote(
     if (!user || user.deleted_at) {
       return { ok: false, status: 404, error: "Hesap bulunamadı.", code: "NO_USER" };
     }
-    if (!user.phone_verified_at) {
+    if (!user.phone_verified_at && !user.email_verified_at) {
       return {
         ok: false,
         status: 403,
-        error: "Oy vermek için telefonunu SMS ile doğrulaman gerekiyor.",
+        error: "Oy vermek için hesabını doğrulaman gerekiyor.",
         code: "PHONE_UNVERIFIED",
       };
     }
@@ -143,7 +144,7 @@ export function castFanVote(
       return {
         ok: false,
         status: 403,
-        error: "Oy vermek için telefonunu SMS ile doğrulaman gerekiyor.",
+        error: "Oy vermek için hesabını doğrulaman gerekiyor.",
         code: "PHONE_UNVERIFIED",
       };
     }

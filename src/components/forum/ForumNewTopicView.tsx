@@ -176,16 +176,16 @@ export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, acti
     return <TeamBoardGate title={boardTitle} next={boardPath} />;
   }
 
-  if (!user.phoneVerified) {
+  if (!user.verified) {
     return (
       <ForumShell>
-        <h1 className="font-anton text-[32px]">TELEFON DOĞRULAMASI GEREKLİ</h1>
+        <h1 className="font-anton text-[32px]">HESAP DOĞRULAMASI GEREKLİ</h1>
         <p className="font-mono text-[14px] mt-2">
-          Tribünde yazabilmek için telefon numaranı SMS koduyla bir kez doğrulaman gerekiyor.
+          Tribünde yazabilmek için hesabını bir kez doğrulaman gerekiyor.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link href="/takim-sec" className={btnAccent}>
-            TELEFONUNU DOĞRULA
+            HESABINI DOĞRULA
           </Link>
           <Link href={forumPath} className={btnSecondary}>
             ← TRİBÜNE DÖN

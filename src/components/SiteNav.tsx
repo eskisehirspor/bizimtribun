@@ -126,11 +126,11 @@ export default function SiteNav() {
                   </span>
                 )}
               </Link>
-              {(!user.phoneVerified || !user.voteTeamId) && (
+              {(!user.verified || !user.voteTeamId) && (
                 <Link
                   href="/takim-sec"
-                  title={user.phoneVerified ? "Takımını seç" : "Telefonunu doğrula"}
-                  aria-label={user.phoneVerified ? "Takımını seç" : "Telefonunu doğrula"}
+                  title={user.verified ? "Takımını seç" : "Hesabını doğrula"}
+                  aria-label={user.verified ? "Takımını seç" : "Hesabını doğrula"}
                   className="inline-flex h-10 w-10 shrink-0 items-center justify-center"
                 >
                   <span className="flex h-8 w-8 items-center justify-center rounded-full border-[2px] border-[#FFEA00] bg-[#C8102E] font-anton text-[15px] text-white">
@@ -176,14 +176,14 @@ export default function SiteNav() {
                     <Link role="menuitem" href="/hesap" onClick={() => setOpen(false)} className={item}>
                       Hesabım
                     </Link>
-                    {!user.phoneVerified && (
+                    {!user.verified && (
                       <Link
                         role="menuitem"
                         href="/takim-sec"
                         onClick={() => setOpen(false)}
                         className={`${item} bg-[#FFEA00]`}
                       >
-                        Telefonunu doğrula
+                        Hesabını doğrula
                       </Link>
                     )}
                     <button

@@ -18,6 +18,8 @@ export type AuthUser = {
   status: string;
   emailVerified: boolean;
   phoneVerified: boolean;
+  /** Phone or e-mail verified: may vote and write. */
+  verified: boolean;
   /** Team of the account's permanent vote, null until it is cast. */
   voteTeamId: string | null;
 };
@@ -61,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             ...data.user,
             emailVerified: Boolean(data.user.emailVerified),
             phoneVerified: Boolean(data.user.phoneVerified),
+            verified: Boolean(data.user.verified),
             voteTeamId: data.user.voteTeamId ?? null,
           }
         : null;

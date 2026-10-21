@@ -8,7 +8,7 @@ export function teamCanonical(id: string) {
 
 export function teamPageMetadata(team: CatalogTeam, leagueName: string): Metadata {
   const title = `${team.name} Taraftar Sayısı ve İl Dağılımı | Bizim Tribün`;
-  const description = `${team.name} (${leagueName}, ${team.city}) için SMS ile doğrulanmış taraftar sayısı, sıralama ve illere göre dağılım.`;
+  const description = `${team.name} (${leagueName}, ${team.city}) için doğrulanmış taraftar sayısı, sıralama ve illere göre dağılım.`;
   const url = teamCanonical(team.id);
   return {
     title,

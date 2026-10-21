@@ -20,6 +20,7 @@ type UserItem = {
   status: string;
   role: string;
   phoneVerified?: boolean;
+  emailVerified?: boolean;
   deleted?: boolean;
   createdAt: string;
   lastLoginAt: string | null;
@@ -222,5 +223,6 @@ const STATUS_LABEL: Record<string, string> = {
 function statusLabel(u: UserItem) {
   if (u.deleted) return "silindi";
   const base = u.banned ? "banlı" : (STATUS_LABEL[u.status] ?? u.status);
-  return `${base}${u.phoneVerified ? " • telefon doğrulu" : ""}`;
+  const proof = u.phoneVerified ? " • telefon doğrulu" : u.emailVerified ? " • e-posta doğrulu" : "";
+  return `${base}${proof}`;
 }

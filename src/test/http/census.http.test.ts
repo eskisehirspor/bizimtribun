@@ -17,6 +17,7 @@ import { OTP_MAX_ATTEMPTS, OTP_PER_PHONE_HOUR } from "../../lib/policy";
 import {
   assertNoSensitiveLeak,
   authRegisterBody,
+  cookies,
   freshDb,
   invoke,
   LEGAL_OK,
@@ -24,12 +25,15 @@ import {
   setNodeEnv,
   signupCookie,
   smsSignup,
+  testDevice,
   trPhone,
   uniq,
 } from "./harness";
 
+let device = testDevice();
 beforeEach(() => {
   freshDb();
+  device = testDevice();
 });
 
 let n = 0;
@@ -56,6 +60,7 @@ async function checkCode(p: string, code: string, ip = "203.0.113.50") {
     method: "POST",
     path: "/api/auth/otp/verify",
     body: { phone: p, code },
+    cookie: device,
     ip,
   });
 }
@@ -123,6 +128,7 @@ test("sign-up needs a fresh, single-use ticket and the permanent-team confirmati
   const noTicket = await invoke(signup, {
     method: "POST",
     path: "/api/auth/signup",
+    cookie: device,
     body: { username: name(), teamId: "galatasaray", confirmTeamLocked: true, ...LEGAL_OK },
   });
   assert.equal(noTicket.status, 401);
@@ -131,7 +137,7 @@ test("sign-up needs a fresh, single-use ticket and the permanent-team confirmati
   const code = lastCode(await sendCode(p));
   const ok = await checkCode(p, code);
   assert.equal((ok.json as { next: string }).next, "signup");
-  const cookie = signupCookie(ok.res);
+  const cookie = cookies(signupCookie(ok.res), device);
 
   const noConfirm = await invoke(signup, {
     method: "POST",
@@ -175,14 +181,14 @@ test("same phone cannot open a second account; verifying again signs in", async 
   const one = await invoke(signup, {
     method: "POST",
     path: "/api/auth/signup",
-    cookie: signupCookie(c1.res),
+    cookie: cookies(signupCookie(c1.res), device),
     body: { username: name(), teamId: "galatasaray", confirmTeamLocked: true, ...LEGAL_OK },
   });
   assert.equal(one.status, 200);
   const two = await invoke(signup, {
     method: "POST",
     path: "/api/auth/signup",
-    cookie: signupCookie(c2.res),
+    cookie: cookies(signupCookie(c2.res), device),
     body: { username: name(), teamId: "fenerbahce", confirmTeamLocked: true, ...LEGAL_OK },
   });
   assert.equal(two.status, 409);

@@ -9,7 +9,7 @@ import { POST as acceptLegal } from "../../app/api/account/legal/route";
 import { POST as createGeneral } from "../../app/api/forum/genel/topics/route";
 import { getDb } from "@/lib/db";
 import { LEGAL_DOCS, LEGAL_PENDING_ERROR } from "@/lib/legal";
-import { freshDb, invoke, LEGAL_OK, signupCookie, smsSignup, trPhone, uniq } from "./harness";
+import { cookies, freshDb, invoke, LEGAL_OK, signupCookie, smsSignup, testDevice, trPhone, uniq } from "./harness";
 
 beforeEach(() => {
   freshDb();
@@ -19,18 +19,20 @@ test("sign-up needs each box ticked and stores both versions", async () => {
   const phone = trPhone(7301);
   const sent = await invoke(otpRequest, { method: "POST", path: "/api/auth/otp/request", body: { phone } });
   const code = (sent.json as { devCode: string }).devCode;
-  const verified = await invoke(otpVerify, { method: "POST", path: "/api/auth/otp/verify", body: { phone, code } });
+  const device = testDevice();
+  const verified = await invoke(otpVerify, { method: "POST", path: "/api/auth/otp/verify", body: { phone, code }, cookie: device });
+  assert.equal(verified.status, 200, verified.text);
   const base = { username: uniq("lg").slice(0, 20), teamId: "galatasaray", city: null, confirmTeamLocked: true };
   for (const missing of ["acceptTerms", "acknowledgePrivacy", "confirmAge"] as const) {
     const body: Record<string, unknown> = { ...base, ...LEGAL_OK };
     delete body[missing];
-    const res = await invoke(signup, { method: "POST", path: "/api/auth/signup", cookie: signupCookie(verified.res), body });
+    const res = await invoke(signup, { method: "POST", path: "/api/auth/signup", cookie: cookies(signupCookie(verified.res), device), body });
     assert.equal(res.status, 400, missing);
   }
   const stale = await invoke(signup, {
     method: "POST",
     path: "/api/auth/signup",
-    cookie: signupCookie(verified.res),
+    cookie: cookies(signupCookie(verified.res), device),
     body: { ...base, ...LEGAL_OK, termsVersion: "2000-01-01" },
   });
   assert.equal(stale.status, 409, stale.text);

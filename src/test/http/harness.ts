@@ -1,4 +1,5 @@
 import "./env-init";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -6,6 +7,7 @@ import { getDb, resetDbForTests } from "@/lib/db";
 import { castFanVote } from "@/lib/fan-votes";
 import {
   ADMIN_2FA_COOKIE,
+  DEVICE_COOKIE,
   SESSION_COOKIE,
   SIGNUP_TICKET_COOKIE,
 } from "../../lib/policy";
@@ -107,6 +109,22 @@ export function sessionCookie(res: Response) {
 export function signupCookie(res: Response) {
   const token = cookieValue(setCookies(res), SIGNUP_TICKET_COOKIE);
   return token ? `${SIGNUP_TICKET_COOKIE}=${token}` : "";
+}
+
+/** The device cookie the code request sets, as a Cookie header part. */
+export function deviceCookie(res: Response) {
+  const token = cookieValue(setCookies(res), DEVICE_COOKIE);
+  return token ? `${DEVICE_COOKIE}=${token}` : "";
+}
+
+/** A fresh browser: a Cookie header part with a new random device id. */
+export function testDevice() {
+  return `${DEVICE_COOKIE}=${randomBytes(32).toString("hex")}`;
+}
+
+/** Joins Cookie header parts, skipping empty ones. */
+export function cookies(...parts: string[]) {
+  return parts.filter(Boolean).join("; ");
 }
 
 export function admin2faCookie(res: Response) {
@@ -229,27 +247,32 @@ export async function smsSignup(opts: {
   teamId?: string;
   city?: string | null;
   ip?: string;
+  /** Cookie header with an existing device cookie; a fresh device otherwise. */
+  device?: string;
 }) {
   const ip = opts.ip ?? "203.0.113.200";
   const sent = await invoke(otpRequest, {
     method: "POST",
     path: "/api/auth/otp/request",
     body: { phone: opts.phone },
+    cookie: opts.device,
     ip,
   });
   if (sent.status !== 200) throw new Error(`otp request ${sent.status} ${sent.text}`);
+  const device = opts.device || deviceCookie(sent.res);
   const code = (sent.json as { devCode: string }).devCode;
   const verified = await invoke(otpVerify, {
     method: "POST",
     path: "/api/auth/otp/verify",
     body: { phone: opts.phone, code },
+    cookie: device,
     ip,
   });
   if (verified.status !== 200) throw new Error(`otp verify ${verified.status} ${verified.text}`);
   const done = await invoke(signup, {
     method: "POST",
     path: "/api/auth/signup",
-    cookie: signupCookie(verified.res),
+    cookie: cookies(signupCookie(verified.res), device),
     ip,
     body: {
       username: opts.username,

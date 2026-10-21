@@ -6,12 +6,23 @@ function isProd() {
   return process.env.NODE_ENV === "production";
 }
 
+/** Production needs a Resend key; development writes mails to data/. */
+export function mailConfigured() {
+  return Boolean(process.env.RESEND_API_KEY?.trim()) || !isProd();
+}
+
+/** Development without a Resend key: nothing is sent, the code is shown on screen. */
+export function isDevMailInbox() {
+  return !isProd() && !process.env.RESEND_API_KEY?.trim();
+}
+
 async function sendHtml(to: string, subject: string, html: string, fallbackFile: string) {
   const key = process.env.RESEND_API_KEY;
   if (!key) {
     if (isProd()) {
-      throw new Error("RESEND_API_KEY yok.");
+      throw new Error("NOT_CONFIGURED");
     }
+    fs.mkdirSync(path.dirname(fallbackFile), { recursive: true });
     fs.writeFileSync(fallbackFile, `${to}\n${html}\n`, "utf8");
     console.log(`[dev mail] ${subject} → ${to}`);
     return { ok: true, dev: true };
@@ -31,6 +42,25 @@ async function sendHtml(to: string, subject: string, html: string, fallbackFile:
   });
   if (!res.ok) throw new Error("mail_failed");
   return { ok: true, dev: false };
+}
+
+/**
+ * Sign-in / sign-up code. The code is only in the mail body: never in the
+ * subject, never logged. In development without a key the mail is written
+ * to data/last-otp-mail.txt instead of being sent.
+ */
+export async function sendOtpEmail(to: string, code: string) {
+  const html = `
+    <div style="font-family:sans-serif;max-width:480px">
+      <h1>Bizim Tribün — doğrulama kodu</h1>
+      <p>Kodun:</p>
+      <p style="font-size:28px;letter-spacing:6px;font-weight:bold">${code}</p>
+      <p>Kod 5 dakika geçerli ve tek kullanımlık. Kimseyle paylaşma.</p>
+      <p style="color:#666;font-size:12px">Bu kodu sen istemediysen bu maili yok say.</p>
+    </div>
+  `;
+  const file = path.join(process.cwd(), "data", "last-otp-mail.txt");
+  await sendHtml(to, "Doğrulama kodun — Bizim Tribün", html, file);
 }
 
 export async function sendVerifyEmail(to: string, token: string) {

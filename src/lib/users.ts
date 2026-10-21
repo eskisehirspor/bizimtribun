@@ -55,6 +55,8 @@ export type PublicUser = {
   status: string;
   emailVerified: boolean;
   phoneVerified: boolean;
+  /** Phone (SMS) or e-mail proven by a code or link: may vote and write. */
+  verified: boolean;
 };
 
 export function normalizeUsername(raw: string) {
@@ -135,7 +137,15 @@ export function toPublicUser(row: UserRow): PublicUser {
     status: effectiveUserStatus(row),
     emailVerified: Boolean(row.email_verified_at),
     phoneVerified: Boolean(row.phone_verified_at),
+    verified: isVerifiedMember(row),
   };
+}
+
+/** A member who proved a phone by SMS or an e-mail address by code or link. */
+export function isVerifiedMember(
+  row: Pick<UserRow, "phone_verified_at" | "email_verified_at">,
+): boolean {
+  return Boolean(row.phone_verified_at || row.email_verified_at);
 }
 
 /** Admin panel access. Moderator rights are a separate, narrower check. */
@@ -314,8 +324,8 @@ export function setUserRole(
     return { ok: false, error: "Kendi rolünü değiştiremezsin." };
   }
   if (role !== "user") {
-    if (!target.phone_verified_at) {
-      return { ok: false, error: "Yetkili rolü için hesabın telefonu doğrulanmış olmalı." };
+    if (!isVerifiedMember(target)) {
+      return { ok: false, error: "Yetkili rolü için hesabın doğrulanmış olmalı." };
     }
     if (isUserBanned(target)) {
       return { ok: false, error: "Banlı hesaba yetki verilemez." };

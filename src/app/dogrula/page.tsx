@@ -8,7 +8,7 @@ export default function DogrulaPage() {
       <div className="max-w-[520px] mx-auto bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black] p-6">
         <h1 className="font-anton text-[34px] leading-[0.9]">E-POSTA SAYIMI KAPANDI</h1>
         <p className="font-mono text-[13px] mt-4 leading-[1.5]">
-          Bizim Tribün artık SMS ile doğrulanmış üyelik kullanıyor. Her hesap tek bir takım
+          Bizim Tribün artık kodla doğrulanmış üyelik kullanıyor. Her hesap tek bir takım
           seçer ve sayaçlar yalnızca bu seçimlerden hesaplanır. Eski e-posta linkleri artık oy
           kaydetmez.
         </p>

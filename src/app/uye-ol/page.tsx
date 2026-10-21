@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
-import PhoneOtpStep from "@/components/auth/PhoneOtpStep";
+import CodeSignInStep, { useVerifyChannel } from "@/components/auth/CodeSignInStep";
 import TeamPicker from "@/components/auth/TeamPicker";
 import { errorText, inputClass, Notice, postJson, primaryButton } from "@/components/auth/ui";
 import { safeNextPath } from "@/lib/forum-ui";
@@ -15,10 +15,16 @@ import { LEGAL_DOCS } from "@/lib/legal";
 type Step = "phone" | "profile" | "team";
 
 const STEPS: { id: Step; label: string }[] = [
-  { id: "phone", label: "1. TELEFON" },
+  { id: "phone", label: "1. DOĞRULAMA" },
   { id: "profile", label: "2. PROFİL" },
   { id: "team", label: "3. TAKIM" },
 ];
+
+function ticketLabel(t: { phoneMasked?: string | null; emailMasked?: string | null }) {
+  if (t.emailMasked) return `E-posta doğrulandı: ${t.emailMasked}`;
+  if (t.phoneMasked) return `Telefon doğrulandı: ${t.phoneMasked}`;
+  return null;
+}
 
 function Flow() {
   const router = useRouter();
@@ -27,7 +33,8 @@ function Flow() {
   const preselect = params.get("takim");
   const { user, refresh } = useAuth();
   const [step, setStep] = useState<Step>("phone");
-  const [phoneMasked, setPhoneMasked] = useState<string | null>(null);
+  const channel = useVerifyChannel();
+  const [verifiedAs, setVerifiedAs] = useState<string | null>(null);
   const [legacyHint, setLegacyHint] = useState(false);
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -43,7 +50,7 @@ function Flow() {
       .then((r) => r.json())
       .then((d) => {
         if (cancelled || !d.ticket) return;
-        setPhoneMasked(d.phoneMasked);
+        setVerifiedAs(ticketLabel(d));
         setStep("profile");
       })
       .catch(() => {});
@@ -67,7 +74,7 @@ function Flow() {
     if (data.next === "signup") {
       setLegacyHint(Boolean(data.legacyAccountHint));
       const t = await fetch("/api/auth/signup", { cache: "no-store" }).then((r) => r.json());
-      setPhoneMasked(t.phoneMasked ?? null);
+      setVerifiedAs(ticketLabel(t));
       setStep("profile");
       return;
     }
@@ -124,12 +131,13 @@ function Flow() {
       {step === "phone" && (
         <>
           <p className="font-mono text-[12px] mb-3 leading-[1.4]">
-            Bizim Tribün&apos;de her hesap SMS ile doğrulanmış bir cep telefonuna bağlıdır ve bir
-            telefonla yalnızca bir hesap açılır. Kayıtlıysan aynı adımla giriş yaparsın.
+            {channel === "sms"
+              ? "Bizim Tribün'de her hesap SMS ile doğrulanmış bir cep telefonuna bağlıdır ve bir telefonla yalnızca bir hesap açılır."
+              : "Bizim Tribün'de her hesap doğrulanmış bir e-posta adresine bağlıdır; bir adresle ve bir cihazdan sınırlı sayıda hesap açılır."}{" "}
+            Kayıtlıysan aynı adımla giriş yaparsın.
           </p>
-          <PhoneOtpStep
-            requestUrl="/api/auth/otp/request"
-            verifyUrl="/api/auth/otp/verify"
+          <CodeSignInStep
+            channel={channel}
             onVerified={(d) => void onVerified(d)}
             submitLabel="DOĞRULA VE DEVAM ET"
           />
@@ -149,12 +157,13 @@ function Flow() {
             setStep("team");
           }}
         >
-          {phoneMasked && <Notice tone="success">Telefon doğrulandı: {phoneMasked}</Notice>}
+          {verifiedAs && <Notice tone="success">{verifiedAs}</Notice>}
           {legacyHint && (
             <Notice tone="info">
-              Bu numara şifreyle açılmış eski bir hesapta da yazılı. O hesabı kullanmak
-              istiyorsan <Link className="underline" href="/giris?yontem=sifre">şifrenle giriş yap</Link>{" "}
-              ve telefonunu orada doğrula. Yeni hesap açarsan numara yeni hesaba geçer.
+              Bu {channel === "sms" ? "numara" : "adres"} şifreyle açılmış eski bir hesapta da yazılı. O
+              hesabı kullanmak istiyorsan{" "}
+              <Link className="underline" href="/giris?yontem=sifre">şifrenle giriş yap</Link>. Yeni
+              hesap açarsan {channel === "sms" ? "numara" : "adres"} yeni hesaba geçer.
             </Notice>
           )}
           <label className="block">
