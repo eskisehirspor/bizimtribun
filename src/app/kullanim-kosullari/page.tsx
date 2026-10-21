@@ -15,7 +15,7 @@ export default function TermsPage() {
     <LegalPage kicker={`KULLANIM KOŞULLARI • SÜRÜM ${v}`} title="KULLANIM KOŞULLARI">
       <h2>1. Taraflar ve kapsam</h2>
       <p>
-        Bu koşullar, {LEGAL_ENTITY.name} ({LEGAL_ENTITY.address}, {LEGAL_ENTITY.mersis}) tarafından
+        Bu koşullar, {LEGAL_ENTITY.name} ({LEGAL_ENTITY.address}, MERSİS No: {LEGAL_ENTITY.mersis}) tarafından
         işletilen Bizim Tribün internet sitesini (&quot;Platform&quot;) kullanan herkes için geçerlidir.
         Üye olurken bu koşulları kabul etmiş olursun. Kabul etmiyorsan üye olma ve Platform&apos;u
         üye olarak kullanma.

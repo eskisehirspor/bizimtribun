@@ -125,7 +125,7 @@ Versions are in `src/lib/policy.ts` (`TERMS_VERSION`, `PRIVACY_NOTICE_VERSION`,
   is added (e.g. marketing messages), it needs its own optional box that doesn't block sign-up.
 - Only strictly necessary cookies are used, so there is no cookie banner.
 
-Before launch: fill in `LEGAL_ENTITY`, the SMS provider and hosting placeholders in `/kvkk`,
+Before launch: fill in the VERBİS status in `LEGAL_ENTITY`, the SMS provider and hosting placeholders in `/kvkk`,
 sign the KVKK standard contract with US providers (Twilio if used, Cloudflare, Resend) and notify
 the Authority within 5 business days, decide the audit-log retention period, check whether
 VERBİS registration is required, and have a lawyer review all three texts.

@@ -7,17 +7,18 @@ import {
 } from "./policy";
 
 /**
- * Company details for the legal texts. These are placeholders on purpose:
- * fill them in before launch, never with made-up values.
+ * Data controller details shown in the legal texts, as given by the owner.
+ * Bracketed values are still open and must be filled before launch.
  */
 export const LEGAL_ENTITY = {
-  name: "[VERİ SORUMLUSU UNVANI]",
-  address: "[AÇIK ADRES]",
-  mersis: "[MERSİS / VERGİ NO]",
-  email: "[KVKK BAŞVURU E-POSTASI]",
-  kep: "[KEP ADRESİ]",
+  name: "ASD TASARIM BİLİŞİM REKLAM MATBAA SANAYİ TİCARET LİMİTED ŞİRKETİ",
+  address: "Osmangazi Mah. Basın Şehitleri Cad. No:174/1 Odunpazarı/ESKİŞEHİR",
+  mersis: "0086044349300012",
+  taxNo: "0860443493",
+  email: "kvkk@asd.web.tr",
+  kep: "asdtasarim@hs01.kep.tr",
   verbis: "[VERBİS KAYIT DURUMU]",
-  court: "[YETKİLİ MAHKEME / İCRA DAİRESİ]",
+  court: "Eskişehir Mahkemeleri ve İcra Daireleri",
 } as const;
 
 export type LegalDocId = "terms" | "privacy";

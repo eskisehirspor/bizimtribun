@@ -26,7 +26,7 @@ export default function KvkkPage() {
         <br />
         Adres: {LEGAL_ENTITY.address}
         <br />
-        MERSİS / Vergi No: {LEGAL_ENTITY.mersis}
+        MERSİS No: {LEGAL_ENTITY.mersis} • Vergi No: {LEGAL_ENTITY.taxNo}
         <br />
         E-posta: {LEGAL_ENTITY.email} • KEP: {LEGAL_ENTITY.kep}
         <br />
