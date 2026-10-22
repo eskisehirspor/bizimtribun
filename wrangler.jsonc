@@ -4,5 +4,14 @@
   "name": "bizimtribun",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" }
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  // Public settings. Secrets (APP_SECRET, RESEND_API_KEY, TURNSTILE_SECRET_KEY,
+  // SUPER_ADMIN_EMAIL)
+  // are set with `wrangler secret put`, see docs/cloudflare.md.
+  "vars": {
+    "APP_URL": "https://bizimtribun.com",
+    "TRUST_PROXY": "cloudflare",
+    "VERIFY_CHANNEL": "email"
+  }
+  // "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "<from wrangler hyperdrive create>" }]
 }

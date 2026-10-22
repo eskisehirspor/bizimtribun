@@ -15,13 +15,25 @@ export function isProductionNodeEnv(nodeEnv = process.env.NODE_ENV) {
 /** Cloudflare Turnstile (bot check before SMS sends) loads from this origin. */
 export const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
 
+/** Supabase Realtime, which pushes live vote changes to the browser. */
+export function realtimeOrigins(url = process.env.NEXT_PUBLIC_SUPABASE_URL) {
+  if (!url) return "";
+  try {
+    const host = new URL(url).host;
+    return ` https://${host} wss://${host}`;
+  } catch {
+    return "";
+  }
+}
+
 export function contentSecurityPolicy(production: boolean): string {
+  const live = realtimeOrigins();
   const scriptSrc = production
     ? `script-src 'self' 'unsafe-inline' ${TURNSTILE_ORIGIN}`
     : `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${TURNSTILE_ORIGIN}`;
   const connectSrc = production
-    ? `connect-src 'self' ${TURNSTILE_ORIGIN}`
-    : `connect-src 'self' ws: wss: ${TURNSTILE_ORIGIN}`;
+    ? `connect-src 'self' ${TURNSTILE_ORIGIN}${live}`
+    : `connect-src 'self' ws: wss: ${TURNSTILE_ORIGIN}${live}`;
   return [
     "default-src 'self'",
     scriptSrc,
