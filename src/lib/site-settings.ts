@@ -2,6 +2,7 @@ import type { Db } from "./db";
 import { z } from "zod";
 import { writeAudit } from "./audit";
 import { dbGeneration, getDb } from "./db";
+import { announceVoteChange } from "./live";
 import { LEAGUE_ORDER } from "./teams";
 
 /**
@@ -47,6 +48,7 @@ export const SETTING_SCHEMAS = {
   seo: z.object({ siteTitle: plain(70), siteDescription: plain(160) }),
   homeLeagues: z.object({ ids: z.array(z.enum(LEAGUE_ORDER as [string, ...string[]])).min(1).max(5) }),
   maintenance: z.object({ enabled: z.boolean(), message: plain(200) }),
+  openingData: z.object({ enabled: z.boolean() }),
   features: z.object({
     signupsOpen: z.boolean(),
     teamRequestsOpen: z.boolean(),
@@ -59,7 +61,7 @@ export type SettingKey = keyof typeof SETTING_SCHEMAS;
 export type Settings = { [K in SettingKey]: z.output<(typeof SETTING_SCHEMAS)[K]> };
 export const SETTING_KEYS = Object.keys(SETTING_SCHEMAS) as SettingKey[];
 
-export const SUPER_ADMIN_KEYS: ReadonlySet<SettingKey> = new Set(["maintenance", "features"]);
+export const SUPER_ADMIN_KEYS: ReadonlySet<SettingKey> = new Set(["maintenance", "features", "openingData"]);
 
 export const DEFAULT_SETTINGS: Settings = {
   announcement: { active: false, text: "", tone: "info", link: "" },
@@ -72,6 +74,7 @@ export const DEFAULT_SETTINGS: Settings = {
   },
   homeLeagues: { ids: [...LEAGUE_ORDER] },
   maintenance: { enabled: false, message: "" },
+  openingData: { enabled: false },
   features: {
     signupsOpen: true,
     teamRequestsOpen: true,
@@ -152,6 +155,8 @@ export async function updateSetting(
               });
       })();
   invalidateSettingsCache();
+  // Open home pages redraw the map without the opening data straight away.
+  if (key === "openingData") announceVoteChange();
   return { ok: true, value };
 }
 

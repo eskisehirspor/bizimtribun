@@ -108,3 +108,38 @@ test("feature flags close boards, likes and sign-ups", async () => {
   const list = await invoke(listGeneral, { path: "/api/forum/genel/topics" });
   assert.deepEqual((list.json as { topics: { id: number }[] }).topics.map((t) => t.id), [id]);
 });
+
+test("opening data shows on the home stats only, labelled, and an admin can turn it off", async () => {
+  const { GET: stats } = await import("../../app/api/stats/route");
+  const { teamSummary, totalVerified } = await import("@/lib/stats");
+  const admin = await member("admin");
+  const sup = await member("super_admin");
+  type Stats = { total: number; opening: number; teams: { id: string; votes: number }[]; cities: Record<string, { teamId: string }> };
+  const read = async () => (await invoke(stats, { path: "/api/stats" })).json as Stats;
+
+  // Off by default: the numbers are the real ones.
+  const real = await totalVerified();
+  assert.equal((await read()).opening, 0);
+  assert.equal((await read()).total, real);
+
+  assert.equal((await put(admin.cookie, "openingData", { enabled: true })).status, 403);
+  assert.equal((await put(sup.cookie, "openingData", { enabled: true })).status, 200);
+  invalidateSettingsCache();
+  const on = await read();
+  assert.ok(on.opening > 0);
+  assert.equal(on.total, real + on.opening);
+  assert.equal(on.cities["Eskişehir"]?.teamId, "eskisehirspor");
+  assert.equal(on.cities["Trabzon"]?.teamId, "trabzonspor");
+  assert.equal(on.teams.find((t) => t.id === "eskisehirspor")?.votes, 5);
+  assert.ok(on.teams.every((t) => t.votes >= 3));
+  // Every province is coloured.
+  assert.equal(Object.keys(on.cities).length, 81);
+
+  // Nothing written as votes; SEO-facing numbers stay real.
+  assert.equal(await totalVerified(), real);
+  assert.equal((await teamSummary("eskisehirspor"))?.votes, 0);
+
+  assert.equal((await put(sup.cookie, "openingData", { enabled: false })).status, 200);
+  invalidateSettingsCache();
+  assert.equal((await read()).opening, 0);
+});

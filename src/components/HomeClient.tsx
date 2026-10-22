@@ -44,6 +44,8 @@ type Props = {
   initialTotal: number;
   initialCities: Record<string, CityLeader>;
   initialStandings: Record<string, CityStanding[]>;
+  /** Labelled starter votes included in the numbers above (0 when off). */
+  initialOpening: number;
   leagues: { id: LeagueId; name: string; sortOrder: number }[];
   season: string | null;
   recentTopics: RecentTopic[];
@@ -59,6 +61,7 @@ export default function HomeClient({
   initialTotal,
   initialCities,
   initialStandings,
+  initialOpening,
   leagues: initialLeagues,
   season: initialSeason,
   recentTopics,
@@ -71,6 +74,7 @@ export default function HomeClient({
   const [total, setTotal] = useState(initialTotal);
   const [cities, setCities] = useState(initialCities);
   const [standings, setStandings] = useState(initialStandings);
+  const [opening, setOpening] = useState(initialOpening);
   const [asOf, setAsOf] = useState(generatedAt);
   const [leagues, setLeagues] = useState(initialLeagues);
   const [season, setSeason] = useState(initialSeason);
@@ -132,6 +136,7 @@ export default function HomeClient({
       setTotal(data.total);
       setCities(data.cities);
       setStandings(data.standings);
+      setOpening(typeof data.opening === "number" ? data.opening : 0);
       if (data.generatedAt) setAsOf(data.generatedAt);
       if (Array.isArray(data.leagues)) setLeagues(data.leagues);
       if ("season" in data) setSeason(data.season ?? null);
@@ -184,14 +189,19 @@ export default function HomeClient({
             </p>
             <div className="col-start-2 row-start-1 row-span-2 md:col-start-3 md:row-span-1 md:row-start-1 shrink-0 border-[3px] md:border-[4px] border-black bg-[#FFEA00] px-2.5 py-2 sm:p-3 md:p-4 shadow-[4px_4px_0_black] md:shadow-[6px_6px_0_black] rotate-1 md:-rotate-2 self-start md:self-end w-[112px] sm:w-[140px] md:w-auto mr-3 sm:mr-4 md:mr-1">
               <div className="font-mono text-[10px] md:text-[11px] leading-tight">
-                DOĞRULANMIŞ
+                {opening > 0 ? "TARAFTAR" : "DOĞRULANMIŞ"}
                 <br className="md:hidden" />
                 <span className="hidden md:inline"> </span>
-                TARAFTAR
+                {opening > 0 ? "SAYACI" : "TARAFTAR"}
               </div>
               <div className="font-anton text-[28px] sm:text-[34px] md:text-[38px] leading-none tabular-nums mt-1">
                 {preview.total.toLocaleString("tr-TR")}
               </div>
+              {opening > 0 && (
+                <div className="font-mono text-[9px] md:text-[10px] leading-tight mt-0.5">
+                  {opening.toLocaleString("tr-TR")} AÇILIŞ VERİSİ DAHİL
+                </div>
+              )}
               <div className="font-mono text-[10px] md:text-[11px] mt-1 leading-tight">
                 KİM ÖNDE?
                 <br className="md:hidden" />
@@ -227,6 +237,7 @@ export default function HomeClient({
               İL LİDERLERİ
             </span>
           </h2>
+          {opening > 0 && <OpeningNote total={total} opening={opening} />}
           <TurkeyMap leaders={preview.cities} standings={preview.standings} />
         </div>
 
@@ -328,6 +339,11 @@ export default function HomeClient({
                   </div>
                 );
               })}
+              {opening > 0 && (
+                <div className="p-2 font-mono text-[12px] bg-[#FFEA00]/40">
+                  Sayılara açılış verisi dahil; gerçek oylar geldikçe kaldırılacak.
+                </div>
+              )}
               {filtered.length === 0 && (
                 <div className="p-4 font-mono text-[14px]">Eşleşme yok. Aramayı ya da lig filtresini değiştir.</div>
               )}
@@ -375,8 +391,10 @@ export default function HomeClient({
               </span>
             </div>
             <div className="mt-1 font-mono text-[12px] opacity-70">
-              {preview.total.toLocaleString("tr-TR")} doğrulanmış taraftar • eşit oyda
-              alfabetik
+              {opening > 0
+                ? `${(preview.total - opening).toLocaleString("tr-TR")} doğrulanmış taraftar + ${opening.toLocaleString("tr-TR")} açılış verisi`
+                : `${preview.total.toLocaleString("tr-TR")} doğrulanmış taraftar`}{" "}
+              • eşit oyda alfabetik
             </div>
             <ol className="mt-3 md:max-h-[420px] md:overflow-auto space-y-1 pr-1">
               {ranked.map((m, i) => (
@@ -473,5 +491,16 @@ export default function HomeClient({
 
 
     </div>
+  );
+}
+
+/** Shown wherever the opening data is part of the numbers. */
+function OpeningNote({ total, opening }: { total: number; opening: number }) {
+  return (
+    <p className="-mt-5 mb-5 md:-mt-6 md:mb-6 inline-block border-[2px] border-black bg-[#FFEA00] px-2 py-1 font-mono text-[12px] leading-snug">
+      <strong>AÇILIŞ VERİSİ:</strong> Harita boş kalmasın diye her takıma kendi iline birkaç başlangıç oyu
+      koyduk ({opening.toLocaleString("tr-TR")} oy). Gerçek oy: {(total - opening).toLocaleString("tr-TR")}.
+      Gerçek taraftarlar geldikçe kaldırılacak.
+    </p>
   );
 }

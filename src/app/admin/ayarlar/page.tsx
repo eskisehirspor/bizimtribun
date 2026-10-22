@@ -12,6 +12,7 @@ type Settings = {
   seo: { siteTitle: string; siteDescription: string };
   homeLeagues: { ids: string[] };
   maintenance: { enabled: boolean; message: string };
+  openingData: { enabled: boolean };
   features: {
     signupsOpen: boolean;
     teamRequestsOpen: boolean;
@@ -142,6 +143,7 @@ export default function SettingsPage() {
 
       {data.canManageSystem ? (
         <>
+          <OpeningData initial={data.settings.openingData.enabled} meta={meta("openingData")} />
           <Section k="maintenance" title="BAKIM MODU" initial={data.settings.maintenance} meta={meta("maintenance")} danger>
             {(v, set) => (
               <>
@@ -170,6 +172,55 @@ export default function SettingsPage() {
         <AdminNotice kind="empty">Bakım modu ve özellik anahtarları yalnızca süper adminlere açık.</AdminNotice>
       )}
     </div>
+  );
+}
+
+/** One click: the starter votes come off (or back on) the home map. */
+function OpeningData({ initial, meta }: { initial: boolean; meta?: Meta }) {
+  const [enabled, setEnabled] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [saved, setSaved] = useState(meta);
+
+  async function toggle() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await adminJson<{ value: { enabled: boolean } }>("/api/admin/settings", {
+        method: "PUT",
+        body: JSON.stringify({ key: "openingData", value: { enabled: !enabled } }),
+      });
+      setEnabled(res.value.enabled);
+      setSaved({ key: "openingData", updatedAt: new Date().toISOString(), updatedBy: "sen" });
+      setMsg({ ok: true, text: res.value.enabled ? "Açılış verisi gösteriliyor." : "Açılış verisi kaldırıldı." });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : "Kaydedilemedi." });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="border-[3px] border-[#C8102E] bg-[#FFFEFA] p-4 space-y-2">
+      <h3 className="font-anton text-[20px]">AÇILIŞ VERİSİ</h3>
+      <p className="font-mono text-[12px]">
+        Ana sayfadaki harita ve sayaçlara, her takıma kendi ilinde 3-5 başlangıç oyu ekler (takımı olmayan illere
+        Galatasaray, Fenerbahçe, Beşiktaş). Gerçek oylara yazılmaz; sitede &quot;açılış verisi&quot; notuyla görünür.
+        Takım ve il sayfaları, başlıklar, Google ve paylaşım görselleri her zaman yalnızca gerçek oyları gösterir.
+      </p>
+      <p className="font-mono text-[13px] font-bold">Şu an: {enabled ? "AÇIK" : "KAPALI"}</p>
+      <div className="flex flex-wrap items-center gap-3">
+        <button type="button" disabled={busy} onClick={() => void toggle()} className={btnSmPrimary}>
+          {busy ? "KAYDEDİLİYOR…" : enabled ? "AÇILIŞ VERİSİNİ KALDIR" : "AÇILIŞ VERİSİNİ GÖSTER"}
+        </button>
+        {msg && <span className={`font-mono text-[12px] ${msg.ok ? "" : "text-[#C8102E]"}`}>{msg.text}</span>}
+        {saved && (
+          <span className={hintClass}>
+            Son değişiklik: {formatWhen(saved.updatedAt)} {saved.updatedBy ? `• ${saved.updatedBy}` : ""}
+          </span>
+        )}
+      </div>
+    </section>
   );
 }
 

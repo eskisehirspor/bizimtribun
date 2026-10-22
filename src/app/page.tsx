@@ -5,7 +5,8 @@ import { getDb } from "@/lib/db";
 import type { Metadata } from "next";
 import { featuredPublicTopics, recentPublicTopics } from "@/lib/home-feed";
 import { getSettings } from "@/lib/site-settings";
-import { cityLeaders, cityStandings, teamCounts, totalVerified } from "@/lib/stats";
+import { withOpeningData } from "@/lib/opening-data";
+import { cityStandings, teamCounts, totalVerified } from "@/lib/stats";
 import { currentSeason } from "@/lib/team-admin";
 import { listLeagues } from "@/lib/team-catalog";
 import { DEFAULT_SHARE_IMAGE, graph, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
@@ -45,14 +46,18 @@ export default async function Home() {
   const settings = await getSettings();
   const teams = await teamCounts();
   const total = await totalVerified();
+  // The map and counters may add the labelled opening data; the text block
+  // below (what search engines read) always shows real votes only.
+  const shown = await withOpeningData({ teams, total, standings });
   return (
     <>
       <JsonLd data={graph(organizationJsonLd(Object.values(settings.socialLinks)), websiteJsonLd())} />
       <HomeClient
-        initialTeams={teams}
-        initialTotal={total}
-        initialCities={await cityLeaders(standings)}
-        initialStandings={standings}
+        initialTeams={shown.teams}
+        initialTotal={shown.total}
+        initialCities={shown.cities}
+        initialStandings={shown.standings}
+        initialOpening={shown.opening}
         leagues={await listLeagues()}
         season={(await currentSeason(getDb()))?.label ?? null}
         recentTopics={await recentPublicTopics(8)}
