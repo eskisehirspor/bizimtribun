@@ -13,6 +13,13 @@ const nextConfig: NextConfig = {
     // Province tribunes were removed; old links land on the province's count page.
     // Genel Tribün became the Milli Takım Tribünü.
     return [
+      // One address for search engines: www goes to the bare domain.
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.bizimtribun.com" }],
+        destination: "https://bizimtribun.com/:path*",
+        permanent: true,
+      },
       { source: "/forum/il/:citySlug/:rest*", destination: "/il/:citySlug", permanent: true },
       { source: "/forum/genel/:rest*", destination: "/forum/milli-takim/:rest*", permanent: true },
     ];
