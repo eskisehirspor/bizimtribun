@@ -27,8 +27,7 @@ postgresql://bizimtribun_app.cqxkjbrvfqpizbpmtrns:<password>@aws-1-eu-west-1.poo
 
 ```sh
 npx wrangler login
-npx wrangler hyperdrive create bizimtribun-db --connection-string="<above>"
-# put the id into wrangler.jsonc under "hyperdrive" (binding HYPERDRIVE)
+npx wrangler hyperdrive create bizimtribun-db --connection-string="<above>"   # done, id is in wrangler.jsonc
 echo "NEXT_PUBLIC_TURNSTILE_SITE_KEY=<site key>" > .env.production.local
 npm run cf:deploy
 printf %s "<value>" | npx wrangler secret put APP_SECRET   # 48 random bytes
