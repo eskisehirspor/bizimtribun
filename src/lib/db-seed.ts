@@ -58,20 +58,24 @@ WHERE NOT EXISTS (
 );`,
   );
 
-  for (const teamId of FORUM_ACTIVE_TEAM_IDS) {
-    for (const starter of PINNED_STARTER_TOPICS) {
-      out.push(
-        `INSERT INTO forum_topics (team_id, user_id, title, content, created_at, updated_at, category, is_pinned)
-SELECT ${lit(teamId)}, u.id, ${lit(starter.title)}, ${lit(starter.content)}, ${lit(now)}, ${lit(now)}, 'kulup-tarihi', 1
+  const teamRows = FORUM_ACTIVE_TEAM_IDS.map((id, i) => `(${lit(id)}, ${i})`).join(", ");
+  const starterRows = PINNED_STARTER_TOPICS.map(
+    (s, i) => `(${lit(s.title)}, ${lit(s.content)}, ${i})`,
+  ).join(",\n    ");
+  out.push(
+    `INSERT INTO forum_topics (team_id, user_id, title, content, created_at, updated_at, category, is_pinned)
+SELECT t.id, u.id, s.title, s.content, ${lit(now)}, ${lit(now)}, 'kulup-tarihi', 1
 FROM users u
+CROSS JOIN (VALUES ${teamRows}) AS t(id, ord)
+CROSS JOIN (VALUES
+    ${starterRows}) AS s(title, content, ord)
 WHERE u.email_norm = ${lit(FORUM_SYSTEM_EMAIL)}
   AND NOT EXISTS (
-    SELECT 1 FROM forum_topics
-    WHERE team_id = ${lit(teamId)} AND title = ${lit(starter.title)} AND deleted_at IS NULL
-  );`,
-      );
-    }
-  }
+    SELECT 1 FROM forum_topics f
+    WHERE f.team_id = t.id AND f.title = s.title AND f.deleted_at IS NULL
+  )
+ORDER BY t.ord, s.ord;`,
+  );
 
   return out.join("\n\n") + "\n";
 }
