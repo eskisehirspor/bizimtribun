@@ -15,6 +15,7 @@
   },
   // Keep the workers.dev address next to the custom domains.
   "workers_dev": true,
+  "preview_urls": false,
   "routes": [
     { "pattern": "bizimtribun.com", "custom_domain": true },
     { "pattern": "www.bizimtribun.com", "custom_domain": true }
