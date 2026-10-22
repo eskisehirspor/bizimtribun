@@ -100,7 +100,7 @@ The team catalog in `src/lib/teams.ts` is synced on boot only into rows an admin
 
 ## Share images
 
-Open Graph images (`/opengraph-image`, `/takim/<id>/opengraph-image`, `/il/<slug>/opengraph-image`) are drawn per request from live counts and carry the data time. They read the fonts in `assets/fonts` (SIL Open Font License, licence files next to them), so run `next start` from the repository directory or copy `assets/` alongside the build.
+Open Graph images (`/takim/<id>/opengraph-image`, `/il/<slug>/opengraph-image`) are drawn per request from live counts and carry the data time. They read the fonts in `assets/fonts` (SIL Open Font License, licence files next to them); on Cloudflare Workers the same files are read from `public/fonts` through the ASSETS binding. If drawing fails they redirect to the fixed card `public/og.png` (also the home page card; redraw with `npx tsx scripts/share-card.tsx`).
 
 ## E-mail codes
 

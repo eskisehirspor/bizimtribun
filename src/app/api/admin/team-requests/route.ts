@@ -25,13 +25,13 @@ export async function GET(req: Request) {
     return noStoreJson({ ok: true, page, limit, total: 0, items: [] });
   }
 
-  const { total, items } = listTeamRequestGroups(getDb(), {
-    status,
-    q: likeQuery(url.searchParams.get("q")),
-    citySlug: city?.slug ?? null,
-    offset,
-    limit,
-  });
+  const { total, items } = await listTeamRequestGroups(getDb(), {
+      status,
+      q: likeQuery(url.searchParams.get("q")),
+      citySlug: city?.slug ?? null,
+      offset,
+      limit,
+    });
 
   return noStoreJson({ ok: true, page, limit, total, items });
 }

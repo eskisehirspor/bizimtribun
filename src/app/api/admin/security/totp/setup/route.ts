@@ -14,16 +14,16 @@ export async function POST(req: Request) {
   const gate = await requireAdminResponse(req, "security.self");
   if (!gate.ok) return gate.res;
 
-  const result = startTotpSetup(getDb(), gate.user);
+  const result = await startTotpSetup(getDb(), gate.user);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
 
-  recordSecurityEvent(getDb(), {
-    userId: gate.user.id,
-    action: "totp_setup_start",
-    success: true,
-    ipHash: hashedIp(`sec:${await clientIp()}`),
-    uaHash: hmac(`ua:${req.headers.get("user-agent") || ""}`),
-  });
+  await recordSecurityEvent(getDb(), {
+        userId: gate.user.id,
+        action: "totp_setup_start",
+        success: true,
+        ipHash: hashedIp(`sec:${await clientIp()}`),
+        uaHash: hmac(`ua:${req.headers.get("user-agent") || ""}`),
+      });
 
   return noStoreJson({
     ok: true,

@@ -30,7 +30,7 @@ type Props = {
   submitLabel?: string;
 };
 
-/** Sign-in / sign-up code step on the active channel. */
+/** Sign-up code step on the active channel. */
 export default function CodeSignInStep({ channel, onVerified, submitLabel }: Props) {
   const Step = channel === "sms" ? PhoneOtpStep : EmailOtpStep;
   return (

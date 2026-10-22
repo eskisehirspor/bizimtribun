@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 import {
   FORUM_SYSTEM_EMAIL_DOMAIN,
   FORUM_SYSTEM_PASSWORD_HASH,
@@ -72,7 +72,7 @@ const ELIGIBLE_USER_SQL = `
     (u.status = 'banned' OR u.banned_at IS NOT NULL)
     AND (u.ban_expires_at IS NULL OR u.ban_expires_at > ?)
   )
-  AND u.password_hash IS NOT ?
+  AND u.password_hash IS DISTINCT FROM ?
   AND (u.email_norm IS NULL OR u.email_norm NOT LIKE ?)
 `;
 
@@ -91,16 +91,16 @@ export const LEADER_LIKES_PER_LIKER = 3;
  * received from other members (at most 3 from any one liker). Only public
  * topics and replies on that team's board count.
  */
-export function getWeeklyFanOfWeek(
+export async function getWeeklyFanOfWeek(
   teamId: string,
   weekStart: string,
-  db: Database.Database,
+  db: Db,
   nowIso = new Date().toISOString(),
-): FanOfWeek | null {
+): Promise<FanOfWeek | null> {
   const { startIso, endIso } = weekRange(weekStart);
-  const row = db
-    .prepare(
-      `WITH content AS (
+  const row = await db
+      .prepare(
+        `WITH content AS (
          SELECT 'topic' AS type, t.id, t.user_id AS author, t.created_at, 0 AS is_post
          FROM forum_topics t
          WHERE t.team_id = ? AND t.deleted_at IS NULL AND t.held_at IS NULL
@@ -113,7 +113,7 @@ export function getWeeklyFanOfWeek(
        ),
        activity AS (
          SELECT author AS user_id,
-                COUNT(DISTINCT date(created_at, '+3 hours')) AS activeDays,
+                COUNT(DISTINCT ((created_at::timestamptz + interval '3 hours') AT TIME ZONE 'UTC')::date) AS activeDays,
                 SUM(is_post) AS postCount,
                 MIN(created_at) AS firstPostAt
          FROM content
@@ -121,7 +121,7 @@ export function getWeeklyFanOfWeek(
          GROUP BY author
        ),
        per_liker AS (
-         SELECT c.author, MIN(COUNT(*), ?) AS n
+         SELECT c.author, LEAST(COUNT(*), ?) AS n
          FROM forum_likes l
          JOIN content c ON c.type = l.target_type AND c.id = l.target_id
          JOIN users lu ON lu.id = l.user_id
@@ -140,18 +140,18 @@ export function getWeeklyFanOfWeek(
        WHERE ${ELIGIBLE_USER_SQL}
        ORDER BY score DESC, a.activeDays DESC, a.firstPostAt ASC, a.user_id ASC
        LIMIT 1`,
-    )
-    .get(
-      teamId,
-      teamId,
-      startIso,
-      endIso,
-      LEADER_LIKES_PER_LIKER,
-      startIso,
-      endIso,
-      LEADER_DAY_WEIGHT,
-      ...eligibleParams(nowIso),
-    ) as FanOfWeek | undefined;
+      )
+      .get(
+        teamId,
+        teamId,
+        startIso,
+        endIso,
+        LEADER_LIKES_PER_LIKER,
+        startIso,
+        endIso,
+        LEADER_DAY_WEIGHT,
+        ...eligibleParams(nowIso),
+      ) as FanOfWeek | undefined;
 
   if (!row || row.activeDays < 1) return null;
   return {
@@ -165,30 +165,31 @@ export function getWeeklyFanOfWeek(
 }
 
 /** Stores the winner of a finished week once; later calls leave it as is. */
-export function saveFanOfWeek(
+export async function saveFanOfWeek(
   teamId: string,
   weekStart: string,
-  db: Database.Database,
+  db: Db,
   nowIso = new Date().toISOString(),
 ) {
-  const winner = getWeeklyFanOfWeek(teamId, weekStart, db, nowIso);
+  const winner = await getWeeklyFanOfWeek(teamId, weekStart, db, nowIso);
   if (!winner) return { saved: false as const, winner: null };
-  const info = db
-    .prepare(
-      `INSERT OR IGNORE INTO fan_of_week
+  const info = await db
+      .prepare(
+        `INSERT INTO fan_of_week
        (team_id, user_id, week_start, post_count, active_days, like_count, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(teamId, winner.userId, weekStart, winner.postCount, winner.activeDays, winner.likeCount, nowIso);
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT DO NOTHING`,
+      )
+      .run(teamId, winner.userId, weekStart, winner.postCount, winner.activeDays, winner.likeCount, nowIso);
   return { saved: info.changes === 1, winner };
 }
 
 /** Records the winners of the last 12 finished weeks that are not stored yet. */
-export function recordRecentFansOfWeek(teamId: string, db: Database.Database, now = new Date()) {
+export async function recordRecentFansOfWeek(teamId: string, db: Db, now = new Date()) {
   let week = weekStartOf(now);
   for (let i = 0; i < 12; i++) {
     week = previousWeekStart(week);
-    saveFanOfWeek(teamId, week, db, now.toISOString());
+    await saveFanOfWeek(teamId, week, db, now.toISOString());
   }
 }
 
@@ -196,26 +197,26 @@ export function recordRecentFansOfWeek(teamId: string, db: Database.Database, no
  * Who wears the torch this week: the winner of last week. Picked once the
  * week is over, so it can't change while people are still posting.
  */
-export function getCurrentFanOfWeekUserId(teamId: string, db: Database.Database, now = new Date()) {
+export async function getCurrentFanOfWeekUserId(teamId: string, db: Db, now = new Date()) {
   const lastWeek = previousWeekStart(weekStartOf(now));
-  saveFanOfWeek(teamId, lastWeek, db, now.toISOString());
-  const row = db
-    .prepare(`SELECT user_id FROM fan_of_week WHERE team_id = ? AND week_start = ?`)
-    .get(teamId, lastWeek) as { user_id: number } | undefined;
+  await saveFanOfWeek(teamId, lastWeek, db, now.toISOString());
+  const row = await db
+      .prepare(`SELECT user_id FROM fan_of_week WHERE team_id = ? AND week_start = ?`)
+      .get(teamId, lastWeek) as { user_id: number } | undefined;
   return row?.user_id ?? null;
 }
 
-export function getFanOfWeekHistory(
+export async function getFanOfWeekHistory(
   teamId: string,
-  db: Database.Database,
+  db: Db,
   limit = 8,
   now = new Date(),
-): FanOfWeekPublic[] {
+): Promise<FanOfWeekPublic[]> {
   const take = Math.min(26, Math.max(1, limit));
-  recordRecentFansOfWeek(teamId, db, now);
-  return db
-    .prepare(
-      `SELECT w.team_id as teamId, t.name as teamName, w.week_start as weekStart,
+  await recordRecentFansOfWeek(teamId, db, now);
+  return await db
+      .prepare(
+        `SELECT w.team_id as teamId, t.name as teamName, w.week_start as weekStart,
               u.username as username, w.active_days as activeDays, w.like_count as likeCount
        FROM fan_of_week w
        JOIN teams t ON t.id = w.team_id
@@ -223,6 +224,6 @@ export function getFanOfWeekHistory(
        WHERE w.team_id = ?
        ORDER BY w.week_start DESC
        LIMIT ?`,
-    )
-    .all(teamId, take) as FanOfWeekPublic[];
+      )
+      .all(teamId, take) as FanOfWeekPublic[];
 }

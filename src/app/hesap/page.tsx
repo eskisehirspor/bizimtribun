@@ -9,6 +9,7 @@ import { errorText, inputClass, Notice, postJson, secondaryButton } from "@/comp
 import { useTeamCatalog } from "@/components/useTeamCatalog";
 import ProfileSettingsForm from "@/components/profile/ProfileSettingsForm";
 import MarketingConsentToggle from "@/components/profile/MarketingConsentToggle";
+import PasswordSettings from "@/components/profile/PasswordSettings";
 import { btnDanger, btnPrimary, labelClass } from "@/components/ui";
 
 const CONFIRM = "HESABIMI SİL";
@@ -83,6 +84,11 @@ function Account() {
       <section id="profil" className="border-[3px] border-black bg-white p-4 space-y-2">
         <h2 className="font-anton text-[20px]">PROFİL VE BİLDİRİMLER</h2>
         <ProfileSettingsForm username={user.username} />
+      </section>
+
+      <section id="sifre" className="border-[3px] border-black bg-white p-4 space-y-2">
+        <h2 className="font-anton text-[20px]">ŞİFRE</h2>
+        <PasswordSettings />
       </section>
 
       <section className="border-[3px] border-black bg-white p-4 space-y-2">

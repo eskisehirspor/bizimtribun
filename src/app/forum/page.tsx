@@ -1,29 +1,31 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { MilliPanel } from "@/components/AyYildiz";
 import ForumShell from "@/components/ForumShell";
 import { getDb } from "@/lib/db";
 import { NATIONAL_BOARD_PATH, NATIONAL_BOARD_TITLE } from "@/lib/national-board";
+import { publicPageMetadata } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Tribün | Bizim Tribün",
-  description: "Milli Takım Tribünü ve takım tribünleri.",
-};
+export const metadata = publicPageMetadata({
+  title: "Tribün: Taraftar Forumu | Bizim Tribün",
+  description:
+    "Her takımın taraftarlarına özel tribünü ve herkese açık Milli Takım Tribünü. Doğrulanmış taraftarlarla futbol konuş.",
+  path: "/forum",
+});
 
-function boardCounts() {
-  const rows = getDb()
-    .prepare(
-      `SELECT COUNT(*) as c FROM forum_topics
+async function boardCounts() {
+  const rows = await getDb()
+      .prepare(
+        `SELECT COUNT(*) as c FROM forum_topics
        WHERE deleted_at IS NULL AND held_at IS NULL AND board = 'general'`,
-    )
-    .get() as { c: number };
+      )
+      .get() as { c: number };
   return { general: rows.c };
 }
 
-export default function ForumIndexPage() {
-  const { general } = boardCounts();
+export default async function ForumIndexPage() {
+  const { general } = await boardCounts();
   return (
     <ForumShell>
       <p className="font-mono text-[11px] tracking-[0.16em]">BİZİM TRİBÜN • TRİBÜN</p>

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import Database from "better-sqlite3";
+import { scratchDb } from "./db-test";
+import type { Db } from "./db";
 import {
   TEAM_REQUESTS_PER_IP_HOUR,
   TEAM_REQUESTS_PER_USER_HOUR,
@@ -17,9 +18,9 @@ import {
   teamRequestSubmitGate,
 } from "./team-requests";
 
-function openDb() {
-  const db = new Database(":memory:");
-  db.exec(`
+async function openDb() {
+  const db = await scratchDb();
+  await db.exec(`
     CREATE TABLE teams (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -66,31 +67,31 @@ function openDb() {
       created_at TEXT NOT NULL
     );
   `);
-  db.prepare(
-    `INSERT INTO teams (id, name, league, is_forum_active) VALUES (?, ?, ?, ?)`,
-  ).run("galatasaray", "Galatasaray", "super", 1);
+  await db.prepare(
+        `INSERT INTO teams (id, name, league, is_forum_active) VALUES (?, ?, ?, ?)`,
+      ).run("galatasaray", "Galatasaray", "super", 1);
   return db;
 }
 
-function addUser(db: Database.Database, username: string, role = "user") {
+async function addUser(db: Db, username: string, role = "user") {
   const now = new Date().toISOString();
-  const info = db
-    .prepare(
-      `INSERT INTO users
+  const info = await db
+      .prepare(
+        `INSERT INTO users
        (username, username_norm, display_name, email, email_norm, password_hash,
         status, role, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, 'hash', 'active', ?, ?, ?)`,
-    )
-    .run(
-      username,
-      username,
-      username,
-      `${username}@ex.com`,
-      `${username}@ex.com`,
-      role,
-      now,
-      now,
-    );
+      )
+      .run(
+        username,
+        username,
+        username,
+        `${username}@ex.com`,
+        `${username}@ex.com`,
+        role,
+        now,
+        now,
+      );
   return Number(info.lastInsertRowid);
 }
 
@@ -106,42 +107,39 @@ test("misafir takım talebi gönderemez", () => {
   assert.equal(gate.status, 401);
 });
 
-test("aktif user talep gönderebilir", () => {
-  const db = openDb();
-  const userId = addUser(db, "ali");
-  const result = createTeamRequest(db, userId, valid);
+test("aktif user talep gönderebilir", async () => {
+  const db = await openDb();
+  const userId = await addUser(db, "ali");
+  const result = await createTeamRequest(db, userId, valid);
   assert.equal(result.ok, true);
   if (result.ok) {
     assert.equal(result.status, "pending");
     assert.equal(result.teamName, "Eskişehirspor");
   }
-  db.close();
 });
 
-test("duplicate pending talep engellenir", () => {
-  const db = openDb();
-  const userId = addUser(db, "ali");
-  assert.equal(createTeamRequest(db, userId, valid).ok, true);
-  const second = createTeamRequest(db, userId, {
-    ...valid,
-    teamName: "eskisehirspor",
-  });
+test("duplicate pending talep engellenir", async () => {
+  const db = await openDb();
+  const userId = await addUser(db, "ali");
+  assert.equal((await createTeamRequest(db, userId, valid)).ok, true);
+  const second = await createTeamRequest(db, userId, {
+      ...valid,
+      teamName: "eskisehirspor",
+    });
   assert.equal(second.ok, false);
   if (!second.ok) assert.equal(second.status, 409);
-  db.close();
 });
 
-test("mevcut takım tekrar talep edilemez", () => {
-  const db = openDb();
-  const userId = addUser(db, "ali");
-  const result = createTeamRequest(db, userId, {
-    teamName: "Galatasaray",
-    city: "İstanbul",
-    message: "Zaten var ama yine de istiyorum.",
-  });
+test("mevcut takım tekrar talep edilemez", async () => {
+  const db = await openDb();
+  const userId = await addUser(db, "ali");
+  const result = await createTeamRequest(db, userId, {
+      teamName: "Galatasaray",
+      city: "İstanbul",
+      message: "Zaten var ama yine de istiyorum.",
+    });
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 409);
-  db.close();
 });
 
 test("boş mesaj reddedilir", () => {
@@ -162,49 +160,47 @@ test("invalid city reddedilir", () => {
   assert.ok(parseTeamRequestCity("Eskişehir"));
 });
 
-test("farklı kullanıcıların aynı takım için talepleri gruplanabilir", () => {
-  const db = openDb();
-  const ali = addUser(db, "ali");
-  const berk = addUser(db, "berk");
-  assert.equal(createTeamRequest(db, ali, valid).ok, true);
-  assert.equal(createTeamRequest(db, berk, valid).ok, true);
-  const listed = listTeamRequestGroups(db, {
-    status: "pending",
-    offset: 0,
-    limit: 25,
-  });
+test("farklı kullanıcıların aynı takım için talepleri gruplanabilir", async () => {
+  const db = await openDb();
+  const ali = await addUser(db, "ali");
+  const berk = await addUser(db, "berk");
+  assert.equal((await createTeamRequest(db, ali, valid)).ok, true);
+  assert.equal((await createTeamRequest(db, berk, valid)).ok, true);
+  const listed = await listTeamRequestGroups(db, {
+      status: "pending",
+      offset: 0,
+      limit: 25,
+    });
   assert.equal(listed.total, 1);
   assert.equal(listed.items[0]?.requestCount, 2);
   assert.equal(listed.items[0]?.teamName, "Eskişehirspor");
-  const cityOnly = listTeamRequestGroups(db, {
-    status: "pending",
-    citySlug: "eskisehir",
-    offset: 0,
-    limit: 25,
-  });
+  const cityOnly = await listTeamRequestGroups(db, {
+      status: "pending",
+      citySlug: "eskisehir",
+      offset: 0,
+      limit: 25,
+    });
   assert.equal(cityOnly.total, 1);
-  const otherCity = listTeamRequestGroups(db, {
-    status: "pending",
-    citySlug: "istanbul",
-    offset: 0,
-    limit: 25,
-  });
+  const otherCity = await listTeamRequestGroups(db, {
+      status: "pending",
+      citySlug: "istanbul",
+      offset: 0,
+      limit: 25,
+    });
   assert.equal(otherCity.total, 0);
-  db.close();
 });
 
-test("admin pending talepleri görebilir", () => {
-  const db = openDb();
-  const userId = addUser(db, "ali");
-  assert.equal(createTeamRequest(db, userId, valid).ok, true);
-  const listed = listTeamRequestGroups(db, {
-    status: "pending",
-    offset: 0,
-    limit: 25,
-  });
+test("admin pending talepleri görebilir", async () => {
+  const db = await openDb();
+  const userId = await addUser(db, "ali");
+  assert.equal((await createTeamRequest(db, userId, valid)).ok, true);
+  const listed = await listTeamRequestGroups(db, {
+      status: "pending",
+      offset: 0,
+      limit: 25,
+    });
   assert.equal(listed.total, 1);
   assert.equal(listed.items[0]?.status, "pending");
-  db.close();
 });
 
 test("rate limit çalışır", () => {
@@ -219,124 +215,119 @@ test("non-admin admin endpointine erişemez", () => {
   assert.equal(teamRequestAdminGate({ role: "admin" }).ok, true);
 });
 
-test("approve audit oluşturur", () => {
-  const db = openDb();
-  const userId = addUser(db, "ali");
-  const adminId = addUser(db, "mod", "admin");
-  const created = createTeamRequest(db, userId, valid);
+test("approve audit oluşturur", async () => {
+  const db = await openDb();
+  const userId = await addUser(db, "ali");
+  const adminId = await addUser(db, "mod", "admin");
+  const created = await createTeamRequest(db, userId, valid);
   assert.equal(created.ok, true);
   if (!created.ok) return;
-  const result = approveTeamRequest(db, created.id, adminId, "uygun");
+  const result = await approveTeamRequest(db, created.id, adminId, "uygun");
   assert.equal(result.ok, true);
-  const audit = db
-    .prepare(`SELECT action, reason FROM moderation_actions WHERE action = ?`)
-    .get("approve_team_request") as { action: string; reason: string };
+  const audit = await db
+      .prepare(`SELECT action, reason FROM moderation_actions WHERE action = ?`)
+      .get("approve_team_request") as { action: string; reason: string };
   assert.equal(audit.action, "approve_team_request");
   assert.equal(audit.reason, "uygun");
-  db.close();
 });
 
-test("reject audit oluşturur", () => {
-  const db = openDb();
-  const userId = addUser(db, "ali");
-  const adminId = addUser(db, "mod", "admin");
-  const created = createTeamRequest(db, userId, valid);
+test("reject audit oluşturur", async () => {
+  const db = await openDb();
+  const userId = await addUser(db, "ali");
+  const adminId = await addUser(db, "mod", "admin");
+  const created = await createTeamRequest(db, userId, valid);
   assert.equal(created.ok, true);
   if (!created.ok) return;
-  const result = rejectTeamRequest(db, created.id, adminId, "yetersiz gerekçe metni");
+  const result = await rejectTeamRequest(db, created.id, adminId, "yetersiz gerekçe metni");
   assert.equal(result.ok, true);
-  const audit = db
-    .prepare(`SELECT action FROM moderation_actions WHERE action = ?`)
-    .get("reject_team_request") as { action: string };
+  const audit = await db
+      .prepare(`SELECT action FROM moderation_actions WHERE action = ?`)
+      .get("reject_team_request") as { action: string };
   assert.equal(audit.action, "reject_team_request");
-  db.close();
 });
 
-test("reject reason zorunlu", () => {
-  const db = openDb();
-  const userId = addUser(db, "ali");
-  const adminId = addUser(db, "mod", "admin");
-  const created = createTeamRequest(db, userId, valid);
+test("reject reason zorunlu", async () => {
+  const db = await openDb();
+  const userId = await addUser(db, "ali");
+  const adminId = await addUser(db, "mod", "admin");
+  const created = await createTeamRequest(db, userId, valid);
   assert.equal(created.ok, true);
   if (!created.ok) return;
-  const result = rejectTeamRequest(db, created.id, adminId, "  ");
+  const result = await rejectTeamRequest(db, created.id, adminId, "  ");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 400);
-  db.close();
 });
 
-test("approve duplicate team oluşturmaz", () => {
-  const db = openDb();
-  const userId = addUser(db, "ali");
-  const user2 = addUser(db, "berk");
-  const adminId = addUser(db, "mod", "admin");
-  db.prepare(
-    `INSERT INTO teams (id, name, league, is_forum_active) VALUES (?, ?, 'bal', 0)`,
-  ).run("eskisehirspor", "Eskişehirspor");
+test("approve duplicate team oluşturmaz", async () => {
+  const db = await openDb();
+  const userId = await addUser(db, "ali");
+  const user2 = await addUser(db, "berk");
+  const adminId = await addUser(db, "mod", "admin");
+  await db.prepare(
+        `INSERT INTO teams (id, name, league, is_forum_active) VALUES (?, ?, 'bal', 0)`,
+      ).run("eskisehirspor", "Eskişehirspor");
 
   const pending = {
     teamName: "Yenişehir FK",
     city: "Eskişehir",
     message: "Yerel tribün istiyoruz, ciddi taraftar var.",
   };
-  const first = createTeamRequest(db, userId, pending);
-  const second = createTeamRequest(db, user2, pending);
+  const first = await createTeamRequest(db, userId, pending);
+  const second = await createTeamRequest(db, user2, pending);
   assert.equal(first.ok, true);
   assert.equal(second.ok, true);
   if (!first.ok) return;
-  const result = approveTeamRequest(db, first.id, adminId, null);
+  const result = await approveTeamRequest(db, first.id, adminId, null);
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.created, true);
   const named = (
-    db
-      .prepare(`SELECT COUNT(*) as c FROM teams WHERE name = ?`)
-      .get("Yenişehir FK") as { c: number }
+    await db
+            .prepare(`SELECT COUNT(*) as c FROM teams WHERE name = ?`)
+            .get("Yenişehir FK") as { c: number }
   ).c;
   assert.equal(named, 1);
 
-  const existingReq = db
-    .prepare(
-      `INSERT INTO team_requests
+  const existingReq = await db
+      .prepare(
+        `INSERT INTO team_requests
        (requested_name, normalized_name, city_slug, message, requested_by_user_id, status, created_at)
        VALUES ('Eskişehirspor', 'eskisehirspor', 'eskisehir', 'var olan kayit', ?, 'pending', ?)`,
-    )
-    .run(userId, new Date().toISOString());
+      )
+      .run(userId, new Date().toISOString());
   const existingId = Number(existingReq.lastInsertRowid);
-  const reuse = approveTeamRequest(db, existingId, adminId, null);
+  const reuse = await approveTeamRequest(db, existingId, adminId, null);
   assert.equal(reuse.ok, true);
   if (!reuse.ok) return;
   assert.equal(reuse.created, false);
   assert.equal(reuse.teamId, "eskisehirspor");
   assert.equal(reuse.forumActive, false);
   const copies = (
-    db.prepare(`SELECT COUNT(*) as c FROM teams WHERE id LIKE 'eskisehirspor%'`).get() as {
+    await db.prepare(`SELECT COUNT(*) as c FROM teams WHERE id LIKE 'eskisehirspor%'`).get() as {
       c: number;
     }
   ).c;
   assert.equal(copies, 1);
-  db.close();
 });
 
-test("approve forumu otomatik aktive etmez", () => {
-  const db = openDb();
-  const userId = addUser(db, "ali");
-  const adminId = addUser(db, "mod", "admin");
-  const created = createTeamRequest(db, userId, valid);
+test("approve forumu otomatik aktive etmez", async () => {
+  const db = await openDb();
+  const userId = await addUser(db, "ali");
+  const adminId = await addUser(db, "mod", "admin");
+  const created = await createTeamRequest(db, userId, valid);
   assert.equal(created.ok, true);
   if (!created.ok) return;
-  const result = approveTeamRequest(db, created.id, adminId, null);
+  const result = await approveTeamRequest(db, created.id, adminId, null);
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.forumActive, false);
   assert.equal(result.created, true);
-  const team = db
-    .prepare(`SELECT is_forum_active FROM teams WHERE id = ?`)
-    .get(result.teamId) as { is_forum_active: number };
+  const team = await db
+      .prepare(`SELECT is_forum_active FROM teams WHERE id = ?`)
+      .get(result.teamId) as { is_forum_active: number };
   assert.equal(team.is_forum_active, 0);
-  const gs = db
-    .prepare(`SELECT is_forum_active FROM teams WHERE id = 'galatasaray'`)
-    .get() as { is_forum_active: number };
+  const gs = await db
+      .prepare(`SELECT is_forum_active FROM teams WHERE id = 'galatasaray'`)
+      .get() as { is_forum_active: number };
   assert.equal(gs.is_forum_active, 1);
-  db.close();
 });

@@ -1,5 +1,5 @@
 import { can, isStaffRole } from "./permissions";
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 import { hmac, newToken } from "./crypto";
 import { randomBytes } from "crypto";
 import {
@@ -54,8 +54,8 @@ export function passwordLoginNextStep(user: {
   return isAdminTotpEnabled(user) ? "need2fa" : "session";
 }
 
-export function recordSecurityEvent(
-  db: Database.Database,
+export async function recordSecurityEvent(
+  db: Db,
   input: {
     userId?: number | null;
     action: string;
@@ -64,79 +64,79 @@ export function recordSecurityEvent(
     uaHash?: string | null;
   },
 ) {
-  db.prepare(
-    `INSERT INTO security_events (user_id, action, success, ip_hash, ua_hash, created_at)
+  await db.prepare(
+        `INSERT INTO security_events (user_id, action, success, ip_hash, ua_hash, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`,
-  ).run(
-    input.userId ?? null,
-    input.action.slice(0, 64),
-    input.success ? 1 : 0,
-    input.ipHash ?? null,
-    input.uaHash ?? null,
-    new Date().toISOString(),
-  );
+      ).run(
+        input.userId ?? null,
+        input.action.slice(0, 64),
+        input.success ? 1 : 0,
+        input.ipHash ?? null,
+        input.uaHash ?? null,
+        new Date().toISOString(),
+      );
 }
 
-function attemptCount(db: Database.Database, ipHash: string, sinceIso: string) {
+async function attemptCount(db: Db, ipHash: string, sinceIso: string) {
   return (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM register_attempts
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM register_attempts
          WHERE ip_hash = ? AND created_at >= ?`,
-      )
-      .get(ipHash, sinceIso) as { c: number }
+            )
+            .get(ipHash, sinceIso) as { c: number }
   ).c;
 }
 
-export function totpVerifyLimited(
-  db: Database.Database,
+export async function totpVerifyLimited(
+  db: Db,
   ipHash: string,
   userId: number,
 ) {
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const userHash = hmac(`auth-totp-user:${userId}`);
   return (
-    attemptCount(db, ipHash, since) >= AUTH_TOTP_PER_IP_HOUR ||
-    attemptCount(db, userHash, since) >= AUTH_TOTP_PER_USER_HOUR
+    await attemptCount(db, ipHash, since) >= AUTH_TOTP_PER_IP_HOUR ||
+    await attemptCount(db, userHash, since) >= AUTH_TOTP_PER_USER_HOUR
   );
 }
 
-export function noteTotpVerifyAttempt(
-  db: Database.Database,
+export async function noteTotpVerifyAttempt(
+  db: Db,
   ipHash: string,
   userId: number,
 ) {
   const now = new Date().toISOString();
   const userHash = hmac(`auth-totp-user:${userId}`);
-  db.prepare(
-    `INSERT INTO register_attempts (ip_hash, created_at) VALUES (?, ?)`,
-  ).run(ipHash, now);
-  db.prepare(
-    `INSERT INTO register_attempts (ip_hash, created_at) VALUES (?, ?)`,
-  ).run(userHash, now);
+  await db.prepare(
+        `INSERT INTO register_attempts (ip_hash, created_at) VALUES (?, ?)`,
+      ).run(ipHash, now);
+  await db.prepare(
+        `INSERT INTO register_attempts (ip_hash, created_at) VALUES (?, ?)`,
+      ).run(userHash, now);
 }
 
-export function revokeUserSessionsOn(
-  db: Database.Database,
+export async function revokeUserSessionsOn(
+  db: Db,
   userId: number,
   exceptTokenHash?: string | null,
 ) {
   const now = new Date().toISOString();
   if (exceptTokenHash) {
-    db.prepare(
-      `UPDATE sessions
+    await db.prepare(
+            `UPDATE sessions
        SET revoked_at = ?
        WHERE user_id = ? AND revoked_at IS NULL AND token_hash != ?`,
-    ).run(now, userId, exceptTokenHash);
+          ).run(now, userId, exceptTokenHash);
     return;
   }
-  db.prepare(
-    `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`,
-  ).run(now, userId);
+  await db.prepare(
+        `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`,
+      ).run(now, userId);
 }
 
-function replaceRecoveryCodes(db: Database.Database, userId: number) {
-  db.prepare(`DELETE FROM admin_recovery_codes WHERE user_id = ?`).run(userId);
+async function replaceRecoveryCodes(db: Db, userId: number) {
+  await db.prepare(`DELETE FROM admin_recovery_codes WHERE user_id = ?`).run(userId);
   const now = new Date().toISOString();
   const plain: string[] = [];
   const insert = db.prepare(
@@ -146,24 +146,24 @@ function replaceRecoveryCodes(db: Database.Database, userId: number) {
   for (let i = 0; i < RECOVERY_COUNT; i++) {
     const code = generateRecoveryCode();
     plain.push(code);
-    insert.run(userId, recoveryCodeHash(userId, code), now);
+    await insert.run(userId, recoveryCodeHash(userId, code), now);
   }
   return plain;
 }
 
-export function remainingRecoveryCount(db: Database.Database, userId: number) {
+export async function remainingRecoveryCount(db: Db, userId: number) {
   return (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM admin_recovery_codes
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM admin_recovery_codes
          WHERE user_id = ? AND used_at IS NULL`,
-      )
-      .get(userId) as { c: number }
+            )
+            .get(userId) as { c: number }
   ).c;
 }
 
-export function startTotpSetup(
-  db: Database.Database,
+export async function startTotpSetup(
+  db: Db,
   user: { id: number; username: string; role: string },
 ) {
   if (!can(user.role, "security.self")) {
@@ -171,24 +171,24 @@ export function startTotpSetup(
   }
   // A session alone must not replace a working authenticator: turn 2FA off
   // first, which needs the current code.
-  if (totpEnabledOn(db, user.id)) {
+  if (await totpEnabledOn(db, user.id)) {
     return { ok: false as const, error: "2FA zaten açık. Yeniden kurmak için önce mevcut kodla kapat.", status: 409 };
   }
   const secret = generateTotpSecret();
   const now = Date.now();
-  db.prepare(
-    `INSERT INTO admin_totp_setup (user_id, secret_enc, created_at, expires_at)
+  await db.prepare(
+        `INSERT INTO admin_totp_setup (user_id, secret_enc, created_at, expires_at)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET
        secret_enc = excluded.secret_enc,
        created_at = excluded.created_at,
        expires_at = excluded.expires_at`,
-  ).run(
-    user.id,
-    encryptSecret(secret),
-    new Date(now).toISOString(),
-    new Date(now + ADMIN_TOTP_SETUP_TTL_MS).toISOString(),
-  );
+      ).run(
+        user.id,
+        encryptSecret(secret),
+        new Date(now).toISOString(),
+        new Date(now + ADMIN_TOTP_SETUP_TTL_MS).toISOString(),
+      );
   return {
     ok: true as const,
     secret,
@@ -196,95 +196,95 @@ export function startTotpSetup(
   };
 }
 
-export function totpEnabledOn(db: Database.Database, userId: number) {
-  const row = db
-    .prepare(`SELECT totp_enabled FROM users WHERE id = ?`)
-    .get(userId) as { totp_enabled: number } | undefined;
+export async function totpEnabledOn(db: Db, userId: number) {
+  const row = await db
+      .prepare(`SELECT totp_enabled FROM users WHERE id = ?`)
+      .get(userId) as { totp_enabled: number } | undefined;
   return Number(row?.totp_enabled) === 1;
 }
 
-export function confirmTotpSetup(
-  db: Database.Database,
+export async function confirmTotpSetup(
+  db: Db,
   userId: number,
   code: string,
   ctx: { ipHash?: string | null; uaHash?: string | null },
 ) {
-  const pending = db
-    .prepare(
-      `SELECT secret_enc, expires_at FROM admin_totp_setup WHERE user_id = ?`,
-    )
-    .get(userId) as { secret_enc: string; expires_at: string } | undefined;
-  if (ctx.ipHash && totpVerifyLimited(db, ctx.ipHash, userId)) {
+  const pending = await db
+      .prepare(
+        `SELECT secret_enc, expires_at FROM admin_totp_setup WHERE user_id = ?`,
+      )
+      .get(userId) as { secret_enc: string; expires_at: string } | undefined;
+  if (ctx.ipHash && await totpVerifyLimited(db, ctx.ipHash, userId)) {
     return { ok: false as const, error: "Çok fazla deneme. Biraz sonra dene.", status: 429 };
   }
-  if (ctx.ipHash) noteTotpVerifyAttempt(db, ctx.ipHash, userId);
+  if (ctx.ipHash) await noteTotpVerifyAttempt(db, ctx.ipHash, userId);
   if (!pending || new Date(pending.expires_at).getTime() < Date.now()) {
-    recordSecurityEvent(db, {
-      userId,
-      action: "totp_setup_verify",
-      success: false,
-      ipHash: ctx.ipHash,
-      uaHash: ctx.uaHash,
-    });
+    await recordSecurityEvent(db, {
+            userId,
+            action: "totp_setup_verify",
+            success: false,
+            ipHash: ctx.ipHash,
+            uaHash: ctx.uaHash,
+          });
     return { ok: false as const, error: "Kurulum süresi doldu. Yeniden başlat.", status: 400 };
   }
   const secret = decryptSecret(pending.secret_enc);
   if (!secret || !verifyTotpCode(secret, code)) {
-    recordSecurityEvent(db, {
-      userId,
-      action: "totp_setup_verify",
-      success: false,
-      ipHash: ctx.ipHash,
-      uaHash: ctx.uaHash,
-    });
+    await recordSecurityEvent(db, {
+            userId,
+            action: "totp_setup_verify",
+            success: false,
+            ipHash: ctx.ipHash,
+            uaHash: ctx.uaHash,
+          });
     return { ok: false as const, error: "Doğrulama kodu hatalı.", status: 401 };
   }
   const now = new Date().toISOString();
-  const recoveryCodes = db.transaction(() => {
-    db.prepare(
-      `UPDATE users
+  const recoveryCodes = await db.transaction(async () => {
+      await db.prepare(
+              `UPDATE users
        SET totp_enabled = 1, totp_secret_enc = ?, updated_at = ?
        WHERE id = ?`,
-    ).run(pending.secret_enc, now, userId);
-    db.prepare(`DELETE FROM admin_totp_setup WHERE user_id = ?`).run(userId);
-    const codes = replaceRecoveryCodes(db, userId);
-    revokeUserSessionsOn(db, userId);
-    return codes;
-  })();
-  recordSecurityEvent(db, {
-    userId,
-    action: "totp_setup_verify",
-    success: true,
-    ipHash: ctx.ipHash,
-    uaHash: ctx.uaHash,
-  });
+            ).run(pending.secret_enc, now, userId);
+      await db.prepare(`DELETE FROM admin_totp_setup WHERE user_id = ?`).run(userId);
+      const codes = await replaceRecoveryCodes(db, userId);
+      await revokeUserSessionsOn(db, userId);
+      return codes;
+    })();
+  await recordSecurityEvent(db, {
+        userId,
+        action: "totp_setup_verify",
+        success: true,
+        ipHash: ctx.ipHash,
+        uaHash: ctx.uaHash,
+      });
   return { ok: true as const, recoveryCodes };
 }
 
-function consumeRecoveryCode(
-  db: Database.Database,
+async function consumeRecoveryCode(
+  db: Db,
   userId: number,
   code: string,
 ) {
   const normalized = normalizeRecoveryCode(code);
   if (normalized.length < 8) return false;
   const hash = recoveryCodeHash(userId, normalized);
-  const row = db
-    .prepare(
-      `SELECT id FROM admin_recovery_codes
+  const row = await db
+      .prepare(
+        `SELECT id FROM admin_recovery_codes
        WHERE user_id = ? AND code_hash = ? AND used_at IS NULL`,
-    )
-    .get(userId, hash) as { id: number } | undefined;
+      )
+      .get(userId, hash) as { id: number } | undefined;
   if (!row) return false;
-  db.prepare(`UPDATE admin_recovery_codes SET used_at = ? WHERE id = ?`).run(
-    new Date().toISOString(),
-    row.id,
-  );
+  await db.prepare(`UPDATE admin_recovery_codes SET used_at = ? WHERE id = ?`).run(
+        new Date().toISOString(),
+        row.id,
+      );
   return true;
 }
 
-function verifyAdminSecondFactor(
-  db: Database.Database,
+async function verifyAdminSecondFactor(
+  db: Db,
   userId: number,
   secretEnc: string | null,
   code: string,
@@ -294,107 +294,107 @@ function verifyAdminSecondFactor(
   // Each code works once: a step at or before the last accepted one is a replay.
   const totpOk =
     step != null &&
-    db
-      .prepare(
-        `UPDATE users SET totp_last_step = ? WHERE id = ? AND (totp_last_step IS NULL OR totp_last_step < ?)`,
-      )
-      .run(step, userId, step).changes === 1;
+    (await db
+            .prepare(
+              `UPDATE users SET totp_last_step = ? WHERE id = ? AND (totp_last_step IS NULL OR totp_last_step < ?)`,
+            )
+            .run(step, userId, step)).changes === 1;
   if (totpOk) return { ok: true as const, via: "totp" as const };
-  if (consumeRecoveryCode(db, userId, code)) {
+  if (await consumeRecoveryCode(db, userId, code)) {
     return { ok: true as const, via: "recovery" as const };
   }
   return { ok: false as const };
 }
 
-export function disableTotp(
-  db: Database.Database,
+export async function disableTotp(
+  db: Db,
   user: { id: number; totp_secret_enc: string | null; totp_enabled?: number },
   code: string,
   ctx: { ipHash?: string | null; uaHash?: string | null },
 ) {
-  if (!totpEnabledOn(db, user.id)) {
+  if (!await totpEnabledOn(db, user.id)) {
     return { ok: false as const, error: "2FA zaten kapalı.", status: 400 };
   }
-  const verified = verifyAdminSecondFactor(
-    db,
-    user.id,
-    user.totp_secret_enc,
-    code,
-  );
+  const verified = await verifyAdminSecondFactor(
+      db,
+      user.id,
+      user.totp_secret_enc,
+      code,
+    );
   if (!verified.ok) {
-    recordSecurityEvent(db, {
-      userId: user.id,
-      action: "totp_disable",
-      success: false,
-      ipHash: ctx.ipHash,
-      uaHash: ctx.uaHash,
-    });
+    await recordSecurityEvent(db, {
+            userId: user.id,
+            action: "totp_disable",
+            success: false,
+            ipHash: ctx.ipHash,
+            uaHash: ctx.uaHash,
+          });
     return { ok: false as const, error: "Doğrulama kodu hatalı.", status: 401 };
   }
   const now = new Date().toISOString();
-  db.transaction(() => {
-    db.prepare(
-      `UPDATE users
+  await db.transaction(async () => {
+        await db.prepare(
+                `UPDATE users
        SET totp_enabled = 0, totp_secret_enc = NULL, updated_at = ?
        WHERE id = ?`,
-    ).run(now, user.id);
-    db.prepare(`DELETE FROM admin_totp_setup WHERE user_id = ?`).run(user.id);
-    db.prepare(`DELETE FROM admin_recovery_codes WHERE user_id = ?`).run(user.id);
-    revokeUserSessionsOn(db, user.id);
-  })();
-  recordSecurityEvent(db, {
-    userId: user.id,
-    action: "totp_disable",
-    success: true,
-    ipHash: ctx.ipHash,
-    uaHash: ctx.uaHash,
-  });
+              ).run(now, user.id);
+        await db.prepare(`DELETE FROM admin_totp_setup WHERE user_id = ?`).run(user.id);
+        await db.prepare(`DELETE FROM admin_recovery_codes WHERE user_id = ?`).run(user.id);
+        await revokeUserSessionsOn(db, user.id);
+      })();
+  await recordSecurityEvent(db, {
+        userId: user.id,
+        action: "totp_disable",
+        success: true,
+        ipHash: ctx.ipHash,
+        uaHash: ctx.uaHash,
+      });
   if (verified.via === "recovery") {
-    recordSecurityEvent(db, {
-      userId: user.id,
-      action: "recovery_code_used",
-      success: true,
-      ipHash: ctx.ipHash,
-      uaHash: ctx.uaHash,
-    });
+    await recordSecurityEvent(db, {
+            userId: user.id,
+            action: "recovery_code_used",
+            success: true,
+            ipHash: ctx.ipHash,
+            uaHash: ctx.uaHash,
+          });
   }
   return { ok: true as const };
 }
 
-export function createLoginChallenge(db: Database.Database, userId: number) {
+export async function createLoginChallenge(db: Db, userId: number) {
   const raw = newToken();
   const now = Date.now();
-  db.prepare(
-    `DELETE FROM admin_login_challenges
+  await db.prepare(
+        `DELETE FROM admin_login_challenges
      WHERE user_id = ? OR expires_at < ? OR consumed_at IS NOT NULL`,
-  ).run(userId, new Date().toISOString());
-  db.prepare(
-    `INSERT INTO admin_login_challenges
+      ).run(userId, new Date().toISOString());
+  await db.prepare(
+        `INSERT INTO admin_login_challenges
      (user_id, token_hash, expires_at, created_at)
      VALUES (?, ?, ?, ?)`,
-  ).run(
-    userId,
-    hmac(`admin-2fa:${raw}`),
-    new Date(now + ADMIN_2FA_CHALLENGE_TTL_MS).toISOString(),
-    new Date(now).toISOString(),
-  );
+      ).run(
+        userId,
+        hmac(`admin-2fa:${raw}`),
+        new Date(now + ADMIN_2FA_CHALLENGE_TTL_MS).toISOString(),
+        new Date(now).toISOString(),
+      );
   return raw;
 }
 
-export function completeLoginChallenge(
-  db: Database.Database,
+export async function completeLoginChallenge(
+  db: Db,
   rawToken: string,
   code: string,
   ctx: { ipHash: string; uaHash?: string | null },
 ):
-  | { ok: true; userId: number; via: "totp" | "recovery" }
-  | { ok: false; error: string; status: number } {
-  const row = db
-    .prepare(
-      `SELECT id, user_id, expires_at, consumed_at
+  Promise<| { ok: true; userId: number; via: "totp" | "recovery" }
+          | { ok: false; error: string; status: number }> {
+  const row = await db
+      .prepare(
+        `SELECT id, user_id, expires_at, consumed_at
        FROM admin_login_challenges WHERE token_hash = ?`,
-    )
-    .get(hmac(`admin-2fa:${rawToken}`)) as
+      )
+      .get(hmac(`admin-2fa:${rawToken}`)) as
     | {
         id: number;
         user_id: number;
@@ -405,16 +405,16 @@ export function completeLoginChallenge(
   if (!row || row.consumed_at || new Date(row.expires_at).getTime() < Date.now()) {
     return { ok: false, error: "Doğrulama kodu hatalı.", status: 401 };
   }
-  if (totpVerifyLimited(db, ctx.ipHash, row.user_id)) {
+  if (await totpVerifyLimited(db, ctx.ipHash, row.user_id)) {
     return { ok: false, error: "Çok fazla deneme. Biraz sonra dene.", status: 429 };
   }
-  noteTotpVerifyAttempt(db, ctx.ipHash, row.user_id);
+  await noteTotpVerifyAttempt(db, ctx.ipHash, row.user_id);
 
-  const user = db
-    .prepare(
-      `SELECT id, role, totp_enabled, totp_secret_enc FROM users WHERE id = ?`,
-    )
-    .get(row.user_id) as
+  const user = await db
+      .prepare(
+        `SELECT id, role, totp_enabled, totp_secret_enc FROM users WHERE id = ?`,
+      )
+      .get(row.user_id) as
     | {
         id: number;
         role: string;
@@ -426,54 +426,54 @@ export function completeLoginChallenge(
     return { ok: false, error: "Doğrulama kodu hatalı.", status: 401 };
   }
 
-  const verified = verifyAdminSecondFactor(
-    db,
-    user.id,
-    user.totp_secret_enc,
-    code,
-  );
+  const verified = await verifyAdminSecondFactor(
+      db,
+      user.id,
+      user.totp_secret_enc,
+      code,
+    );
   if (!verified.ok) {
-    recordSecurityEvent(db, {
-      userId: user.id,
-      action: "totp_login_failure",
-      success: false,
-      ipHash: ctx.ipHash,
-      uaHash: ctx.uaHash,
-    });
+    await recordSecurityEvent(db, {
+            userId: user.id,
+            action: "totp_login_failure",
+            success: false,
+            ipHash: ctx.ipHash,
+            uaHash: ctx.uaHash,
+          });
     return { ok: false, error: "Doğrulama kodu hatalı.", status: 401 };
   }
 
-  db.prepare(
-    `UPDATE admin_login_challenges SET consumed_at = ? WHERE id = ?`,
-  ).run(new Date().toISOString(), row.id);
+  await db.prepare(
+        `UPDATE admin_login_challenges SET consumed_at = ? WHERE id = ?`,
+      ).run(new Date().toISOString(), row.id);
 
-  recordSecurityEvent(db, {
-    userId: user.id,
-    action: "totp_login_success",
-    success: true,
-    ipHash: ctx.ipHash,
-    uaHash: ctx.uaHash,
-  });
+  await recordSecurityEvent(db, {
+        userId: user.id,
+        action: "totp_login_success",
+        success: true,
+        ipHash: ctx.ipHash,
+        uaHash: ctx.uaHash,
+      });
   if (verified.via === "recovery") {
-    recordSecurityEvent(db, {
-      userId: user.id,
-      action: "recovery_code_used",
-      success: true,
-      ipHash: ctx.ipHash,
-      uaHash: ctx.uaHash,
-    });
+    await recordSecurityEvent(db, {
+            userId: user.id,
+            action: "recovery_code_used",
+            success: true,
+            ipHash: ctx.ipHash,
+            uaHash: ctx.uaHash,
+          });
   }
   return { ok: true, userId: user.id, via: verified.via };
 }
 
-export function updateUserPasswordHashOn(
-  db: Database.Database,
+export async function updateUserPasswordHashOn(
+  db: Db,
   userId: number,
   passwordHash: string,
 ) {
   const now = new Date().toISOString();
-  db.prepare(
-    `UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`,
-  ).run(passwordHash, now, userId);
-  revokeUserSessionsOn(db, userId);
+  await db.prepare(
+        `UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`,
+      ).run(passwordHash, now, userId);
+  await revokeUserSessionsOn(db, userId);
 }

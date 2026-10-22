@@ -9,7 +9,7 @@ export function citySeoTitle(name: string) {
 }
 
 export function citySeoDescription(name: string) {
-  return `${name} taraftar dağılımını, doğrulanmış oyları ve takım sıralamasını Bizim Tribün'de keşfet.`;
+  return `${cityLocative(name)} en çok hangi takım tutuluyor? ${name} taraftar sayıları, takımların il sıralaması ve doğrulanmış oylarla ${name} tribün haritası.`;
 }
 
 export function cityCanonical(slug: string) {

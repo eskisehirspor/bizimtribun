@@ -67,8 +67,9 @@ export default function TakimlarPage() {
         </span>
       </h1>
       <p className="font-mono text-[14px] mt-3 max-w-[560px]">
-        {forumTeams.length} tribün. Her takım tribünü yalnızca o takıma oy veren taraftarlara açık:
-        gündem, deplasman, maç günü, anılar.
+        {forumTeams.length} tribün. Bir takıma dokun: kaç taraftarı var, Türkiye&apos;de kaçıncı, en çok
+        hangi illerde tutuluyor. Her takım tribünü yalnızca o takıma oy veren taraftarlara açık: gündem,
+        deplasman, maç günü, anılar.
       </p>
 
       {!loading && !user && (

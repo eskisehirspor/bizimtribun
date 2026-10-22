@@ -12,13 +12,13 @@ export async function GET(req: Request) {
   const deleted =
     deletedRaw === "deleted" ? "deleted" : deletedRaw === "live" ? "live" : "all";
 
-  const { total, items } = listAdminTopics({
-    q: likeQuery(url.searchParams.get("q")),
-    teamId: url.searchParams.get("team")?.trim() || null,
-    deleted,
-    offset,
-    limit,
-  });
+  const { total, items } = await listAdminTopics({
+      q: likeQuery(url.searchParams.get("q")),
+      teamId: url.searchParams.get("team")?.trim() || null,
+      deleted,
+      offset,
+      limit,
+    });
 
   return noStoreJson({ ok: true, page, limit, total, items });
 }

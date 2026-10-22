@@ -22,7 +22,7 @@ export async function POST(
   const reason = cleanAdminReason(parsed.data.reason);
   if (!reason) return noStoreJson({ error: "Gerekçe zorunlu." }, 400);
 
-  const result = adminRejectHeld(gate.kind, gate.id, gate.user, reason);
+  const result = await adminRejectHeld(gate.kind, gate.id, gate.user, reason);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true });
 }

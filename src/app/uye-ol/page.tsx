@@ -6,9 +6,14 @@ import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
 import CodeSignInStep, { useVerifyChannel } from "@/components/auth/CodeSignInStep";
+import LegalReadModal from "@/components/auth/LegalReadModal";
+import PasswordFields, { passwordReady } from "@/components/auth/PasswordFields";
 import TeamPicker from "@/components/auth/TeamPicker";
+import KvkkText from "@/components/legal/KvkkText";
+import TermsText from "@/components/legal/TermsText";
 import { errorText, inputClass, Notice, postJson, primaryButton } from "@/components/auth/ui";
 import { safeNextPath } from "@/lib/forum-ui";
+import { foldTr } from "@/lib/teams";
 import { hintClass, labelClass } from "@/components/ui";
 import { LEGAL_DOCS } from "@/lib/legal";
 import { formatTrMobileInput } from "@/lib/phone";
@@ -20,6 +25,11 @@ const STEPS: { id: Step; label: string }[] = [
   { id: "profile", label: "2. PROFİL" },
   { id: "team", label: "3. TAKIM" },
 ];
+
+/** Lower case, Turkish letters folded to ASCII (Şimşek → simsek), no spaces. */
+function asciiUsername(value: string) {
+  return foldTr(value).replace(/\s+/g, "");
+}
 
 function ticketLabel(t: { phoneMasked?: string | null; emailMasked?: string | null }) {
   if (t.emailMasked) return `E-posta doğrulandı: ${t.emailMasked}`;
@@ -43,10 +53,13 @@ function Flow() {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
   const [marketing, setMarketing] = useState(false);
   const [terms, setTerms] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [age, setAge] = useState(false);
+  const [reading, setReading] = useState<"terms" | "privacy" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,20 +91,11 @@ function Flow() {
   }
 
   async function onVerified(data: Record<string, unknown>) {
-    if (data.next === "signup") {
-      setLegacyHint(Boolean(data.legacyAccountHint));
-      const t = await fetch("/api/auth/signup", { cache: "no-store" }).then((r) => r.json());
-      setVerifiedAs(ticketLabel(t));
-      setTicketChannel(t.channel ?? null);
-      setStep("profile");
-      return;
-    }
-    if (data.next === "2fa") {
-      router.push(`/giris?next=${encodeURIComponent(next)}&adim=2fa`);
-      return;
-    }
-    await refresh();
-    router.push(next);
+    setLegacyHint(Boolean(data.legacyAccountHint));
+    const t = await fetch("/api/auth/signup", { cache: "no-store" }).then((r) => r.json());
+    setVerifiedAs(ticketLabel(t));
+    setTicketChannel(t.channel ?? null);
+    setStep("profile");
   }
 
   async function submit(teamId: string, city: string | null) {
@@ -105,6 +109,7 @@ function Flow() {
       birthDate,
       phone: ticketChannel === "sms" ? null : phone,
       marketingConsent: marketing,
+      password,
       city,
       teamId,
       confirmTeamLocked: true,
@@ -118,7 +123,7 @@ function Flow() {
     if (!r.ok) {
       setError(errorText(r));
       if (r.status === 401) setStep("phone");
-      if (/kullanıcı adı|telefon|doğum|ad soyad|adını|yaşından/i.test(errorText(r))) setStep("profile");
+      if (/kullanıcı adı|telefon|doğum|ad soyad|adını|yaşından|şifre/i.test(errorText(r))) setStep("profile");
       return;
     }
     await refresh();
@@ -147,7 +152,11 @@ function Flow() {
             {channel === "sms"
               ? "Bizim Tribün'de her hesap SMS ile doğrulanmış bir cep telefonuna bağlıdır ve bir telefonla yalnızca bir hesap açılır."
               : "Bizim Tribün'de her hesap doğrulanmış bir e-posta adresine bağlıdır; bir adresle ve bir cihazdan sınırlı sayıda hesap açılır."}{" "}
-            Kayıtlıysan aynı adımla giriş yaparsın.
+            Zaten üyeysen{" "}
+            <Link href={`/giris?next=${encodeURIComponent(next)}`} className="underline">
+              giriş sayfasından
+            </Link>{" "}
+            gir.
           </p>
           <CodeSignInStep
             channel={channel}
@@ -160,10 +169,14 @@ function Flow() {
       {step === "profile" && (
         <form
           className="space-y-3"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (!/^[a-z0-9_]{3,20}$/.test(username)) {
               setError("Takma ad 3–20 karakter olmalı; küçük harf, rakam ve alt çizgi.");
+              return;
+            }
+            if (!passwordReady(password, password2)) {
+              setError("Şifre kurallara uymuyor ya da iki şifre aynı değil.");
               return;
             }
             if (firstName.trim().length < 2 || lastName.trim().length < 2) {
@@ -176,6 +189,13 @@ function Flow() {
             }
             if (!/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
               setError("Doğum tarihini seç.");
+              return;
+            }
+            const check = await fetch(`/api/auth/username?name=${encodeURIComponent(username)}`)
+              .then((r) => r.json() as Promise<{ available?: boolean; error?: string }>)
+              .catch(() => null);
+            if (check && check.available === false) {
+              setError(check.error ?? "Bu takma ad kullanılamaz.");
               return;
             }
             setError(null);
@@ -196,7 +216,7 @@ function Flow() {
             <input
               required
               value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().trim())}
+              onChange={(e) => setUsername(asciiUsername(e.target.value))}
               className={inputClass}
               autoComplete="username"
               maxLength={20}
@@ -204,7 +224,7 @@ function Flow() {
             />
             <span id="u-help" className={hintClass}>
               Forumda ve profilinde görünen tek kimliğin. 3–20 karakter: küçük harf (a-z), rakam (0-9)
-              ve alt çizgi (_).
+              ve alt çizgi (_). Türkçe harfler kendiliğinden çevrilir (ş → s).
             </span>
           </label>
           <fieldset className="block">
@@ -290,19 +310,29 @@ function Flow() {
               Yaş sınırı için. 13 yaşından küçükler üye olamaz. Herkese açık görünmez.
             </span>
           </label>
+          <PasswordFields
+            password={password}
+            repeat={password2}
+            onPassword={setPassword}
+            onRepeat={setPassword2}
+          />
+          <p className={hintClass}>
+            Sonraki girişlerinde e-postan ve bu şifreyle girersin. Şifreni unutursan giriş sayfasındaki
+            &quot;Şifremi unuttum&quot; ile e-postana gelen linkten yenisini belirlersin.
+          </p>
           <fieldset className="space-y-2 border-[3px] border-black p-3">
             <legend className={`${labelClass} px-1`}>ONAYLAR (HEPSİ ZORUNLU)</legend>
             <label className="flex min-h-11 items-start gap-3 font-mono text-[13px]">
               <input
                 type="checkbox"
                 checked={terms}
-                onChange={(e) => setTerms(e.target.checked)}
+                onChange={(e) => (e.target.checked ? setReading("terms") : setTerms(false))}
                 className="mt-0.5 h-5 w-5 shrink-0"
               />
               <span>
-                <Link href={LEGAL_DOCS.terms.path} className="underline" target="_blank">
+                <button type="button" onClick={() => setReading("terms")} className="underline">
                   Kullanım Koşulları
-                </Link>
+                </button>
                 &apos;nı okudum ve kabul ediyorum.
               </span>
             </label>
@@ -310,13 +340,13 @@ function Flow() {
               <input
                 type="checkbox"
                 checked={privacy}
-                onChange={(e) => setPrivacy(e.target.checked)}
+                onChange={(e) => (e.target.checked ? setReading("privacy") : setPrivacy(false))}
                 className="mt-0.5 h-5 w-5 shrink-0"
               />
               <span>
-                <Link href={LEGAL_DOCS.privacy.path} className="underline" target="_blank">
+                <button type="button" onClick={() => setReading("privacy")} className="underline">
                   KVKK Aydınlatma Metni
-                </Link>
+                </button>
                 &apos;ni okudum; kişisel verilerimin nasıl işlendiği konusunda bilgilendirildim.
               </span>
             </label>
@@ -330,9 +360,23 @@ function Flow() {
               <span>18 yaşından büyüğüm ya da 13–17 yaşındayım ve velimin izni var.</span>
             </label>
             <p className={hintClass}>
-              Aydınlatma Metni bir rıza metni değildir; üyelik için açık rızan istenmez.
+              Metinlere tıklayıp sonuna kadar okuduktan sonra işaretleyebilirsin. Aydınlatma Metni bir
+              rıza metni değildir; üyelik için açık rızan istenmez.
             </p>
           </fieldset>
+          {reading && (
+            <LegalReadModal
+              title={reading === "terms" ? "KULLANIM KOŞULLARI" : "KVKK AYDINLATMA METNİ"}
+              onClose={() => setReading(null)}
+              onConfirm={() => {
+                if (reading === "terms") setTerms(true);
+                else setPrivacy(true);
+                setReading(null);
+              }}
+            >
+              {reading === "terms" ? <TermsText /> : <KvkkText />}
+            </LegalReadModal>
+          )}
           {error && <Notice tone="error">{error}</Notice>}
           <button disabled={!terms || !privacy || !age} className={primaryButton}>
             TAKIM SEÇİMİNE GEÇ

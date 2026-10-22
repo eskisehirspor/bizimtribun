@@ -58,7 +58,7 @@ const BLOCK = {
 let reader: { cookie: string };
 
 beforeEach(async () => {
-  freshDb();
+  await freshDb();
   reader = await user("203.0.113.199");
 });
 
@@ -73,8 +73,8 @@ async function user(ip: string, team: string | null = "galatasaray") {
     }), ip });
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const id = (res.json as { user: { id: number } }).user.id;
-  markPhoneVerified(id);
-  if (team) castTestVote(id, team);
+  await markPhoneVerified(id);
+  if (team) await castTestVote(id, team);
   return {
     username,
     cookie: sessionCookie(res.res),
@@ -91,17 +91,17 @@ async function adminCookie(ip: string) {
     ip,
   });
   // Promoted after sign-in; the panel needs 2FA switched on.
-  getDb()
-    .prepare(`UPDATE users SET role = 'admin', totp_enabled = 1 WHERE id = ?`)
-    .run(u.id);
+  await getDb()
+        .prepare(`UPDATE users SET role = 'admin', totp_enabled = 1 WHERE id = ?`)
+        .run(u.id);
   return sessionCookie(logged.res);
 }
 
 test("HTTP team tribune: guests and rival fans locked out, own fans and staff in", async () => {
   const seedId = (
-    getDb()
-      .prepare(`SELECT id FROM forum_topics WHERE board = 'team' AND team_id = 'galatasaray' AND deleted_at IS NULL LIMIT 1`)
-      .get() as { id: number }
+    await getDb()
+            .prepare(`SELECT id FROM forum_topics WHERE board = 'team' AND team_id = 'galatasaray' AND deleted_at IS NULL LIMIT 1`)
+            .get() as { id: number }
   ).id;
   const list = (cookie?: string) =>
     invoke(listTopics, { path: "/api/forum/teams/galatasaray/topics", params: { teamSlug: "galatasaray" }, cookie });
@@ -163,7 +163,7 @@ test("HTTP team tribune: guests and rival fans locked out, own fans and staff in
 
   // Moderators read every team tribune but write only in their own.
   const mod = await user("203.0.113.153", "fenerbahce");
-  getDb().prepare(`UPDATE users SET role = 'moderator', totp_enabled = 1 WHERE id = ?`).run(mod.id);
+  await getDb().prepare(`UPDATE users SET role = 'moderator', totp_enabled = 1 WHERE id = ?`).run(mod.id);
   assert.equal((await list(mod.cookie)).status, 200);
   assert.equal((await topic(mod.cookie)).status, 200);
   const modReply = await invoke(createPost, {
@@ -327,11 +327,11 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     ip: "203.0.113.146",
   });
   assert.equal(review.status, 422);
-  const heldRow = getDb()
-    .prepare(
-      `SELECT id FROM forum_topics WHERE held_at IS NOT NULL ORDER BY id DESC LIMIT 1`,
-    )
-    .get() as { id: number };
+  const heldRow = await getDb()
+      .prepare(
+        `SELECT id FROM forum_topics WHERE held_at IS NOT NULL ORDER BY id DESC LIMIT 1`,
+      )
+      .get() as { id: number };
   const hidden = await invoke(getTopic, {
     cookie: reader.cookie,
     path: `/api/forum/topics/${heldRow.id}`,
@@ -348,11 +348,11 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     ip: "203.0.113.146",
   });
   assert.equal(block.status, 422);
-  const publicBlock = getDb()
-    .prepare(
-      `SELECT COUNT(*) as c FROM forum_topics WHERE content LIKE '%orospu%' AND held_at IS NULL AND deleted_at IS NULL`,
-    )
-    .get() as { c: number };
+  const publicBlock = await getDb()
+      .prepare(
+        `SELECT COUNT(*) as c FROM forum_topics WHERE content LIKE '%orospu%' AND held_at IS NULL AND deleted_at IS NULL`,
+      )
+      .get() as { c: number };
   assert.equal(publicBlock.c, 0);
 
   const list = await invoke(heldList, {
@@ -415,11 +415,11 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     ip: "203.0.113.146",
   });
   assert.equal(review2.status, 422);
-  const held2 = getDb()
-    .prepare(
-      `SELECT id FROM forum_topics WHERE held_at IS NOT NULL ORDER BY id DESC LIMIT 1`,
-    )
-    .get() as { id: number };
+  const held2 = await getDb()
+      .prepare(
+        `SELECT id FROM forum_topics WHERE held_at IS NOT NULL ORDER BY id DESC LIMIT 1`,
+      )
+      .get() as { id: number };
   const rejected = await invoke(heldReject, {
     method: "POST",
     path: `/api/admin/moderation/topic/${held2.id}/reject`,
@@ -452,11 +452,11 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     ip: "203.0.113.146",
   });
   assert.equal(review3.status, 422);
-  const held3 = getDb()
-    .prepare(
-      `SELECT id FROM forum_topics WHERE held_at IS NOT NULL ORDER BY id DESC LIMIT 1`,
-    )
-    .get() as { id: number };
+  const held3 = await getDb()
+      .prepare(
+        `SELECT id FROM forum_topics WHERE held_at IS NOT NULL ORDER BY id DESC LIMIT 1`,
+      )
+      .get() as { id: number };
   const banned = await invoke(heldBan, {
     method: "POST",
     path: `/api/admin/moderation/topic/${held3.id}/ban`,
@@ -471,9 +471,9 @@ test("HTTP moderation allow/review/block + held admin", async () => {
     params: { topicId: String(held3.id) },
   });
   assert.equal(stillHidden.status, 404);
-  const userRow = getDb()
-    .prepare(`SELECT status FROM users WHERE id = ?`)
-    .get(a.id) as { status: string };
+  const userRow = await getDb()
+      .prepare(`SELECT status FROM users WHERE id = ?`)
+      .get(a.id) as { status: string };
   assert.equal(userRow.status, "banned");
 });
 
@@ -642,7 +642,7 @@ test("HTTP robots/sitemap private yok", async () => {
   assert.equal(robotsPathDecision("/takim/galatasaray"), "allow");
   assert.equal(robotsPathDecision("/takim/galatasaray/forum"), "disallow");
   const sitemap = (await import("../../app/sitemap")).default;
-  const urls = sitemap().map((e) => e.url);
+  const urls = (await sitemap()).map((e) => e.url);
   assert.equal(sitemapHasPrivatePath(urls), false);
   assert.equal(urls.filter((u) => u.includes("/il/")).length, 81);
   assert.ok(urls.some((u) => u.endsWith("/takimlar")));

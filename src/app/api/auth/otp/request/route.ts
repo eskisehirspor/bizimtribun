@@ -14,8 +14,9 @@ import {
   PHONE_FORMAT_ERROR,
   requestIpKey,
 } from "@/lib/otp-http";
-import { DEVICE_COOKIE } from "@/lib/policy";
+import { ALREADY_MEMBER_ERROR, DEVICE_COOKIE } from "@/lib/policy";
 import { verifyChannel } from "@/lib/verify-channel";
+import { findUserByEmailNorm, findUserByPhoneNorm } from "@/lib/users";
 
 const Body = z.object({
   phone: z.string().max(24).optional(),
@@ -29,10 +30,11 @@ export async function GET() {
 }
 
 /**
- * Step 1 of sign-in and sign-up: send a code by e-mail or SMS, whichever
- * VERIFY_CHANNEL selects. The answer is the same whether or not an account
- * exists, so this cannot be used to look up who is registered. The browser
- * gets a device cookie here; sign-up counts accounts per device.
+ * Step 1 of sign-up: send a code by e-mail or SMS, whichever VERIFY_CHANNEL
+ * selects. Members sign in with their password, so an address that already
+ * has an account gets "already a member" instead of a code; that answer
+ * comes only after the CAPTCHA. The browser gets a device cookie here;
+ * sign-up counts accounts per device.
  */
 export async function POST(req: Request) {
   const body = await readJsonBody(req);
@@ -56,6 +58,11 @@ export async function POST(req: Request) {
   const ip = await requestIpKey();
   const captcha = await checkCaptcha(parsed.data.captchaToken, ip);
   if (captcha) return noStoreJson({ error: captcha.error }, captcha.status);
+
+  const existing = email ? await findUserByEmailNorm(email.norm) : await findUserByPhoneNorm(phoneNorm!);
+  if (existing && !existing.deleted_at) {
+    return noStoreJson({ error: ALREADY_MEMBER_ERROR, registered: true }, 409);
+  }
 
   const db = getDb();
   const result = email

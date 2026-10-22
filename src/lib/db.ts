@@ -1,559 +1,316 @@
-import Database from "better-sqlite3";
-import { identityEmailHash, identityPhoneHash } from "./crypto";
-import { CURRENT_POLL_ID } from "./policy";
-import { stripDemoVotes } from "./seed-votes";
-import { seedPinnedStarterTopics } from "./forum-seed";
-import { FORUM_ACTIVE_TEAM_IDS, TEAMS } from "./teams";
-import { runMigrations } from "./migrations";
-import {
-  ensureSqliteParentDir,
-  isProductionDbRuntime,
-  resolveSqlitePath,
-} from "./db-path";
-import { sqliteQuickCheck } from "./db-health";
+import { AsyncLocalStorage } from "node:async_hooks";
+import postgres from "postgres";
 
-let singleton: Database.Database | undefined;
+/**
+ * The site's database: PostgreSQL on Supabase in production, an in-process
+ * PGlite copy in tests and local development without DATABASE_URL.
+ *
+ * The shape follows the SQLite driver the site started on: prepare a
+ * statement with `?` (or `@name`) placeholders, then await get/all/run.
+ */
 
-function openDb() {
-  const sqlitePath = resolveSqlitePath();
-  ensureSqliteParentDir(sqlitePath);
-  const db = new Database(sqlitePath);
+export type SqlParam = string | number | bigint | boolean | null | undefined;
+/** `lastInsertRowid` is the new row's id when the table has one. */
+export type RunResult = { changes: number; lastInsertRowid: number | undefined };
+
+export interface Statement {
+  get(...params: unknown[]): Promise<unknown>;
+  all(...params: unknown[]): Promise<unknown[]>;
+  run(...params: unknown[]): Promise<RunResult>;
+}
+
+export interface Db {
+  prepare(sql: string): Statement;
+  /** Runs one or more statements with no parameters. */
+  exec(sql: string): Promise<void>;
+  /**
+   * Like better-sqlite3: wraps `fn` so each call runs in one transaction, and
+   * every query inside it joins that transaction.
+   */
+  transaction<A extends unknown[], T>(fn: (...args: A) => Promise<T> | T): (...args: A) => Promise<T>;
+}
+
+/** What a backend has to provide; the adapter above it does the rest. */
+export interface Driver {
+  query(text: string, params: SqlParam[]): Promise<{ rows: unknown[]; changes: number }>;
+  exec(text: string): Promise<void>;
+  begin<T>(fn: (tx: Driver) => Promise<T>): Promise<T>;
+  close?(): Promise<void>;
+}
+
+const txStore = new AsyncLocalStorage<Driver>();
+
+/**
+ * `?` → `$1, $2…`; `@name` / `:name` with one object argument → positional.
+ * Quoted strings, identifiers, `::` casts and comments are left as they are.
+ */
+export function toPositional(
+  sql: string,
+  params: unknown[],
+): { text: string; values: SqlParam[] } {
+  const named =
+    params.length === 1 &&
+    params[0] !== null &&
+    typeof params[0] === "object" &&
+    !Array.isArray(params[0]);
+  const bag = named ? (params[0] as Record<string, SqlParam>) : undefined;
+  const values: SqlParam[] = [];
+  const namedIndex = new Map<string, number>();
+  let out = "";
+  let positional = 0;
+  for (let i = 0; i < sql.length; i++) {
+    const ch = sql[i];
+    if (ch === "'" || ch === '"') {
+      const end = sql.indexOf(ch, i + 1);
+      const stop = end === -1 ? sql.length : end;
+      out += sql.slice(i, stop + 1);
+      i = stop;
+      continue;
+    }
+    if (ch === "-" && sql[i + 1] === "-") {
+      const end = sql.indexOf("\n", i);
+      const stop = end === -1 ? sql.length : end;
+      out += sql.slice(i, stop);
+      i = stop - 1;
+      continue;
+    }
+    if (ch === ":" && sql[i + 1] === ":") {
+      out += "::";
+      i++;
+      continue;
+    }
+    if (ch === "?") {
+      values.push(normalizeParam((params as SqlParam[])[positional++]));
+      out += `$${values.length}`;
+      continue;
+    }
+    if (bag && (ch === "@" || ch === ":" || ch === "$") && /[A-Za-z_]/.test(sql[i + 1] ?? "")) {
+      let j = i + 1;
+      while (j < sql.length && /[A-Za-z0-9_]/.test(sql[j])) j++;
+      const name = sql.slice(i + 1, j);
+      let idx = namedIndex.get(name);
+      if (idx == null) {
+        if (!(name in bag)) throw new Error(`Missing named parameter: ${name}`);
+        values.push(normalizeParam(bag[name]));
+        idx = values.length;
+        namedIndex.set(name, idx);
+      }
+      out += `$${idx}`;
+      i = j - 1;
+      continue;
+    }
+    // camelCase aliases keep their case, as they did in SQLite.
+    if (/[A-Za-z_]/.test(ch) && !/[A-Za-z0-9_$]/.test(sql[i - 1] ?? "")) {
+      let j = i + 1;
+      while (j < sql.length && /[A-Za-z0-9_]/.test(sql[j])) j++;
+      const word = sql.slice(i, j);
+      out += /^[a-z][a-z0-9_]*[A-Z]/.test(word) ? `"${word}"` : word;
+      i = j - 1;
+      continue;
+    }
+    out += ch;
+  }
+  return { text: out, values };
+}
+
+function normalizeParam(value: unknown): SqlParam {
+  if (value === undefined) return null;
+  if (typeof value === "boolean") return value ? 1 : 0;
+  if (typeof value === "bigint") return Number(value);
+  return value as SqlParam;
+}
+
+/** An INSERT reports the row it made, so `run()` can hand back its id. */
+function withReturning(sql: string) {
+  if (!/^\s*INSERT\b/i.test(sql) || /\bRETURNING\b/i.test(sql)) return sql;
+  return `${sql.trimEnd().replace(/;$/, "")} RETURNING *`;
+}
+
+function currentDriver(base: Driver): Driver {
+  return txStore.getStore() ?? base;
+}
+
+export function wrapDriver(base: Driver): Db {
+  return {
+    prepare(sql: string): Statement {
+      return {
+        async get(...params) {
+          const { text, values } = toPositional(sql, params);
+          const { rows } = await currentDriver(base).query(text, values);
+          return rows[0];
+        },
+        async all(...params) {
+          const { text, values } = toPositional(sql, params);
+          const { rows } = await currentDriver(base).query(text, values);
+          return rows;
+        },
+        async run(...params) {
+          const { text, values } = toPositional(withReturning(sql), params);
+          const { rows, changes } = await currentDriver(base).query(text, values);
+          const id = (rows[0] as { id?: unknown } | undefined)?.id;
+          return { changes, lastInsertRowid: typeof id === "number" ? id : undefined };
+        },
+      };
+    },
+    async exec(sql: string) {
+      await currentDriver(base).exec(sql);
+    },
+    transaction<A extends unknown[], T>(fn: (...args: A) => Promise<T> | T) {
+      return async (...args: A): Promise<T> => {
+        // Already inside one: join it, as nested SQLite transactions did.
+        if (txStore.getStore()) return fn(...args);
+        return base.begin((tx) => txStore.run(tx, async () => fn(...args)));
+      };
+    },
+  };
+}
+
+const INT8 = 20;
+const NUMERIC = 1700;
+
+function postgresDriver(sql: postgres.Sql): Driver {
+  return {
+    async query(text, params) {
+      const result = await sql.unsafe(text, params as postgres.ParameterOrJSON<never>[]);
+      return { rows: [...result], changes: result.count ?? 0 };
+    },
+    async exec(text) {
+      await sql.unsafe(text).simple();
+    },
+    async begin(fn) {
+      return (await sql.begin((tx) => fn(postgresDriver(tx as unknown as postgres.Sql)))) as never;
+    },
+    async close() {
+      await sql.end({ timeout: 5 });
+    },
+  };
+}
+
+export function postgresClient(url: string) {
+  return postgres(url, {
+    // Supabase's transaction pooler and Hyperdrive do not keep prepared statements.
+    prepare: false,
+    max: 5,
+    idle_timeout: 20,
+    fetch_types: false,
+    transform: { undefined: null },
+    types: {
+      // COUNT(*) and SUM() come back as int8/numeric; the site wants numbers.
+      bigint: {
+        to: INT8,
+        from: [INT8, NUMERIC],
+        serialize: (x: number) => String(x),
+        parse: (x: string) => Number(x),
+      },
+    },
+  });
+}
+
+type Factory = () => Promise<Driver>;
+
+let testFactory: Factory | undefined;
+let singleton: Promise<Driver> | undefined;
+let generation = {};
+
+/** Tests and local development plug an in-process database in here. */
+export function setDriverFactoryForTests(factory: Factory | undefined) {
+  testFactory = factory;
+  singleton = undefined;
+  generation = {};
+}
+
+/** Changes whenever tests swap in a fresh database; caches key on it. */
+export function dbGeneration(): object {
+  return generation;
+}
+
+function isWorkersRuntime() {
+  return typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
+}
+
+async function workersConnectionString(): Promise<string | undefined> {
   try {
-    db.pragma("journal_mode = WAL");
-    db.pragma("foreign_keys = ON");
-    db.pragma("busy_timeout = 5000");
-    applyDatabaseBoot(db);
-    if (isProductionDbRuntime() && !sqliteQuickCheck(db)) {
-      throw new Error("DB_UNHEALTHY");
-    }
-    return db;
-  } catch (err) {
-    try {
-      db.close();
-    } catch {
-      /* ignore close after failed boot */
-    }
-    throw err;
+    const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+    const { env } = await getCloudflareContext({ async: true });
+    const bindings = env as unknown as Record<string, unknown>;
+    const hyperdrive = bindings.HYPERDRIVE as { connectionString?: string } | undefined;
+    return hyperdrive?.connectionString ?? (bindings.DATABASE_URL as string | undefined);
+  } catch {
+    return undefined;
   }
 }
 
-export function applyDatabaseBoot(db: Database.Database) {
+// On Workers a connection belongs to the request that opened it.
+const perRequest = new WeakMap<object, Driver>();
 
-db.exec(`
-CREATE TABLE IF NOT EXISTS participants (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  email TEXT NOT NULL,
-  email_norm TEXT NOT NULL UNIQUE,
-  team_id TEXT NOT NULL,
-  city TEXT NOT NULL,
-  ip_hash TEXT NOT NULL,
-  fingerprint_hash TEXT NOT NULL,
-  consent_version TEXT NOT NULL,
-  consent_at TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  verified_at TEXT,
-  deleted_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS verify_tokens (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  participant_id INTEGER NOT NULL REFERENCES participants(id) ON DELETE CASCADE,
-  token_hash TEXT NOT NULL UNIQUE,
-  expires_at TEXT NOT NULL,
-  used_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS ip_locks (
-  ip_hash TEXT PRIMARY KEY,
-  last_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS register_attempts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  ip_hash TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_participants_verified ON participants(verified_at);
-CREATE INDEX IF NOT EXISTS idx_attempts_ip ON register_attempts(ip_hash, created_at);
-`);
-
-const participantCols = (
-  db.prepare(`PRAGMA table_info(participants)`).all() as { name: string }[]
-).map((c) => c.name);
-if (!participantCols.includes("first_name")) {
-  db.exec(`ALTER TABLE participants ADD COLUMN first_name TEXT NOT NULL DEFAULT ''`);
-}
-if (!participantCols.includes("last_name")) {
-  db.exec(`ALTER TABLE participants ADD COLUMN last_name TEXT NOT NULL DEFAULT ''`);
-}
-if (!participantCols.includes("phone")) {
-  db.exec(`ALTER TABLE participants ADD COLUMN phone TEXT NOT NULL DEFAULT ''`);
-}
-if (!participantCols.includes("phone_norm")) {
-  db.exec(`ALTER TABLE participants ADD COLUMN phone_norm TEXT NOT NULL DEFAULT ''`);
-}
-if (!participantCols.includes("email_hash")) {
-  db.exec(`ALTER TABLE participants ADD COLUMN email_hash TEXT`);
-}
-if (!participantCols.includes("phone_hash")) {
-  db.exec(`ALTER TABLE participants ADD COLUMN phone_hash TEXT`);
-}
-if (!participantCols.includes("phone_verified_at")) {
-  db.exec(`ALTER TABLE participants ADD COLUMN phone_verified_at TEXT`);
+async function workersDriver(): Promise<Driver> {
+  const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+  const context = await getCloudflareContext({ async: true });
+  const key = context.ctx as unknown as object;
+  const existing = perRequest.get(key);
+  if (existing) return existing;
+  const url = (await workersConnectionString()) ?? process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL_MISSING");
+  const client = postgresClient(url);
+  const driver = postgresDriver(client);
+  perRequest.set(key, driver);
+  return driver;
 }
 
-const needHashBackfill = db
-  .prepare(
-    `SELECT id, email_norm, phone_norm, email_hash, phone_hash
-     FROM participants
-     WHERE (email_hash IS NULL OR phone_hash IS NULL)`,
-  )
-  .all() as {
-  id: number;
-  email_norm: string;
-  phone_norm: string;
-  email_hash: string | null;
-  phone_hash: string | null;
-}[];
-
-for (const row of needHashBackfill) {
-  const emailOk =
-    row.email_norm && !row.email_norm.startsWith("deleted:");
-  const phoneOk =
-    row.phone_norm &&
-    !row.phone_norm.startsWith("deleted:") &&
-    row.phone_norm.length >= 10;
-
-  const emailHash =
-    row.email_hash || (emailOk ? identityEmailHash(row.email_norm) : null);
-  let phoneHash =
-    row.phone_hash || (phoneOk ? identityPhoneHash(row.phone_norm) : null);
-
-  if (phoneHash) {
-    const clash = db
-      .prepare(
-        `SELECT id FROM participants WHERE phone_hash = ? AND id != ? LIMIT 1`,
-      )
-      .get(phoneHash, row.id) as { id: number } | undefined;
-    if (clash) phoneHash = row.phone_hash;
-  }
-
-  db.prepare(
-    `UPDATE participants SET email_hash = ?, phone_hash = ? WHERE id = ?`,
-  ).run(emailHash, phoneHash, row.id);
+async function nodeDriver(): Promise<Driver> {
+  if (testFactory) return testFactory();
+  if (process.env.BIZIM_TRIBUN_TEST === "1") throw new Error("Tests open their database with freshTestDb()");
+  const url = process.env.DATABASE_URL?.trim();
+  if (url) return postgresDriver(postgresClient(url));
+  if (process.env.NODE_ENV === "production") throw new Error("DATABASE_URL_MISSING");
+  // Local development without Supabase: a PGlite database under ./data.
+  const devModule = "./db-local";
+  const { localDevDriver } = (await import(/* webpackIgnore: true */ devModule)) as {
+    localDevDriver: () => Promise<Driver>;
+  };
+  return localDevDriver();
 }
 
-db.exec(`
-CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_email_hash
-  ON participants(email_hash);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_participants_phone_hash
-  ON participants(phone_hash);
-`);
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS polls (
-  id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS votes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  participant_id INTEGER NOT NULL REFERENCES participants(id),
-  poll_id TEXT NOT NULL REFERENCES polls(id),
-  team_id TEXT NOT NULL,
-  city TEXT NOT NULL,
-  cast_at TEXT NOT NULL,
-  revoked_at TEXT
-);
-`);
-
-db.prepare(
-  `INSERT OR IGNORE INTO polls (id, title, created_at) VALUES (?, ?, ?)`,
-).run(CURRENT_POLL_ID, "Türkiye tribün sayımı", new Date().toISOString());
-
-db.exec(`
-CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_participant_poll
-  ON votes(participant_id, poll_id);
-CREATE INDEX IF NOT EXISTS idx_votes_live_poll
-  ON votes(poll_id, revoked_at);
-`);
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS vote_grants (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  participant_id INTEGER NOT NULL REFERENCES participants(id),
-  token_hash TEXT NOT NULL UNIQUE,
-  expires_at TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  consumed_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_vote_grants_participant
-  ON vote_grants(participant_id, expires_at);
-`);
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS phone_otps (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  participant_id INTEGER NOT NULL REFERENCES participants(id),
-  phone_hash TEXT NOT NULL,
-  code_hash TEXT NOT NULL,
-  expires_at TEXT NOT NULL,
-  attempts INTEGER NOT NULL DEFAULT 0,
-  max_attempts INTEGER NOT NULL,
-  consumed_at TEXT,
-  voided_at TEXT,
-  created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_phone_otps_participant
-  ON phone_otps(participant_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_phone_otps_phone
-  ON phone_otps(phone_hash, created_at);
-`);
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS teams (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  league TEXT NOT NULL,
-  is_forum_active INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS users (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  username TEXT NOT NULL,
-  username_norm TEXT NOT NULL UNIQUE,
-  display_name TEXT NOT NULL,
-  email TEXT NOT NULL,
-  email_norm TEXT NOT NULL UNIQUE,
-  password_hash TEXT NOT NULL,
-  team_id TEXT REFERENCES teams(id) ON DELETE SET NULL,
-  status TEXT NOT NULL DEFAULT 'active',
-  role TEXT NOT NULL DEFAULT 'user',
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  last_login_at TEXT,
-  banned_at TEXT,
-  ban_reason TEXT,
-  ban_expires_at TEXT,
-  participant_id INTEGER UNIQUE REFERENCES participants(id) ON DELETE SET NULL,
-  first_name TEXT,
-  last_name TEXT,
-  birth_date TEXT,
-  phone TEXT,
-  phone_norm TEXT,
-  city TEXT,
-  totp_enabled INTEGER NOT NULL DEFAULT 0,
-  totp_secret_enc TEXT,
-  email_verified_at TEXT
-);
-
-CREATE TABLE IF NOT EXISTS sessions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  token_hash TEXT NOT NULL UNIQUE,
-  expires_at TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  revoked_at TEXT,
-  last_seen_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id, expires_at);
-CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
-`);
-
-const userCols = (
-  db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[]
-).map((c) => c.name);
-if (!userCols.includes("role")) {
-  db.exec(`ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'`);
-}
-const userColsAfterRole = (
-  db.prepare(`PRAGMA table_info(users)`).all() as { name: string }[]
-).map((c) => c.name);
-const userProfileCols: Array<[string, string]> = [
-  ["first_name", "TEXT"],
-  ["last_name", "TEXT"],
-  ["birth_date", "TEXT"],
-  ["phone", "TEXT"],
-  ["phone_norm", "TEXT"],
-  ["city", "TEXT"],
-];
-for (const [name, type] of userProfileCols) {
-  if (!userColsAfterRole.includes(name)) {
-    db.exec(`ALTER TABLE users ADD COLUMN ${name} ${type}`);
-  }
-}
-if (!userColsAfterRole.includes("totp_enabled")) {
-  db.exec(
-    `ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0`,
-  );
-}
-if (!userColsAfterRole.includes("totp_secret_enc")) {
-  db.exec(`ALTER TABLE users ADD COLUMN totp_secret_enc TEXT`);
-}
-if (!userColsAfterRole.includes("email_verified_at")) {
-  db.exec(`ALTER TABLE users ADD COLUMN email_verified_at TEXT`);
-}
-db.exec(`
-CREATE TABLE IF NOT EXISTS user_email_tokens (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token_hash TEXT NOT NULL UNIQUE,
-  expires_at TEXT NOT NULL,
-  used_at TEXT,
-  created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_user_email_tokens_user
-  ON user_email_tokens(user_id, created_at);
-`);
-const sessionCols = (
-  db.prepare(`PRAGMA table_info(sessions)`).all() as { name: string }[]
-).map((c) => c.name);
-if (!sessionCols.includes("last_seen_at")) {
-  db.exec(`ALTER TABLE sessions ADD COLUMN last_seen_at TEXT`);
-}
-db.exec(`CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)`);
-db.exec(
-  `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_phone_norm
-   ON users(phone_norm) WHERE phone_norm IS NOT NULL`,
-);
-
-const teamCols = (
-  db.prepare(`PRAGMA table_info(teams)`).all() as { name: string }[]
-).map((c) => c.name);
-if (!teamCols.includes("is_forum_active")) {
-  db.exec(
-    `ALTER TABLE teams ADD COLUMN is_forum_active INTEGER NOT NULL DEFAULT 0`,
-  );
-}
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS forum_topics (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  team_id TEXT NOT NULL REFERENCES teams(id),
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  locked_at TEXT,
-  deleted_at TEXT,
-  held_at TEXT,
-  category TEXT NOT NULL DEFAULT 'genel-sohbet',
-  is_pinned INTEGER NOT NULL DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS forum_posts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  topic_id INTEGER NOT NULL REFERENCES forum_topics(id),
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  content TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  deleted_at TEXT
-);
-
-CREATE INDEX IF NOT EXISTS idx_forum_topics_team_created
-  ON forum_topics(team_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_forum_posts_topic_created
-  ON forum_posts(topic_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_forum_topics_user
-  ON forum_topics(user_id);
-CREATE INDEX IF NOT EXISTS idx_forum_posts_user
-  ON forum_posts(user_id);
-`);
-
-const forumTopicCols = (
-  db.prepare(`PRAGMA table_info(forum_topics)`).all() as { name: string }[]
-).map((c) => c.name);
-if (!forumTopicCols.includes("held_at")) {
-  db.exec(`ALTER TABLE forum_topics ADD COLUMN held_at TEXT`);
-}
-if (!forumTopicCols.includes("category")) {
-  db.exec(
-    `ALTER TABLE forum_topics ADD COLUMN category TEXT NOT NULL DEFAULT 'genel-sohbet'`,
-  );
-}
-if (!forumTopicCols.includes("is_pinned")) {
-  db.exec(
-    `ALTER TABLE forum_topics ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`,
-  );
-}
-db.exec(
-  `UPDATE forum_topics SET category = 'genel-sohbet' WHERE category IS NULL OR trim(category) = ''`,
-);
-db.exec(`
-CREATE INDEX IF NOT EXISTS idx_forum_topics_team_cat_pin
-  ON forum_topics(team_id, category, is_pinned, updated_at);
-`);
-const forumPostCols = (
-  db.prepare(`PRAGMA table_info(forum_posts)`).all() as { name: string }[]
-).map((c) => c.name);
-if (!forumPostCols.includes("held_at")) {
-  db.exec(`ALTER TABLE forum_posts ADD COLUMN held_at TEXT`);
-}
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS forum_leaders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  team_id TEXT NOT NULL REFERENCES teams(id),
-  user_id INTEGER NOT NULL REFERENCES users(id),
-  year INTEGER NOT NULL,
-  month INTEGER NOT NULL,
-  post_count INTEGER NOT NULL,
-  created_at TEXT NOT NULL,
-  UNIQUE (team_id, year, month)
-);
-CREATE INDEX IF NOT EXISTS idx_forum_leaders_team_period
-  ON forum_leaders(team_id, year DESC, month DESC);
-CREATE INDEX IF NOT EXISTS idx_forum_leaders_user
-  ON forum_leaders(user_id);
-`);
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS team_requests (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  requested_name TEXT NOT NULL,
-  normalized_name TEXT NOT NULL,
-  city_slug TEXT NOT NULL,
-  message TEXT NOT NULL,
-  requested_by_user_id INTEGER NOT NULL REFERENCES users(id),
-  status TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  reviewed_at TEXT,
-  reviewed_by_user_id INTEGER REFERENCES users(id),
-  review_reason TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_team_requests_status_created
-  ON team_requests(status, created_at);
-CREATE INDEX IF NOT EXISTS idx_team_requests_normalized_status
-  ON team_requests(normalized_name, status);
-CREATE INDEX IF NOT EXISTS idx_team_requests_user
-  ON team_requests(requested_by_user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_team_requests_city_status
-  ON team_requests(city_slug, status);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_team_requests_user_pending
-  ON team_requests(requested_by_user_id, normalized_name)
-  WHERE status = 'pending';
-`);
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS moderation_actions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  moderator_user_id INTEGER NOT NULL REFERENCES users(id),
-  target_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  target_topic_id INTEGER REFERENCES forum_topics(id) ON DELETE SET NULL,
-  target_post_id INTEGER REFERENCES forum_posts(id) ON DELETE SET NULL,
-  action TEXT NOT NULL,
-  reason TEXT,
-  created_at TEXT NOT NULL
-);
-
-CREATE INDEX IF NOT EXISTS idx_moderation_moderator_created
-  ON moderation_actions(moderator_user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_moderation_target_user
-  ON moderation_actions(target_user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_moderation_target_topic
-  ON moderation_actions(target_topic_id);
-CREATE INDEX IF NOT EXISTS idx_moderation_target_post
-  ON moderation_actions(target_post_id);
-CREATE INDEX IF NOT EXISTS idx_moderation_action_created
-  ON moderation_actions(action, created_at);
-`);
-
-db.exec(`
-CREATE TABLE IF NOT EXISTS admin_totp_setup (
-  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-  secret_enc TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  expires_at TEXT NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS admin_recovery_codes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  code_hash TEXT NOT NULL UNIQUE,
-  created_at TEXT NOT NULL,
-  used_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_admin_recovery_user
-  ON admin_recovery_codes(user_id, used_at);
-
-CREATE TABLE IF NOT EXISTS admin_login_challenges (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token_hash TEXT NOT NULL UNIQUE,
-  expires_at TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  consumed_at TEXT
-);
-CREATE INDEX IF NOT EXISTS idx_admin_login_challenges_user
-  ON admin_login_challenges(user_id, expires_at);
-
-CREATE TABLE IF NOT EXISTS security_events (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-  action TEXT NOT NULL,
-  success INTEGER NOT NULL,
-  ip_hash TEXT,
-  ua_hash TEXT,
-  created_at TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_security_events_user_created
-  ON security_events(user_id, created_at);
-CREATE INDEX IF NOT EXISTS idx_security_events_action_created
-  ON security_events(action, created_at);
-`);
-
-runMigrations(db);
-
-// The code catalog (teams.ts) seeds teams and refreshes rows no admin has
-// edited. Once an admin changes a team in the panel, that row is theirs.
-const forumActive = new Set(FORUM_ACTIVE_TEAM_IDS);
-const upsertTeam = db.prepare(
-  `INSERT INTO teams (id, name, league, city, color_primary, color_secondary, is_forum_active)
-   VALUES (@id, @name, @league, @city, @bleed, @accent, @forum)
-   ON CONFLICT(id) DO UPDATE SET
-     name = excluded.name, league = excluded.league, city = excluded.city,
-     color_primary = excluded.color_primary, color_secondary = excluded.color_secondary,
-     is_forum_active = excluded.is_forum_active
-   WHERE teams.admin_edited_at IS NULL`,
-);
-const syncTeams = db.transaction(() => {
-  for (const team of TEAMS) {
-    upsertTeam.run({
-      id: team.id,
-      name: team.name,
-      league: team.league,
-      city: team.city,
-      bleed: team.bleed,
-      accent: team.accent,
-      forum: forumActive.has(team.id) ? 1 : 0,
-    });
-  }
-});
-syncTeams();
-seedPinnedStarterTopics(db);
-
-// Older builds generated fake demo ballots in development. They are never
-// shown as real data: remove any that are left in a database.
-stripDemoVotes(db);
-}
-
-export function resetDbForTests() {
-  if (process.env.BIZIM_TRIBUN_TEST !== "1") {
-    throw new Error("resetDbForTests is test-only");
-  }
-  if (singleton) {
-    try {
-      singleton.close();
-    } catch {
-      /* already closed */
-    }
+async function resolveDriver(): Promise<Driver> {
+  if (isWorkersRuntime() && !testFactory) return workersDriver();
+  singleton ??= nodeDriver().catch((err) => {
     singleton = undefined;
-  }
+    throw err;
+  });
+  return singleton;
+}
+
+/** A driver that finds the right connection on each call. */
+const lazyDriver: Driver = {
+  async query(text, params) {
+    return (await resolveDriver()).query(text, params);
+  },
+  async exec(text) {
+    return (await resolveDriver()).exec(text);
+  },
+  async begin(fn) {
+    return (await resolveDriver()).begin(fn);
+  },
+};
+
+const db = wrapDriver(lazyDriver);
+
+export function getDb(): Db {
+  return db;
+}
+
+function pgErrorCode(err: unknown) {
+  return err && typeof err === "object" && "code" in err ? String((err as { code: unknown }).code) : "";
+}
+
+/** A unique, foreign-key, check or not-null rule refused the write. */
+export function isConstraintViolation(err: unknown) {
+  return pgErrorCode(err).startsWith("23");
+}
+
+/** A unique key refused the write. */
+export function isUniqueViolation(err: unknown) {
+  return pgErrorCode(err) === "23505";
 }
 
 export type Participant = {
@@ -577,8 +334,3 @@ export type Participant = {
   phone_verified_at: string | null;
   deleted_at: string | null;
 };
-
-export function getDb() {
-  if (!singleton) singleton = openDb();
-  return singleton;
-}

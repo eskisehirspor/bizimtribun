@@ -1,9 +1,7 @@
 import "./env-init";
 import { randomBytes } from "node:crypto";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { getDb, resetDbForTests } from "@/lib/db";
+import { getDb } from "@/lib/db";
+import { freshTestDb } from "@/lib/db-test";
 import { castFanVote } from "@/lib/fan-votes";
 import {
   ADMIN_2FA_COOKIE,
@@ -29,11 +27,8 @@ export function uniq(prefix = "u") {
   return `${prefix}${Date.now().toString(36)}${seq}`;
 }
 
-export function freshDb() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bt-http-"));
-  process.env.BIZIM_TRIBUN_DB = path.join(dir, "t.db");
-  resetDbForTests();
-  return getDb();
+export async function freshDb() {
+  return freshTestDb();
 }
 
 export function setNodeEnv(value: string | undefined) {
@@ -199,31 +194,31 @@ export async function legacyPasswordUser(opts: {
 }) {
   const b = opts.body;
   const now = new Date().toISOString();
-  const info = getDb()
-    .prepare(
-      `INSERT INTO users
+  const info = await getDb()
+      .prepare(
+        `INSERT INTO users
        (username, username_norm, display_name, email, email_norm, password_hash,
         team_id, status, role, created_at, updated_at,
         first_name, last_name, birth_date, phone, phone_norm, city)
        VALUES (?, ?, ?, ?, ?, ?, ?, 'active', 'user', ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      b.username,
-      b.username.toLowerCase(),
-      `${b.firstName} ${b.lastName}`,
-      b.email,
-      b.email.toLowerCase(),
-      await hashPassword(b.password),
-      b.teamId,
-      now,
-      now,
-      b.firstName,
-      b.lastName,
-      b.birthDate,
-      `+90${b.phone}`,
-      b.phone,
-      b.city,
-    );
+      )
+      .run(
+        b.username,
+        b.username.toLowerCase(),
+        `${b.firstName} ${b.lastName}`,
+        b.email,
+        b.email.toLowerCase(),
+        await hashPassword(b.password),
+        b.teamId,
+        now,
+        now,
+        b.firstName,
+        b.lastName,
+        b.birthDate,
+        `+90${b.phone}`,
+        b.phone,
+        b.city,
+      );
   const id = Number(info.lastInsertRowid);
   const res = await invoke(login, {
     method: "POST",
@@ -287,35 +282,35 @@ export async function smsSignup(opts: {
   return { id: user.id, username: user.username, cookie: sessionCookie(done.res), res: done.res };
 }
 
-export function markPhoneVerified(userId: number) {
+export async function markPhoneVerified(userId: number) {
   const now = new Date().toISOString();
-  getDb()
-    .prepare(`UPDATE users SET phone_verified_at = ?, updated_at = ? WHERE id = ?`)
-    .run(now, now, userId);
+  await getDb()
+        .prepare(`UPDATE users SET phone_verified_at = ?, updated_at = ? WHERE id = ?`)
+        .run(now, now, userId);
   // Old password accounts never saw the current texts; tests treat them as having accepted.
-  recordLegalAcceptance(getDb(), {
-    userId,
-    source: "reaccept",
-    accepted: [
-      { doc: "terms", version: TERMS_VERSION },
-      { doc: "privacy", version: PRIVACY_NOTICE_VERSION },
-    ],
-  });
+  await recordLegalAcceptance(getDb(), {
+        userId,
+        source: "reaccept",
+        accepted: [
+          { doc: "terms", version: TERMS_VERSION },
+          { doc: "privacy", version: PRIVACY_NOTICE_VERSION },
+        ],
+      });
 }
 
 /** Gives a phone-verified test account its one team vote (team tribunes need it). */
-export function castTestVote(userId: number, teamId = "galatasaray") {
-  const res = castFanVote(getDb(), { userId, teamId, city: null });
+export async function castTestVote(userId: number, teamId = "galatasaray") {
+  const res = await castFanVote(getDb(), { userId, teamId, city: null });
   if (!res.ok) throw new Error(`vote ${res.code}`);
 }
 
-export function markEmailVerified(userId: number) {
+export async function markEmailVerified(userId: number) {
   const now = new Date().toISOString();
-  getDb()
-    .prepare(
-      `UPDATE users SET email_verified_at = ?, updated_at = ? WHERE id = ?`,
-    )
-    .run(now, now, userId);
+  await getDb()
+        .prepare(
+          `UPDATE users SET email_verified_at = ?, updated_at = ? WHERE id = ?`,
+        )
+        .run(now, now, userId);
 }
 
 export function trPhone(n: number) {
@@ -332,4 +327,5 @@ export const LEGAL_OK = {
   confirmAge: true,
   termsVersion: TERMS_VERSION,
   privacyVersion: PRIVACY_NOTICE_VERSION,
+  password: TEST_PASSWORD,
 } as const;

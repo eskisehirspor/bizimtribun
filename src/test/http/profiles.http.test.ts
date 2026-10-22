@@ -11,8 +11,8 @@ import { getDb } from "@/lib/db";
 import { getPublicProfile, listBadges } from "@/lib/profiles";
 import { freshDb, invoke, smsSignup, trPhone, uniq } from "./harness";
 
-beforeEach(() => {
-  freshDb();
+beforeEach(async () => {
+  await freshDb();
 });
 
 let n = 0;
@@ -35,11 +35,11 @@ async function topic(cookie: string) {
 
 test("public profile hides private fields and members-only profiles from visitors", async () => {
   const a = await member();
-  const asGuest = getPublicProfile(getDb(), a.username, { signedIn: false });
+  const asGuest = await getPublicProfile(getDb(), a.username, { signedIn: false });
   assert.equal(asGuest.ok, false);
   assert.equal(!asGuest.ok && asGuest.status, 403);
 
-  const asMember = getPublicProfile(getDb(), a.username, { signedIn: true });
+  const asMember = await getPublicProfile(getDb(), a.username, { signedIn: true });
   assert.ok(asMember.ok);
   const json = JSON.stringify(asMember.profile);
   for (const key of ["phone", "email", "first_name", "birth", "verified", "İstanbul"]) {
@@ -54,7 +54,7 @@ test("public profile hides private fields and members-only profiles from visitor
     body: { visibility: "public", showCity: true, bio: "Tribünün sesi", avatar: "davul" },
   });
   assert.equal(res.status, 200, res.text);
-  const pub = getPublicProfile(getDb(), a.username, { signedIn: false });
+  const pub = await getPublicProfile(getDb(), a.username, { signedIn: false });
   assert.ok(pub.ok);
   assert.deepEqual([pub.profile.province, pub.profile.bio, pub.profile.avatar], ["İstanbul", "Tribünün sesi", "davul"]);
 });
@@ -65,7 +65,7 @@ test("profile settings cannot change role, team, username or status", async () =
     const res = await invoke(patchProfile, { method: "PATCH", path: "/api/account/profile", cookie: a.cookie, body });
     assert.equal(res.status, 400, JSON.stringify(body));
   }
-  const row = getDb().prepare(`SELECT role, team_id, username FROM users WHERE id = ?`).get(a.id) as {
+  const row = await getDb().prepare(`SELECT role, team_id, username FROM users WHERE id = ?`).get(a.id) as {
     role: string;
     team_id: string;
     username: string;
@@ -84,7 +84,7 @@ test("profile settings cannot change role, team, username or status", async () =
 
 test("badges come from forum activity, never from votes, and notify once", async () => {
   const a = await member();
-  assert.deepEqual(listBadges(getDb(), a.id), []);
+  assert.deepEqual(await listBadges(getDb(), a.id), []);
   const id = await topic(a.cookie);
   const reply = await invoke(createPost, {
     method: "POST",
@@ -95,7 +95,7 @@ test("badges come from forum activity, never from votes, and notify once", async
   });
   assert.equal(reply.status, 201, reply.text);
   assert.deepEqual(
-    listBadges(getDb(), a.id).map((b) => b.key),
+    (await listBadges(getDb(), a.id)).map((b) => b.key),
     ["ilk_konu", "ilk_yorum"],
   );
   await topic(a.cookie);
@@ -104,7 +104,7 @@ test("badges come from forum activity, never from votes, and notify once", async
   assert.equal(kinds.filter((k) => k === "badge").length, 2);
 
   // Writing XP is capped per day: lots of posts on one day stay at the cap.
-  const profile = getPublicProfile(getDb(), a.username, { signedIn: true });
+  const profile = await getPublicProfile(getDb(), a.username, { signedIn: true });
   assert.ok(profile.ok);
   assert.ok(profile.profile.xp <= 10, `xp ${profile.profile.xp}`);
 });
@@ -114,7 +114,7 @@ test("likes add XP and like notifications respect the member's preference", asyn
   const b = await member();
   const id = await topic(a.cookie);
   await invoke(patchProfile, { method: "PATCH", path: "/api/account/profile", cookie: a.cookie, body: { notifyLikes: false } });
-  const before = getPublicProfile(getDb(), a.username, { signedIn: true });
+  const before = await getPublicProfile(getDb(), a.username, { signedIn: true });
   const res = await invoke(like, {
     method: "POST",
     path: "/api/forum/likes",
@@ -122,13 +122,13 @@ test("likes add XP and like notifications respect the member's preference", asyn
     body: { type: "topic", id, liked: true },
   });
   assert.equal(res.status, 200, res.text);
-  const after = getPublicProfile(getDb(), a.username, { signedIn: true });
+  const after = await getPublicProfile(getDb(), a.username, { signedIn: true });
   assert.ok(before.ok && after.ok);
   assert.equal(after.profile.xp - before.profile.xp, 2);
   assert.equal(after.profile.counts.likesReceived, 1);
-  const likes = getDb()
-    .prepare(`SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND kind = 'like'`)
-    .get(a.id) as { c: number };
+  const likes = await getDb()
+      .prepare(`SELECT COUNT(*) as c FROM notifications WHERE user_id = ? AND kind = 'like'`)
+      .get(a.id) as { c: number };
   assert.equal(likes.c, 0);
 });
 
@@ -136,7 +136,7 @@ test("activity lists live content only and deleted accounts have no profile", as
   const a = await member();
   const id = await topic(a.cookie);
   const removed = await topic(a.cookie);
-  getDb().prepare(`UPDATE forum_topics SET deleted_at = ? WHERE id = ?`).run(new Date().toISOString(), removed);
+  await getDb().prepare(`UPDATE forum_topics SET deleted_at = ? WHERE id = ?`).run(new Date().toISOString(), removed);
   const res = await invoke(activity, {
     path: `/api/users/${a.username}/activity`,
     params: { username: a.username },
@@ -150,7 +150,7 @@ test("activity lists live content only and deleted accounts have no profile", as
   const guest = await invoke(activity, { path: `/api/users/${a.username}/activity`, params: { username: a.username } });
   assert.equal(guest.status, 403);
 
-  getDb().prepare(`UPDATE users SET deleted_at = ?, status = 'deleted' WHERE id = ?`).run(new Date().toISOString(), a.id);
-  const gone = getPublicProfile(getDb(), a.username, { signedIn: true });
+  await getDb().prepare(`UPDATE users SET deleted_at = ?, status = 'deleted' WHERE id = ?`).run(new Date().toISOString(), a.id);
+  const gone = await getPublicProfile(getDb(), a.username, { signedIn: true });
   assert.equal(!gone.ok && gone.status, 404);
 });

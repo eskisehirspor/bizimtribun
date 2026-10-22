@@ -9,6 +9,6 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const { page, limit, offset } = parseAdminPage(url);
   const status = url.searchParams.get("status") === "closed" ? "closed" : "open";
-  const { total, items } = listReports(getDb(), { status, limit, offset });
+  const { total, items } = await listReports(getDb(), { status, limit, offset });
   return noStoreJson({ ok: true, page, limit, total, items, status });
 }

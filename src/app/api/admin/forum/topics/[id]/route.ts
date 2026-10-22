@@ -24,7 +24,7 @@ export async function DELETE(
   const reason = cleanAdminReason(parsed.data.reason);
   if (!reason) return noStoreJson({ error: "Gerekçe en az 3 karakter olmalı." }, 400);
 
-  const result = deleteTopicAdmin(id, reason, gate.user);
+  const result = await deleteTopicAdmin(id, reason, gate.user);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true });
 }

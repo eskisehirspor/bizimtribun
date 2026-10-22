@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 import { notify } from "./notifications";
 
 /**
@@ -93,29 +93,29 @@ const LIKES_ON_USER = `
   JOIN forum_topics t ON t.id = p.topic_id
   WHERE p.user_id = @uid AND l.user_id != @uid AND ${LIVE_POST} AND ${LIVE_TOPIC}`;
 
-export function contributionStats(db: Database.Database, userId: number): Stats {
+export async function contributionStats(db: Db, userId: number): Promise<Stats> {
   const uid = { uid: userId };
   const topics = (
-    db.prepare(`SELECT COUNT(*) as c FROM forum_topics t WHERE t.user_id = @uid AND ${LIVE_TOPIC}`).get(uid) as {
+    await db.prepare(`SELECT COUNT(*) as c FROM forum_topics t WHERE t.user_id = @uid AND ${LIVE_TOPIC}`).get(uid) as {
       c: number;
     }
   ).c;
   const posts = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM forum_posts p JOIN forum_topics t ON t.id = p.topic_id
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM forum_posts p JOIN forum_topics t ON t.id = p.topic_id
          WHERE p.user_id = @uid AND ${LIVE_POST} AND ${LIVE_TOPIC}`,
-      )
-      .get(uid) as { c: number }
+            )
+            .get(uid) as { c: number }
   ).c;
-  const likes = db
-    .prepare(
-      `SELECT COUNT(*) as total, COUNT(DISTINCT liker) as likers, COUNT(DISTINCT item) as items FROM (${LIKES_ON_USER})`,
-    )
-    .get(uid) as { total: number; likers: number; items: number };
-  const days = db
-    .prepare(
-      `SELECT day, SUM(xp) as xp FROM (
+  const likes = await db
+      .prepare(
+        `SELECT COUNT(*) as total, COUNT(DISTINCT liker) as likers, COUNT(DISTINCT item) as items FROM (${LIKES_ON_USER})`,
+      )
+      .get(uid) as { total: number; likers: number; items: number };
+  const days = await db
+      .prepare(
+        `SELECT day, SUM(xp) as xp FROM (
          SELECT substr(t.created_at, 1, 10) as day, ${XP_TOPIC} as xp
          FROM forum_topics t WHERE t.user_id = @uid AND ${LIVE_TOPIC}
          UNION ALL
@@ -123,8 +123,8 @@ export function contributionStats(db: Database.Database, userId: number): Stats 
          FROM forum_posts p JOIN forum_topics t ON t.id = p.topic_id
          WHERE p.user_id = @uid AND ${LIVE_POST} AND ${LIVE_TOPIC}
        ) GROUP BY day`,
-    )
-    .all(uid) as { day: string; xp: number }[];
+      )
+      .all(uid) as { day: string; xp: number }[];
   const weeks = new Set(days.map((d) => isoWeek(d.day)));
   return {
     topics,
@@ -164,32 +164,32 @@ export function earnedBadges(s: Stats): BadgeKey[] {
  * Awards any newly earned badge (once; badges are kept even if later content
  * is removed) and sends one in-site notification per badge.
  */
-export function refreshBadges(db: Database.Database, userId: number) {
-  const user = db.prepare(`SELECT id FROM users WHERE id = ? AND deleted_at IS NULL`).get(userId);
+export async function refreshBadges(db: Db, userId: number) {
+  const user = await db.prepare(`SELECT id FROM users WHERE id = ? AND deleted_at IS NULL`).get(userId);
   if (!user) return [];
-  const earned = earnedBadges(contributionStats(db, userId));
-  const insert = db.prepare(`INSERT OR IGNORE INTO user_badges (user_id, badge, awarded_at) VALUES (?, ?, ?)`);
+  const earned = earnedBadges(await contributionStats(db, userId));
+  const insert = db.prepare(`INSERT INTO user_badges (user_id, badge, awarded_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`);
   const now = new Date().toISOString();
   const fresh: BadgeKey[] = [];
   for (const badge of earned) {
-    if (insert.run(userId, badge, now).changes === 1) {
+    if ((await insert.run(userId, badge, now)).changes === 1) {
       fresh.push(badge);
-      notify(db, {
-        userId,
-        kind: "badge",
-        body: `Yeni rozet: ${BADGES[badge].label}. ${BADGES[badge].description}`,
-        dedupeKey: `badge:${badge}`,
-      });
+      await notify(db, {
+                userId,
+                kind: "badge",
+                body: `Yeni rozet: ${BADGES[badge].label}. ${BADGES[badge].description}`,
+                dedupeKey: `badge:${badge}`,
+              });
     }
   }
   return fresh;
 }
 
-export function listBadges(db: Database.Database, userId: number) {
+export async function listBadges(db: Db, userId: number) {
   return (
-    db
-      .prepare(`SELECT badge, awarded_at as awardedAt FROM user_badges WHERE user_id = ? ORDER BY awarded_at, badge`)
-      .all(userId) as { badge: string; awardedAt: string }[]
+    await db
+            .prepare(`SELECT badge, awarded_at as awardedAt FROM user_badges WHERE user_id = ? ORDER BY awarded_at, badge`)
+            .all(userId) as { badge: string; awardedAt: string }[]
   )
     .filter((b): b is { badge: BadgeKey; awardedAt: string } => b.badge in BADGES)
     .map((b) => ({ key: b.badge, ...BADGES[b.badge], awardedAt: b.awardedAt }));
@@ -214,15 +214,15 @@ type ProfileRow = {
   banned_at: string | null;
 };
 
-function findProfileRow(db: Database.Database, username: string) {
-  return db
-    .prepare(
-      `SELECT u.id, u.username, u.username_norm, u.display_name, u.bio, u.avatar, u.profile_visibility,
+async function findProfileRow(db: Db, username: string) {
+  return await db
+      .prepare(
+        `SELECT u.id, u.username, u.username_norm, u.display_name, u.bio, u.avatar, u.profile_visibility,
               u.show_city, u.city, u.role, u.status, u.created_at, u.team_id, u.deleted_at, u.banned_at,
               (SELECT fv.team_id FROM fan_votes fv WHERE fv.user_id = u.id AND fv.status = 'active') as vote_team
        FROM users u WHERE u.username_norm = ?`,
-    )
-    .get(username.trim().toLowerCase()) as ProfileRow | undefined;
+      )
+      .get(username.trim().toLowerCase()) as ProfileRow | undefined;
 }
 
 export type PublicProfile = {
@@ -237,7 +237,7 @@ export type PublicProfile = {
   memberSince: string;
   role: string;
   visibility: ProfileVisibility;
-  badges: ReturnType<typeof listBadges>;
+  badges: Awaited<ReturnType<typeof listBadges>>;
   xp: number;
   level: ReturnType<typeof levelFor>;
   counts: { topics: number; posts: number; likesReceived: number };
@@ -248,19 +248,19 @@ export type PublicProfile = {
  * phone, e-mail, real name, birth date or verification details. A
  * members-only profile is not shown to signed-out visitors.
  */
-export function getPublicProfile(
-  db: Database.Database,
+export async function getPublicProfile(
+  db: Db,
   username: string,
   viewer: { signedIn: boolean },
-): { ok: true; profile: PublicProfile } | { ok: false; status: 404 | 403; error: string } {
-  const row = findProfileRow(db, username);
+): Promise<{ ok: true; profile: PublicProfile } | { ok: false; status: 404 | 403; error: string }> {
+  const row = await findProfileRow(db, username);
   if (!row || row.deleted_at || row.status === "deleted") {
     return { ok: false, status: 404, error: "Üye bulunamadı." };
   }
   if (row.profile_visibility !== "public" && !viewer.signedIn) {
     return { ok: false, status: 403, error: "Bu profil yalnızca üyelere açık." };
   }
-  const stats = contributionStats(db, row.id);
+  const stats = await contributionStats(db, row.id);
   const xp = xpFromStats(stats);
   const display = row.display_name?.trim();
   return {
@@ -276,7 +276,7 @@ export function getPublicProfile(
       memberSince: row.created_at,
       role: row.role,
       visibility: row.profile_visibility,
-      badges: listBadges(db, row.id),
+      badges: await listBadges(db, row.id),
       xp,
       level: levelFor(xp),
       counts: { topics: stats.topics, posts: stats.posts, likesReceived: stats.likesReceived },
@@ -297,8 +297,8 @@ export type ProfileActivityItem = {
  * The member's live topics and replies on open boards, newest first.
  * Team-tribune items only show to viewers who may read that tribune.
  */
-export function listProfileActivity(
-  db: Database.Database,
+export async function listProfileActivity(
+  db: Db,
   userId: number,
   offset: number,
   limit: number,
@@ -312,9 +312,9 @@ export function listProfileActivity(
       ? `AND (t.board != 'team' OR t.team_id =
            (SELECT fv.team_id FROM fan_votes fv WHERE fv.user_id = @vid AND fv.status = 'active'))`
       : `AND t.board != 'team'`;
-  const items = db
-    .prepare(
-      `SELECT * FROM (
+  const items = await db
+      .prepare(
+        `SELECT * FROM (
          SELECT 'topic' as type, t.id as id, t.id as topicId, t.title as title,
                 substr(t.content, 1, 200) as excerpt, t.created_at as createdAt
          FROM forum_topics t WHERE t.user_id = @uid AND ${LIVE_TOPIC} ${board}
@@ -324,8 +324,8 @@ export function listProfileActivity(
          FROM forum_posts p JOIN forum_topics t ON t.id = p.topic_id
          WHERE p.user_id = @uid AND ${LIVE_POST} AND ${LIVE_TOPIC} ${board}
        ) ORDER BY createdAt DESC, type, id DESC LIMIT @limit OFFSET @offset`,
-    )
-    .all(params) as ProfileActivityItem[];
+      )
+      .all(params) as ProfileActivityItem[];
   return items;
 }
 
@@ -344,14 +344,14 @@ export type ProfileSettings = {
 
 const ADMIN_ROLES = new Set(["admin", "super_admin"]);
 
-export function getProfileSettings(db: Database.Database, userId: number): ProfileSettings | null {
-  const row = db
-    .prepare(
-      `SELECT display_name, username_norm, bio, avatar, profile_visibility, show_city,
+export async function getProfileSettings(db: Db, userId: number): Promise<ProfileSettings | null> {
+  const row = await db
+      .prepare(
+        `SELECT display_name, username_norm, bio, avatar, profile_visibility, show_city,
               notify_replies, notify_mentions, notify_likes, notify_new_topics, role
        FROM users WHERE id = ? AND deleted_at IS NULL`,
-    )
-    .get(userId) as
+      )
+      .get(userId) as
     | {
         display_name: string;
         username_norm: string;
@@ -387,12 +387,12 @@ const oneLine = (s: string) => s.replace(/[\u0000-\u001f\u007f]/g, " ").replace(
  * province (the vote's province) are not editable here; role and status
  * cannot be reached from this function at all.
  */
-export function updateProfileSettings(
-  db: Database.Database,
+export async function updateProfileSettings(
+  db: Db,
   userId: number,
   input: Partial<ProfileSettings>,
-): { ok: true; settings: ProfileSettings } | { ok: false; error: string; status: number } {
-  const current = getProfileSettings(db, userId);
+): Promise<{ ok: true; settings: ProfileSettings } | { ok: false; error: string; status: number }> {
+  const current = await getProfileSettings(db, userId);
   if (!current) return { ok: false, error: "Hesap bulunamadı.", status: 404 };
   const next = { ...current, ...input };
   const displayName = oneLine(next.displayName ?? "").slice(0, PROFILE_DISPLAY_NAME_MAX);
@@ -412,7 +412,7 @@ export function updateProfileSettings(
   }
   const changedText = displayName !== current.displayName || bio !== current.bio;
   if (changedText) {
-    const role = (db.prepare(`SELECT role FROM users WHERE id = ?`).get(userId) as { role: string | null }).role;
+    const role = (await db.prepare(`SELECT role FROM users WHERE id = ?`).get(userId) as { role: string | null }).role;
     if (displayName && isReservedName(displayName) && !isStaffRole(role)) {
       return { ok: false, error: "Bu görünen ad kullanılamaz.", status: 400 };
     }
@@ -422,27 +422,41 @@ export function updateProfileSettings(
       return { ok: false, error: "Profil metni topluluk kurallarına uygun değil. Lütfen düzelt.", status: 422 };
     }
   }
-  const username = (db.prepare(`SELECT username_norm FROM users WHERE id = ?`).get(userId) as { username_norm: string })
+  const username = (await db.prepare(`SELECT username_norm FROM users WHERE id = ?`).get(userId) as { username_norm: string })
     .username_norm;
-  db.prepare(
-    `UPDATE users SET display_name = ?, bio = ?, avatar = ?, profile_visibility = ?, show_city = ?,
+  await db.prepare(
+        `UPDATE users SET display_name = ?, bio = ?, avatar = ?, profile_visibility = ?, show_city = ?,
        notify_replies = ?, notify_mentions = ?, notify_likes = ?,
-       notify_new_topics = CASE WHEN role IN ('admin', 'super_admin') AND ? IS NOT NULL THEN ? ELSE notify_new_topics END,
+       notify_new_topics = CASE WHEN role IN ('admin', 'super_admin') AND ?::integer IS NOT NULL THEN ?::integer ELSE notify_new_topics END,
        updated_at = ?
      WHERE id = ?`,
-  ).run(
-    displayName || username,
-    bio || null,
-    next.avatar ?? null,
-    next.visibility,
-    next.showCity ? 1 : 0,
-    next.notifyReplies ? 1 : 0,
-    next.notifyMentions ? 1 : 0,
-    next.notifyLikes ? 1 : 0,
-    next.notifyNewTopics == null ? null : 1,
-    next.notifyNewTopics ? 1 : 0,
-    new Date().toISOString(),
-    userId,
-  );
-  return { ok: true, settings: getProfileSettings(db, userId)! };
+      ).run(
+        displayName || username,
+        bio || null,
+        next.avatar ?? null,
+        next.visibility,
+        next.showCity ? 1 : 0,
+        next.notifyReplies ? 1 : 0,
+        next.notifyMentions ? 1 : 0,
+        next.notifyLikes ? 1 : 0,
+        next.notifyNewTopics == null ? null : 1,
+        next.notifyNewTopics ? 1 : 0,
+        new Date().toISOString(),
+        userId,
+      );
+  return { ok: true, settings: (await getProfileSettings(db, userId))! };
+}
+
+/** Which of these usernames have a profile anyone (and any crawler) may open. */
+export async function publicUsernames(db: Db, usernames: string[]) {
+  const unique = [...new Set(usernames)];
+  if (unique.length === 0) return new Set<string>();
+  const rows = await db
+      .prepare(
+        `SELECT username FROM users
+       WHERE username IN (${unique.map(() => "?").join(",")})
+         AND profile_visibility = 'public' AND deleted_at IS NULL AND status = 'active' AND banned_at IS NULL`,
+      )
+      .all(...unique) as { username: string }[];
+  return new Set(rows.map((r) => r.username));
 }

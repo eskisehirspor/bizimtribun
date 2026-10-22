@@ -34,8 +34,8 @@ const ALLOW = {
   content: "Rakip kaleci büyük hata yaptı, defans da çok açıktı.",
 };
 
-beforeEach(() => {
-  freshDb();
+beforeEach(async () => {
+  await freshDb();
 });
 
 let n = 0;
@@ -59,15 +59,15 @@ async function registerUnverified(ip: string) {
   };
 }
 
-function ageResendAttempts() {
-  getDb()
-    .prepare(`UPDATE register_attempts SET created_at = ?`)
-    .run(new Date(Date.now() - 2 * 60 * 1000).toISOString());
+async function ageResendAttempts() {
+  await getDb()
+        .prepare(`UPDATE register_attempts SET created_at = ?`)
+        .run(new Date(Date.now() - 2 * 60 * 1000).toISOString());
 }
 
 test("legacy account: email unverified; token only stored hashed", async () => {
   const u = await registerUnverified("203.0.113.201");
-  const raw = issueUserEmailToken(u.id);
+  const raw = await issueUserEmailToken(u.id);
 
   const mine = await invoke(me, { path: "/api/auth/me", cookie: u.cookie });
   assert.equal(mine.status, 200);
@@ -75,9 +75,9 @@ test("legacy account: email unverified; token only stored hashed", async () => {
   assert.equal(meUser.emailVerified, false);
   assert.equal(JSON.stringify(mine.json).includes('"email"'), false);
 
-  const stored = getDb()
-    .prepare(`SELECT token_hash FROM user_email_tokens WHERE user_id = ?`)
-    .all(u.id) as { token_hash: string }[];
+  const stored = await getDb()
+      .prepare(`SELECT token_hash FROM user_email_tokens WHERE user_id = ?`)
+      .all(u.id) as { token_hash: string }[];
   assert.ok(stored.length >= 1);
   const dumped = JSON.stringify(u.json);
   assert.equal(dumped.includes("token_hash"), false);
@@ -89,10 +89,10 @@ test("legacy account: email unverified; token only stored hashed", async () => {
 
 test("verify token valid → verified; replay reject; expired reject", async () => {
   const u = await registerUnverified("203.0.113.202");
-  const token = issueUserEmailToken(u.id);
-  const hashes = getDb()
-    .prepare(`SELECT token_hash FROM user_email_tokens WHERE user_id = ?`)
-    .all(u.id) as { token_hash: string }[];
+  const token = await issueUserEmailToken(u.id);
+  const hashes = await getDb()
+      .prepare(`SELECT token_hash FROM user_email_tokens WHERE user_id = ?`)
+      .all(u.id) as { token_hash: string }[];
   assert.equal(hashes.some((r) => r.token_hash === token), false);
   const ok = await invoke(verifyEmail, {
     method: "POST",
@@ -116,10 +116,10 @@ test("verify token valid → verified; replay reject; expired reject", async () 
   assert.equal(replay.status, 400);
 
   const other = await registerUnverified("203.0.113.203");
-  const raw = issueUserEmailToken(other.id);
-  getDb()
-    .prepare(`UPDATE user_email_tokens SET expires_at = ? WHERE user_id = ?`)
-    .run("2000-01-01T00:00:00.000Z", other.id);
+  const raw = await issueUserEmailToken(other.id);
+  await getDb()
+        .prepare(`UPDATE user_email_tokens SET expires_at = ? WHERE user_id = ?`)
+        .run("2000-01-01T00:00:00.000Z", other.id);
   const expired = await invoke(verifyEmail, {
     method: "POST",
     path: "/api/auth/verify-email",
@@ -138,7 +138,7 @@ test("unverified user: no team tribune, POST topic/post 403; verified fan mutati
   // No vote yet, so no team tribune.
   assert.equal(list.status, 403);
   const seedId = (
-    getDb().prepare(`SELECT id FROM forum_topics WHERE team_id = 'galatasaray' LIMIT 1`).get() as { id: number }
+    await getDb().prepare(`SELECT id FROM forum_topics WHERE team_id = 'galatasaray' LIMIT 1`).get() as { id: number }
   ).id;
   assert.ok(seedId);
 
@@ -162,9 +162,9 @@ test("unverified user: no team tribune, POST topic/post 403; verified fan mutati
   assert.equal(reply.status, 403);
   assert.equal((reply.json as { error: string }).error, FORUM_PHONE_UNVERIFIED_ERROR);
 
-  markPhoneVerified(u.id);
+  await markPhoneVerified(u.id);
 
-  castTestVote(u.id);
+  await castTestVote(u.id);
   const got = await invoke(getTopic, {
     path: `/api/forum/topics/${seedId}`,
     params: { topicId: String(seedId) },
@@ -203,7 +203,7 @@ test("resend cooldown, rate limit, verified skip", async () => {
   });
   assert.equal(cool.status, 429);
 
-  ageResendAttempts();
+  await ageResendAttempts();
   for (let i = 1; i < USER_EMAIL_RESEND_PER_USER_HOUR; i++) {
     const again = await invoke(resendVerification, {
       method: "POST",
@@ -212,7 +212,7 @@ test("resend cooldown, rate limit, verified skip", async () => {
       ip: "203.0.113.205",
     });
     assert.equal(again.status, 200, `resend ${i} ${JSON.stringify(again.json)}`);
-    ageResendAttempts();
+    await ageResendAttempts();
   }
   const limited = await invoke(resendVerification, {
     method: "POST",
@@ -223,13 +223,13 @@ test("resend cooldown, rate limit, verified skip", async () => {
   assert.equal(limited.status, 429);
 
   const v = await registerUnverified("203.0.113.206");
-  markEmailVerified(v.id);
+  await markEmailVerified(v.id);
   const before = (
-    getDb()
-      .prepare(
-        `SELECT COUNT(*) as c FROM user_email_tokens WHERE user_id = ?`,
-      )
-      .get(v.id) as { c: number }
+    await getDb()
+            .prepare(
+              `SELECT COUNT(*) as c FROM user_email_tokens WHERE user_id = ?`,
+            )
+            .get(v.id) as { c: number }
   ).c;
   const skip = await invoke(resendVerification, {
     method: "POST",
@@ -240,11 +240,11 @@ test("resend cooldown, rate limit, verified skip", async () => {
   assert.equal(skip.status, 200);
   assert.equal((skip.json as { message: string }).message, USER_VERIFY_ALREADY);
   const after = (
-    getDb()
-      .prepare(
-        `SELECT COUNT(*) as c FROM user_email_tokens WHERE user_id = ?`,
-      )
-      .get(v.id) as { c: number }
+    await getDb()
+            .prepare(
+              `SELECT COUNT(*) as c FROM user_email_tokens WHERE user_id = ?`,
+            )
+            .get(v.id) as { c: number }
   ).c;
   assert.equal(after, before);
 });
@@ -258,9 +258,9 @@ test("banned + unverified forum error is ban, not email", async () => {
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.208",
   });
-  getDb()
-    .prepare(`UPDATE users SET role = 'admin', totp_enabled = 1 WHERE id = ?`)
-    .run(admin.id);
+  await getDb()
+        .prepare(`UPDATE users SET role = 'admin', totp_enabled = 1 WHERE id = ?`)
+        .run(admin.id);
   const ban = await invoke(adminBan, {
     method: "POST",
     path: `/api/admin/users/${u.id}/ban`,

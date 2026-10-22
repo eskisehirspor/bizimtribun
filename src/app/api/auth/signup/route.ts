@@ -42,10 +42,11 @@ const Body = z.object({
   birthDate: z.string().max(10),
   phone: z.string().max(24).optional().nullable(),
   marketingConsent: z.boolean().optional(),
+  password: z.string().max(128),
 });
 
 export async function GET(req: Request) {
-  const ticket = lookupSignupTicket(getDb(), await readCookie(req, SIGNUP_TICKET_COOKIE));
+  const ticket = await lookupSignupTicket(getDb(), await readCookie(req, SIGNUP_TICKET_COOKIE));
   if (!ticket) return noStoreJson({ ok: true, ticket: false });
   return noStoreJson({
     ok: true,
@@ -70,7 +71,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const settings = getSettings();
+  const settings = await getSettings();
   if (settings.maintenance.enabled) return noStoreJson({ error: MAINTENANCE_ERROR }, 503);
   if (!settings.features.signupsOpen) {
     return noStoreJson({ error: "Yeni üyelik şu an kapalı. Daha sonra tekrar dene." }, 403);
@@ -79,33 +80,34 @@ export async function POST(req: Request) {
   const db = getDb();
   const ipKey = hmac(`signup-ip:${await requestIpKey()}`);
   if (
-    rateCount(db, ipKey, 60 * 60 * 1000) >= SIGNUP_PER_IP_HOUR ||
-    rateCount(db, ipKey, 24 * 60 * 60 * 1000) >= SIGNUP_PER_IP_DAY
+    await rateCount(db, ipKey, 60 * 60 * 1000) >= SIGNUP_PER_IP_HOUR ||
+    await rateCount(db, ipKey, 24 * 60 * 60 * 1000) >= SIGNUP_PER_IP_DAY
   ) {
     return noStoreJson({ error: "Çok fazla deneme. Biraz sonra tekrar dene." }, 429);
   }
   const device = await readCookie(req, DEVICE_COOKIE);
   if (!isDeviceId(device)) return noStoreJson({ error: DEVICE_COOKIE_ERROR }, 400);
-  rateNote(db, ipKey);
+  await rateNote(db, ipKey);
 
-  const result = signupWithTicket(db, {
-    ticketRaw: await readCookie(req, SIGNUP_TICKET_COOKIE),
-    deviceHash: deviceHash(device),
-    username: parsed.data.username,
-    displayName: parsed.data.displayName,
-    city: parsed.data.city,
-    teamId: parsed.data.teamId,
-    legal: { termsVersion: parsed.data.termsVersion, privacyVersion: parsed.data.privacyVersion },
-    firstName: parsed.data.firstName,
-    lastName: parsed.data.lastName,
-    birthDate: parsed.data.birthDate,
-    phone: parsed.data.phone,
-    marketingConsent: parsed.data.marketingConsent === true,
-  });
+  const result = await signupWithTicket(db, {
+      ticketRaw: await readCookie(req, SIGNUP_TICKET_COOKIE),
+      deviceHash: deviceHash(device),
+      username: parsed.data.username,
+      displayName: parsed.data.displayName,
+      city: parsed.data.city,
+      teamId: parsed.data.teamId,
+      legal: { termsVersion: parsed.data.termsVersion, privacyVersion: parsed.data.privacyVersion },
+      firstName: parsed.data.firstName,
+      lastName: parsed.data.lastName,
+      birthDate: parsed.data.birthDate,
+      phone: parsed.data.phone,
+      marketingConsent: parsed.data.marketingConsent === true,
+      password: parsed.data.password,
+    });
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
 
-  const user = findUserById(result.userId)!;
-  const raw = createSession(user.id);
+  const user = (await findUserById(result.userId))!;
+  const raw = await createSession(user.id);
   const res = noStoreJson({ ok: true, user: toPublicUser(user) });
   res.cookies.set(SIGNUP_TICKET_COOKIE, "", { ...signupTicketCookieOptions(0), maxAge: 0 });
   return attachSessionCookie(res, raw, sessionTtlMsForUser(user));

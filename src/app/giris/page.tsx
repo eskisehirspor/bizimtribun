@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
-import CodeSignInStep, { useVerifyChannel } from "@/components/auth/CodeSignInStep";
 import { forumApiError, safeNextPath } from "@/lib/forum-ui";
 import { inputClass, primaryButton, secondaryButton } from "@/components/auth/ui";
 import { labelClass } from "@/components/ui";
@@ -19,10 +18,6 @@ function Form() {
   const [password, setPassword] = useState("");
   const [totp, setTotp] = useState("");
   const [need2fa, setNeed2fa] = useState(params.get("adim") === "2fa");
-  const channel = useVerifyChannel();
-  const [method, setMethod] = useState<"code" | "password">(
-    params.get("yontem") === "sifre" ? "password" : "code",
-  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +39,7 @@ function Form() {
         });
         const data = await res.json();
         if (!res.ok) {
-          setError(forumApiError(res.status, data.error));
+          setError(typeof data.error === "string" ? data.error : forumApiError(res.status));
           return;
         }
         await finishLogin();
@@ -58,7 +53,7 @@ function Form() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(forumApiError(res.status, data.error));
+        setError(typeof data.error === "string" ? data.error : forumApiError(res.status));
         return;
       }
       if (data.need2fa) {
@@ -83,39 +78,11 @@ function Form() {
           <br />
           <span className="bg-[#FFEA00] px-2 inline-block rotate-1">YAP</span>
         </h1>
-        {method === "code" && !need2fa && (
-          <div className="mt-5">
-            <CodeSignInStep
-              channel={channel}
-              submitLabel="GİRİŞ YAP"
-              onVerified={(data) => {
-                if (data.next === "signup") {
-                  router.push(`/uye-ol?next=${encodeURIComponent(next)}`);
-                  return;
-                }
-                if (data.next === "2fa") {
-                  setNeed2fa(true);
-                  return;
-                }
-                void finishLogin();
-              }}
-            />
-            <div className="mt-5 border-t-[2px] border-dashed border-black pt-4">
-              <button type="button" onClick={() => setMethod("password")} className={secondaryButton}>
-                ŞİFREYLE GİRİŞ YAP
-              </button>
-              <p className="font-mono text-[12px] mt-1 opacity-70">
-                Şifreyle açılmış eski hesaplar ve yöneticiler için.
-              </p>
-            </div>
-          </div>
-        )}
-        {(method === "password" || need2fa) && (
         <form onSubmit={(e) => void submit(e)} className="mt-5 space-y-3">
           {!need2fa && (
             <>
           <label className="block">
-            <span className={labelClass}>KULLANICI ADI VEYA E-POSTA</span>
+            <span className={labelClass}>E-POSTA VEYA KULLANICI ADI</span>
             <input
               required
               value={login}
@@ -125,7 +92,7 @@ function Form() {
             />
           </label>
           <label className="block">
-            <span className={labelClass}>PAROLA</span>
+            <span className={labelClass}>ŞİFRE</span>
             <input
               required
               type="password"
@@ -159,21 +126,16 @@ function Form() {
             {busy ? (need2fa ? "DOĞRULANIYOR…" : "GİRİŞ YAPILIYOR…") : need2fa ? "DOĞRULA" : "GİRİŞ YAP"}
           </button>
           {!need2fa && (
-            <button type="button" onClick={() => setMethod("code")} className={secondaryButton}>
-              {channel === "sms" ? "SMS KODUYLA GİRİŞ YAP" : "E-POSTA KODUYLA GİRİŞ YAP"}
-            </button>
+            <Link href="/sifremi-unuttum" className={secondaryButton}>
+              ŞİFREMİ UNUTTUM
+            </Link>
           )}
         </form>
-        )}
         <div className="mt-6 border-t-[3px] border-black pt-4">
           <p className="font-mono text-[13px]">Hesabın yok mu?</p>
           <Link className={`mt-2 ${secondaryButton}`} href={`/uye-ol?next=${encodeURIComponent(next)}`}>
             ÜYE OL
           </Link>
-          <p className="font-mono text-[12px] mt-3 opacity-70">
-            Şifreyle açılmış eski hesaplar oy vermek ve tribünde yazmak için hesabını bir kez
-            doğrulamalı.
-          </p>
         </div>
       </div>
     </ForumShell>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import ForumShell from "@/components/ForumShell";
+import JsonLd from "@/components/JsonLd";
 import ProfileActions from "@/components/profile/ProfileActions";
 import ProfileActivity from "@/components/profile/ProfileActivity";
 import { getSessionUser } from "@/lib/auth";
@@ -11,6 +12,7 @@ import { AVATAR_EMOJI, getPublicProfile, listProfileActivity, XP_PER_LIKE } from
 import { getCatalogTeam } from "@/lib/team-catalog";
 import { initials, teamBadge } from "@/lib/teams";
 import { btnAccent, btnSm, labelClass } from "@/components/ui";
+import { DEFAULT_SHARE_IMAGE, absoluteUrl, graph } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -26,12 +28,12 @@ export async function generateMetadata({
   const { username } = await params;
   // Metadata never depends on the viewer: only public profiles are described
   // and indexed; members-only profiles stay out of search engines.
-  const found = getPublicProfile(getDb(), username, { signedIn: false });
+  const found = await getPublicProfile(getDb(), username, { signedIn: false });
   if (!found.ok) {
     return { title: "Üye profili | Bizim Tribün", robots: { index: false, follow: false } };
   }
   const p = found.profile;
-  const team = p.teamId ? getCatalogTeam(p.teamId) : undefined;
+  const team = p.teamId ? await getCatalogTeam(p.teamId) : undefined;
   const title = `@${p.username}${team ? ` • ${team.name} taraftarı` : ""} | Bizim Tribün`;
   const description = `@${p.username} Bizim Tribün'de ${p.counts.topics} konu ve ${p.counts.posts} yorum yazdı.`;
   const url = `${origin()}/u/${p.username}`;
@@ -40,7 +42,7 @@ export async function generateMetadata({
     description,
     alternates: { canonical: url },
     robots: { index: true, follow: true },
-    openGraph: { title, description, url, locale: "tr_TR", type: "profile", siteName: "Bizim Tribün" },
+    openGraph: { title, description, url, locale: "tr_TR", type: "profile", siteName: "Bizim Tribün", images: [DEFAULT_SHARE_IMAGE] },
   };
 }
 
@@ -51,7 +53,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const { username } = await params;
   const viewer = await getSessionUser();
   const db = getDb();
-  const found = getPublicProfile(db, username, { signedIn: Boolean(viewer) });
+  const found = await getPublicProfile(db, username, { signedIn: Boolean(viewer) });
   if (!found.ok && found.status === 404) notFound();
   if (!found.ok) {
     return (
@@ -70,12 +72,34 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     );
   }
   const p = found.profile;
-  const team = p.teamId ? getCatalogTeam(p.teamId) : undefined;
+  const team = p.teamId ? await getCatalogTeam(p.teamId) : undefined;
   const isSelf = viewer?.id === p.id;
-  const firstPage = listProfileActivity(db, p.id, 0, 21, viewer);
+  const firstPage = await listProfileActivity(db, p.id, 0, 21, viewer);
+  // Only profiles open to everyone are described to search engines.
+  const profileJsonLd =
+    p.visibility === "public"
+      ? graph({
+          "@type": "ProfilePage",
+          url: absoluteUrl(`/u/${p.username}`),
+          dateCreated: p.memberSince,
+          mainEntity: {
+            "@type": "Person",
+            name: p.username,
+            alternateName: `@${p.username}`,
+            identifier: String(p.id),
+            url: absoluteUrl(`/u/${p.username}`),
+            agentInteractionStatistic: {
+              "@type": "InteractionCounter",
+              interactionType: "https://schema.org/WriteAction",
+              userInteractionCount: p.counts.topics + p.counts.posts,
+            },
+          },
+        })
+      : null;
 
   return (
     <ForumShell>
+      {profileJsonLd && <JsonLd data={profileJsonLd} />}
       <section className="bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black]">
         <div
           className="flex flex-wrap items-center gap-4 p-5 border-b-[4px] border-black"

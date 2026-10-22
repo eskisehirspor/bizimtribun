@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 import { refreshBadges } from "./profiles";
 import { can, canBanRole, roleRank } from "./permissions";
 import { maskEmail, maskPhone } from "./privacy";
@@ -39,78 +39,78 @@ function bannedClause(alias: string) {
 }
 
 /** The non-login system account that owns the pinned starter topics is not a member. */
-const HUMAN = `password_hash IS NOT '${FORUM_SYSTEM_PASSWORD_HASH}'`;
+const HUMAN = `password_hash IS DISTINCT FROM '${FORUM_SYSTEM_PASSWORD_HASH}'`;
 const BY_HUMAN = `user_id NOT IN (SELECT id FROM users WHERE password_hash = '${FORUM_SYSTEM_PASSWORD_HASH}')`;
 
-export function getDashboardStats() {
+export async function getDashboardStats() {
   const db = getDb();
   const now = nowIso();
   const totalMembers = (
-    db.prepare(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN}`).get() as { c: number }
+    await db.prepare(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN}`).get() as { c: number }
   ).c;
   const activeMembers = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM users u
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM users u
          WHERE u.deleted_at IS NULL AND ${HUMAN} AND NOT (${bannedClause("u")})`,
-      )
-      .get(now) as { c: number }
+            )
+            .get(now) as { c: number }
   ).c;
   const totalTopics = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM forum_topics
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM forum_topics
          WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN}`,
-      )
-      .get() as { c: number }
+            )
+            .get() as { c: number }
   ).c;
   const totalPosts = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM forum_posts
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM forum_posts
          WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN}`,
-      )
-      .get() as { c: number }
+            )
+            .get() as { c: number }
   ).c;
   const activeBans = (
-    db
-      .prepare(`SELECT COUNT(*) as c FROM users u WHERE ${bannedClause("u")}`)
-      .get(now) as { c: number }
+    await db
+            .prepare(`SELECT COUNT(*) as c FROM users u WHERE ${bannedClause("u")}`)
+            .get(now) as { c: number }
   ).c;
   const activeForumTeams = (
-    db
-      .prepare(`SELECT COUNT(*) as c FROM teams WHERE is_forum_active = 1`)
-      .get() as { c: number }
+    await db
+            .prepare(`SELECT COUNT(*) as c FROM teams WHERE is_forum_active = 1`)
+            .get() as { c: number }
   ).c;
 
   const validVotes = (
-    db.prepare(`SELECT COUNT(*) as c FROM fan_votes WHERE status = 'active'`).get() as {
+    await db.prepare(`SELECT COUNT(*) as c FROM fan_votes WHERE status = 'active'`).get() as {
       c: number;
     }
   ).c;
   const phoneVerifiedMembers = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM users WHERE phone_verified_at IS NOT NULL AND deleted_at IS NULL`,
-      )
-      .get() as { c: number }
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM users WHERE phone_verified_at IS NOT NULL AND deleted_at IS NULL`,
+            )
+            .get() as { c: number }
   ).c;
   const emailVerifiedMembers = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM users
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM users
          WHERE email_verified_at IS NOT NULL AND phone_verified_at IS NULL AND deleted_at IS NULL`,
-      )
-      .get() as { c: number }
+            )
+            .get() as { c: number }
   ).c;
   /** Old e-mail census ballots: kept for the record, not part of any public count. */
   const legacyCensusVotes = (
-    db.prepare(`SELECT COUNT(*) as c FROM votes WHERE revoked_at IS NULL`).get() as { c: number }
+    await db.prepare(`SELECT COUNT(*) as c FROM votes WHERE revoked_at IS NULL`).get() as { c: number }
   ).c;
 
-  const recent = db
-    .prepare(
-      `SELECT ma.id, ma.action, ma.reason, ma.created_at,
+  const recent = await db
+      .prepare(
+        `SELECT ma.id, ma.action, ma.reason, ma.created_at,
               ma.target_user_id, ma.target_topic_id, ma.target_post_id,
               m.username as moderator_username,
               t.username as target_username
@@ -119,8 +119,8 @@ export function getDashboardStats() {
        LEFT JOIN users t ON t.id = ma.target_user_id
        ORDER BY ma.id DESC
        LIMIT 15`,
-    )
-    .all() as Array<{
+      )
+      .all() as Array<{
     id: number;
     action: string;
     reason: string | null;
@@ -154,7 +154,7 @@ export function getDashboardStats() {
       targetTopicId: row.target_topic_id,
       targetPostId: row.target_post_id,
     })),
-    ...getDashboardExtras(db),
+    ...await getDashboardExtras(db),
   };
 }
 
@@ -164,84 +164,84 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * Growth, distribution, queue and abuse indicators. Every figure is a plain
  * COUNT over live rows; definitions are shown next to each card in the UI.
  */
-function getDashboardExtras(db: Database.Database, nowMs = Date.now()) {
+async function getDashboardExtras(db: Db, nowMs = Date.now()) {
   const since = (days: number) => new Date(nowMs - days * DAY_MS).toISOString();
-  const count = (sql: string, ...params: unknown[]) => (db.prepare(sql).get(...params) as { c: number }).c;
+  const count = async (sql: string, ...params: unknown[]) => (await db.prepare(sql).get(...params) as { c: number }).c;
 
   const signups = {
-    day: count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(1)),
-    week: count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(7)),
-    month: count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(30)),
+    day: await count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(1)),
+    week: await count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(7)),
+    month: await count(`SELECT COUNT(*) as c FROM users WHERE deleted_at IS NULL AND ${HUMAN} AND created_at >= ?`, since(30)),
   };
-  const newTopicsWeek = count(
-    `SELECT COUNT(*) as c FROM forum_topics WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN} AND created_at >= ?`,
-    since(7),
-  );
-  const newPostsWeek = count(
-    `SELECT COUNT(*) as c FROM forum_posts WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN} AND created_at >= ?`,
-    since(7),
-  );
-  const openReports = count(`SELECT COUNT(*) as c FROM forum_reports WHERE status = 'open'`);
-  const held = countHeldItems(db);
+  const newTopicsWeek = await count(
+      `SELECT COUNT(*) as c FROM forum_topics WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN} AND created_at >= ?`,
+      since(7),
+    );
+  const newPostsWeek = await count(
+      `SELECT COUNT(*) as c FROM forum_posts WHERE deleted_at IS NULL AND held_at IS NULL AND ${BY_HUMAN} AND created_at >= ?`,
+      since(7),
+    );
+  const openReports = await count(`SELECT COUNT(*) as c FROM forum_reports WHERE status = 'open'`);
+  const held = await countHeldItems(db);
 
-  const teamDistribution = db
-    .prepare(
-      `SELECT fv.team_id as teamId, COALESCE(t.name, fv.team_id) as name, COUNT(*) as votes
+  const teamDistribution = await db
+      .prepare(
+        `SELECT fv.team_id as teamId, COALESCE(t.name, fv.team_id) as name, COUNT(*) as votes
        FROM fan_votes fv LEFT JOIN teams t ON t.id = fv.team_id
-       WHERE fv.status = 'active' GROUP BY fv.team_id ORDER BY votes DESC, name LIMIT 10`,
-    )
-    .all() as { teamId: string; name: string; votes: number }[];
-  const provinceDistribution = db
-    .prepare(
-      `SELECT city as province, COUNT(*) as votes FROM fan_votes
+       WHERE fv.status = 'active' GROUP BY fv.team_id, t.name ORDER BY votes DESC, name LIMIT 10`,
+      )
+      .all() as { teamId: string; name: string; votes: number }[];
+  const provinceDistribution = await db
+      .prepare(
+        `SELECT city as province, COUNT(*) as votes FROM fan_votes
        WHERE status = 'active' AND city IS NOT NULL GROUP BY city ORDER BY votes DESC, city LIMIT 10`,
-    )
-    .all() as { province: string; votes: number }[];
-  const votesWithoutProvince = count(
-    `SELECT COUNT(*) as c FROM fan_votes WHERE status = 'active' AND city IS NULL`,
-  );
+      )
+      .all() as { province: string; votes: number }[];
+  const votesWithoutProvince = await count(
+      `SELECT COUNT(*) as c FROM fan_votes WHERE status = 'active' AND city IS NULL`,
+    );
 
   const day = since(1);
   const suspicious = {
     /** SMS codes requested in the last 24 hours (each one is a paid SMS in production). */
-    otpRequests: count(`SELECT COUNT(*) as c FROM auth_otps WHERE created_at >= ?`, day),
+    otpRequests: await count(`SELECT COUNT(*) as c FROM auth_otps WHERE created_at >= ?`, day),
     /** Codes locked after too many wrong guesses in the last 24 hours. */
-    otpLockouts: count(
-      `SELECT COUNT(*) as c FROM auth_otps WHERE created_at >= ? AND attempts >= max_attempts`,
-      day,
-    ),
+    otpLockouts: await count(
+          `SELECT COUNT(*) as c FROM auth_otps WHERE created_at >= ? AND attempts >= max_attempts`,
+          day,
+        ),
     /** Most sign-ups in a single clock hour over the last 24 hours (a burst hints at scripted sign-ups). */
-    signupPeakHour: count(
-      `SELECT COALESCE(MAX(n), 0) as c FROM (SELECT COUNT(*) as n FROM users WHERE ${HUMAN} AND created_at >= ?
+    signupPeakHour: await count(
+          `SELECT COALESCE(MAX(n), 0) as c FROM (SELECT COUNT(*) as n FROM users WHERE ${HUMAN} AND created_at >= ?
        GROUP BY substr(created_at, 1, 13))`,
-      day,
-    ),
+          day,
+        ),
     /** Members who tried a staff-only action in the last 24 hours. */
-    deniedAdminAttempts: count(
-      `SELECT COUNT(*) as c FROM security_events WHERE created_at >= ? AND action LIKE 'admin_denied:%'`,
-      day,
-    ),
+    deniedAdminAttempts: await count(
+          `SELECT COUNT(*) as c FROM security_events WHERE created_at >= ? AND action LIKE 'admin_denied:%'`,
+          day,
+        ),
     /** Failed staff sign-ins / 2FA checks in the last 24 hours. */
-    failedStaffLogins: count(
-      `SELECT COUNT(*) as c FROM security_events WHERE created_at >= ? AND success = 0
+    failedStaffLogins: await count(
+          `SELECT COUNT(*) as c FROM security_events WHERE created_at >= ? AND success = 0
        AND action NOT LIKE 'admin_denied:%'`,
-      day,
-    ),
+          day,
+        ),
     /** Votes voided by staff in the last 30 days. */
-    votesVoided30d: count(
-      `SELECT COUNT(*) as c FROM fan_votes WHERE status = 'void' AND voided_at >= ?`,
-      since(30),
-    ),
+    votesVoided30d: await count(
+          `SELECT COUNT(*) as c FROM fan_votes WHERE status = 'void' AND voided_at >= ?`,
+          since(30),
+        ),
   };
 
-  const recentAdmin = db
-    .prepare(
-      `SELECT a.id, a.action, a.target_type as targetType, a.target_id as targetId, a.reason,
+  const recentAdmin = await db
+      .prepare(
+        `SELECT a.id, a.action, a.target_type as targetType, a.target_id as targetId, a.reason,
               a.created_at as createdAt, u.username as actor
        FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
        ORDER BY a.id DESC LIMIT 10`,
-    )
-    .all() as {
+      )
+      .all() as {
     id: number;
     action: string;
     targetType: string | null;
@@ -276,20 +276,20 @@ export type UserListFilters = {
   limit: number;
 };
 
-export function listAdminUsers(filters: UserListFilters) {
+export async function listAdminUsers(filters: UserListFilters) {
   const db = getDb();
   const now = nowIso();
   const where: string[] = ["1=1"];
   const params: unknown[] = [];
 
   if (filters.q && !filters.pii) {
-    where.push(`(u.username_norm LIKE ? OR u.display_name LIKE ?)`);
+    where.push(`(u.username_norm ILIKE ? OR u.display_name ILIKE ?)`);
     params.push(filters.q, filters.q);
   } else if (filters.q) {
     where.push(
-      `(u.username_norm LIKE ? OR u.email_norm LIKE ? OR u.display_name LIKE ?
-        OR IFNULL(u.first_name,'') LIKE ? OR IFNULL(u.last_name,'') LIKE ?
-        OR IFNULL(u.phone,'') LIKE ? OR IFNULL(u.phone_norm,'') LIKE ?)`,
+      `(u.username_norm ILIKE ? OR u.email_norm ILIKE ? OR u.display_name ILIKE ?
+        OR COALESCE(u.first_name,'') ILIKE ? OR COALESCE(u.last_name,'') ILIKE ?
+        OR COALESCE(u.phone,'') ILIKE ? OR COALESCE(u.phone_norm,'') ILIKE ?)`,
     );
     params.push(
       filters.q,
@@ -319,14 +319,14 @@ export function listAdminUsers(filters: UserListFilters) {
 
   const whereSql = where.join(" AND ");
   const total = (
-    db.prepare(`SELECT COUNT(*) as c FROM users u WHERE ${whereSql}`).get(...params) as {
+    await db.prepare(`SELECT COUNT(*) as c FROM users u WHERE ${whereSql}`).get(...params) as {
       c: number;
     }
   ).c;
 
-  const rows = db
-    .prepare(
-      `SELECT u.id, u.username, u.display_name, u.team_id, u.status, u.role,
+  const rows = await db
+      .prepare(
+        `SELECT u.id, u.username, u.display_name, u.team_id, u.status, u.role,
               u.created_at, u.last_login_at, u.banned_at, u.ban_reason, u.ban_expires_at,
               u.phone_verified_at, u.email_verified_at, u.deleted_at, tm.name as team_name
        FROM users u
@@ -334,8 +334,8 @@ export function listAdminUsers(filters: UserListFilters) {
        WHERE ${whereSql}
        ORDER BY u.id DESC
        LIMIT ? OFFSET ?`,
-    )
-    .all(...params, filters.limit, filters.offset) as Array<{
+      )
+      .all(...params, filters.limit, filters.offset) as Array<{
     id: number;
     username: string;
     display_name: string;
@@ -375,15 +375,15 @@ export function listAdminUsers(filters: UserListFilters) {
   };
 }
 
-export function listAdminTeamOptions() {
-  return getDb()
-    .prepare(
-      `SELECT id, name FROM teams WHERE id IN (SELECT DISTINCT team_id FROM users WHERE team_id IS NOT NULL)
+export async function listAdminTeamOptions() {
+  return await getDb()
+      .prepare(
+        `SELECT id, name FROM teams WHERE id IN (SELECT DISTINCT team_id FROM users WHERE team_id IS NOT NULL)
        UNION
        SELECT id, name FROM teams WHERE is_forum_active = 1
        ORDER BY name`,
-    )
-    .all() as Array<{ id: string; name: string }>;
+      )
+      .all() as Array<{ id: string; name: string }>;
 }
 
 /**
@@ -391,22 +391,22 @@ export function listAdminTeamOptions() {
  * the account and its forum history only; admins also see the e-mail and
  * profile fields. The phone number is always masked.
  */
-export function getAdminUserDetail(id: number, viewerRole: string) {
+export async function getAdminUserDetail(id: number, viewerRole: string) {
   const pii = can(viewerRole, "users.pii");
-  const user = findUserById(id);
+  const user = await findUserById(id);
   if (!user) return null;
   const team = user.team_id
-    ? (getDb()
-        .prepare(`SELECT id, name FROM teams WHERE id = ?`)
-        .get(user.team_id) as { id: string; name: string } | undefined)
+    ? (await getDb()
+              .prepare(`SELECT id, name FROM teams WHERE id = ?`)
+              .get(user.team_id) as { id: string; name: string } | undefined)
     : undefined;
 
-  const vote = getDb()
-    .prepare(
-      `SELECT v.team_id, t.name as team_name, v.city, v.cast_at, v.status, v.voided_at, v.void_reason
+  const vote = await getDb()
+      .prepare(
+        `SELECT v.team_id, t.name as team_name, v.city, v.cast_at, v.status, v.voided_at, v.void_reason
        FROM fan_votes v LEFT JOIN teams t ON t.id = v.team_id WHERE v.user_id = ?`,
-    )
-    .get(id) as
+      )
+      .get(id) as
     | {
         team_id: string;
         team_name: string | null;
@@ -418,12 +418,12 @@ export function getAdminUserDetail(id: number, viewerRole: string) {
       }
     | undefined;
 
-  const topics = getDb()
-    .prepare(
-      `SELECT id, team_id, title, created_at, locked_at, deleted_at, held_at
+  const topics = await getDb()
+      .prepare(
+        `SELECT id, team_id, title, created_at, locked_at, deleted_at, held_at
        FROM forum_topics WHERE user_id = ? ORDER BY id DESC LIMIT 20`,
-    )
-    .all(id) as Array<{
+      )
+      .all(id) as Array<{
     id: number;
     team_id: string;
     board: string;
@@ -435,16 +435,16 @@ export function getAdminUserDetail(id: number, viewerRole: string) {
     held_at: string | null;
   }>;
 
-  const posts = getDb()
-    .prepare(
-      `SELECT p.id, p.topic_id, p.content, p.created_at, p.deleted_at, p.held_at, t.title as topic_title, t.team_id
+  const posts = await getDb()
+      .prepare(
+        `SELECT p.id, p.topic_id, p.content, p.created_at, p.deleted_at, p.held_at, t.title as topic_title, t.team_id
        FROM forum_posts p
        JOIN forum_topics t ON t.id = p.topic_id
        WHERE p.user_id = ?
        ORDER BY p.id DESC
        LIMIT 20`,
-    )
-    .all(id) as Array<{
+      )
+      .all(id) as Array<{
     id: number;
     topic_id: number;
     content: string;
@@ -511,20 +511,20 @@ export function getAdminUserDetail(id: number, viewerRole: string) {
   };
 }
 
-export function adminBanUser(
+export async function adminBanUser(
   targetId: number,
   reason: string,
   expiresAt: string | null,
   moderator: UserRow,
 ) {
   const db = getDb();
-  const denied = banPermissionError(targetId, moderator);
+  const denied = await banPermissionError(targetId, moderator);
   if (denied) return denied;
   return db.transaction(() => banUser(targetId, reason, expiresAt, moderator.id))();
 }
 
-function banPermissionError(targetId: number, moderator: UserRow) {
-  const target = findUserById(targetId);
+async function banPermissionError(targetId: number, moderator: UserRow) {
+  const target = await findUserById(targetId);
   if (!target) return { ok: false as const, error: "Kullanıcı bulunamadı." };
   if (target.id === moderator.id) {
     return { ok: false as const, error: "Kendi hesabın üzerinde ban işlemi yapamazsın." };
@@ -535,9 +535,9 @@ function banPermissionError(targetId: number, moderator: UserRow) {
   return null;
 }
 
-export function adminUnbanUser(targetId: number, reason: string, moderator: UserRow) {
+export async function adminUnbanUser(targetId: number, reason: string, moderator: UserRow) {
   const db = getDb();
-  const denied = banPermissionError(targetId, moderator);
+  const denied = await banPermissionError(targetId, moderator);
   if (denied) return denied;
   return db.transaction(() => unbanUser(targetId, reason, moderator.id))();
 }
@@ -575,13 +575,13 @@ function pushBoardFilter(value: string | null, where: string[], params: unknown[
   params.push(value);
 }
 
-export function listAdminTopics(filters: TopicListFilters) {
+export async function listAdminTopics(filters: TopicListFilters) {
   const db = getDb();
   const where: string[] = ["1=1"];
   const params: unknown[] = [];
   pushBoardFilter(filters.teamId, where, params);
   if (filters.q) {
-    where.push(`t.title LIKE ?`);
+    where.push(`t.title ILIKE ?`);
     params.push(filters.q);
   }
   if (filters.deleted === "live") {
@@ -591,14 +591,14 @@ export function listAdminTopics(filters: TopicListFilters) {
 
   const whereSql = where.join(" AND ");
   const total = (
-    db.prepare(`SELECT COUNT(*) as c FROM forum_topics t WHERE ${whereSql}`).get(...params) as {
+    await db.prepare(`SELECT COUNT(*) as c FROM forum_topics t WHERE ${whereSql}`).get(...params) as {
       c: number;
     }
   ).c;
 
-  const rows = db
-    .prepare(
-      `SELECT t.id, t.team_id, t.board, t.city, t.title, t.created_at, t.locked_at, t.deleted_at, t.held_at, t.user_id,
+  const rows = await db
+      .prepare(
+        `SELECT t.id, t.team_id, t.board, t.city, t.title, t.created_at, t.locked_at, t.deleted_at, t.held_at, t.user_id,
               u.username,
               tm.name as team_name,
               (SELECT COUNT(*) FROM forum_posts p WHERE p.topic_id = t.id AND p.deleted_at IS NULL) as post_count
@@ -608,8 +608,8 @@ export function listAdminTopics(filters: TopicListFilters) {
        WHERE ${whereSql}
        ORDER BY t.id DESC
        LIMIT ? OFFSET ?`,
-    )
-    .all(...params, filters.limit, filters.offset) as Array<{
+      )
+      .all(...params, filters.limit, filters.offset) as Array<{
     id: number;
     team_id: string;
     board: string;
@@ -653,7 +653,7 @@ export type PostListFilters = {
   limit: number;
 };
 
-export function listAdminPosts(filters: PostListFilters) {
+export async function listAdminPosts(filters: PostListFilters) {
   const db = getDb();
   const where: string[] = ["1=1"];
   const params: unknown[] = [];
@@ -663,7 +663,7 @@ export function listAdminPosts(filters: PostListFilters) {
     params.push(filters.topicId);
   }
   if (filters.q) {
-    where.push(`p.content LIKE ?`);
+    where.push(`p.content ILIKE ?`);
     params.push(filters.q);
   }
   if (filters.deleted === "live") {
@@ -673,19 +673,19 @@ export function listAdminPosts(filters: PostListFilters) {
 
   const whereSql = where.join(" AND ");
   const total = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c
          FROM forum_posts p
          JOIN forum_topics t ON t.id = p.topic_id
          WHERE ${whereSql}`,
-      )
-      .get(...params) as { c: number }
+            )
+            .get(...params) as { c: number }
   ).c;
 
-  const rows = db
-    .prepare(
-      `SELECT p.id, p.topic_id, p.content, p.created_at, p.deleted_at, p.held_at, p.user_id,
+  const rows = await db
+      .prepare(
+        `SELECT p.id, p.topic_id, p.content, p.created_at, p.deleted_at, p.held_at, p.user_id,
               u.username, t.title as topic_title, t.team_id, t.board, t.city, tm.name as team_name
        FROM forum_posts p
        JOIN forum_topics t ON t.id = p.topic_id
@@ -694,8 +694,8 @@ export function listAdminPosts(filters: PostListFilters) {
        WHERE ${whereSql}
        ORDER BY p.id DESC
        LIMIT ? OFFSET ?`,
-    )
-    .all(...params, filters.limit, filters.offset) as Array<{
+      )
+      .all(...params, filters.limit, filters.offset) as Array<{
     id: number;
     topic_id: number;
     content: string;
@@ -734,95 +734,95 @@ export function listAdminPosts(filters: PostListFilters) {
  * Moderators can't act on content by staff of the same or higher rank
  * (same rule as bans). Super admins can act on anything.
  */
-function contentRankError(authorId: number, moderator: UserRow) {
+async function contentRankError(authorId: number, moderator: UserRow) {
   if (authorId === moderator.id || moderator.role === "super_admin") return null;
-  const author = getDb().prepare(`SELECT role FROM users WHERE id = ?`).get(authorId) as { role: string } | undefined;
+  const author = await getDb().prepare(`SELECT role FROM users WHERE id = ?`).get(authorId) as { role: string } | undefined;
   if (author && roleRank(author.role) >= roleRank(moderator.role)) {
     return { ok: false as const, error: "Aynı veya daha yüksek yetkili birinin içeriğine işlem yapamazsın.", status: 403 };
   }
   return null;
 }
 
-export function lockTopicAdmin(topicId: number, lock: boolean, reason: string, moderator: UserRow) {
-  const topic = findTopic(topicId);
+export async function lockTopicAdmin(topicId: number, lock: boolean, reason: string, moderator: UserRow) {
+  const topic = await findTopic(topicId);
   if (!topic) return { ok: false as const, error: "Konu bulunamadı.", status: 404 };
   if (topic.deleted_at) return { ok: false as const, error: "Silinmiş konu kilitlenemez.", status: 409 };
-  const rank = contentRankError(topic.user_id, moderator);
+  const rank = await contentRankError(topic.user_id, moderator);
   if (rank) return rank;
 
   if (lock && topic.locked_at) return { ok: true as const };
   if (!lock && !topic.locked_at) return { ok: true as const };
 
   const db = getDb();
-  db.transaction(() => {
-    setTopicLocked(topicId, lock);
-    recordModerationAction({
-      moderatorUserId: moderator.id,
-      targetTopicId: topicId,
-      targetUserId: topic.user_id,
-      action: lock ? "lock_topic" : "unlock_topic",
-      reason,
-    });
-  })();
+  await db.transaction(async () => {
+        await setTopicLocked(topicId, lock);
+        await recordModerationAction({
+                moderatorUserId: moderator.id,
+                targetTopicId: topicId,
+                targetUserId: topic.user_id,
+                action: lock ? "lock_topic" : "unlock_topic",
+                reason,
+              });
+      })();
   return { ok: true as const };
 }
 
-export function deleteTopicAdmin(topicId: number, reason: string, moderator: UserRow) {
-  const topic = findTopic(topicId);
+export async function deleteTopicAdmin(topicId: number, reason: string, moderator: UserRow) {
+  const topic = await findTopic(topicId);
   if (!topic) return { ok: false as const, error: "Konu bulunamadı.", status: 404 };
   if (topic.deleted_at) return { ok: false as const, error: "Konu zaten silinmiş.", status: 409 };
-  const rank = contentRankError(topic.user_id, moderator);
+  const rank = await contentRankError(topic.user_id, moderator);
   if (rank) return rank;
 
   const db = getDb();
-  const ok = db.transaction(() => {
-    const deleted = adminSoftDeleteTopic(topicId);
-    if (!deleted) return false;
-    recordModerationAction({
-      moderatorUserId: moderator.id,
-      targetTopicId: topicId,
-      targetUserId: topic.user_id,
-      action: "delete_topic",
-      reason,
-    });
-    notifyModeration(db, {
-      userId: topic.user_id,
-      topicId,
-      body: `"${topic.title.slice(0, 80)}" konun moderatör tarafından kaldırıldı. Gerekçe: ${reason.slice(0, 160)}`,
-    });
-    return true;
-  })();
+  const ok = await db.transaction(async () => {
+      const deleted = await adminSoftDeleteTopic(topicId);
+      if (!deleted) return false;
+      await recordModerationAction({
+              moderatorUserId: moderator.id,
+              targetTopicId: topicId,
+              targetUserId: topic.user_id,
+              action: "delete_topic",
+              reason,
+            });
+      await notifyModeration(db, {
+              userId: topic.user_id,
+              topicId,
+              body: `"${topic.title.slice(0, 80)}" konun moderatör tarafından kaldırıldı. Gerekçe: ${reason.slice(0, 160)}`,
+            });
+      return true;
+    })();
   if (!ok) return { ok: false as const, error: "Konu silinemedi.", status: 409 };
   return { ok: true as const };
 }
 
-export function deletePostAdmin(postId: number, reason: string, moderator: UserRow) {
-  const post = findPost(postId);
+export async function deletePostAdmin(postId: number, reason: string, moderator: UserRow) {
+  const post = await findPost(postId);
   if (!post) return { ok: false as const, error: "Mesaj bulunamadı.", status: 404 };
   if (post.deleted_at) return { ok: false as const, error: "Mesaj zaten silinmiş.", status: 409 };
-  const rank = contentRankError(post.user_id, moderator);
+  const rank = await contentRankError(post.user_id, moderator);
   if (rank) return rank;
 
   const db = getDb();
-  const ok = db.transaction(() => {
-    const deleted = adminSoftDeletePost(postId);
-    if (!deleted) return false;
-    recordModerationAction({
-      moderatorUserId: moderator.id,
-      targetPostId: postId,
-      targetTopicId: post.topic_id,
-      targetUserId: post.user_id,
-      action: "delete_post",
-      reason,
-    });
-    notifyModeration(db, {
-      userId: post.user_id,
-      topicId: post.topic_id,
-      postId,
-      body: `Bir yorumun moderatör tarafından kaldırıldı. Gerekçe: ${reason.slice(0, 160)}`,
-    });
-    return true;
-  })();
+  const ok = await db.transaction(async () => {
+      const deleted = await adminSoftDeletePost(postId);
+      if (!deleted) return false;
+      await recordModerationAction({
+              moderatorUserId: moderator.id,
+              targetPostId: postId,
+              targetTopicId: post.topic_id,
+              targetUserId: post.user_id,
+              action: "delete_post",
+              reason,
+            });
+      await notifyModeration(db, {
+              userId: post.user_id,
+              topicId: post.topic_id,
+              postId,
+              body: `Bir yorumun moderatör tarafından kaldırıldı. Gerekçe: ${reason.slice(0, 160)}`,
+            });
+      return true;
+    })();
   if (!ok) return { ok: false as const, error: "Mesaj silinemedi.", status: 409 };
   return { ok: true as const };
 }
@@ -838,7 +838,7 @@ export type ModerationFilters = {
   limit: number;
 };
 
-export function listModeration(filters: ModerationFilters) {
+export async function listModeration(filters: ModerationFilters) {
   const db = getDb();
   const where: string[] = ["1=1"];
   const params: unknown[] = [];
@@ -851,7 +851,7 @@ export function listModeration(filters: ModerationFilters) {
     params.push(filters.moderatorId);
   }
   if (filters.moderatorQ) {
-    where.push(`m.username LIKE ?`);
+    where.push(`m.username ILIKE ?`);
     params.push(filters.moderatorQ);
   }
   if (filters.targetUserId) {
@@ -869,19 +869,19 @@ export function listModeration(filters: ModerationFilters) {
 
   const whereSql = where.join(" AND ");
   const total = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c
          FROM moderation_actions ma
          JOIN users m ON m.id = ma.moderator_user_id
          WHERE ${whereSql}`,
-      )
-      .get(...params) as { c: number }
+            )
+            .get(...params) as { c: number }
   ).c;
 
-  const rows = db
-    .prepare(
-      `SELECT ma.id, ma.action, ma.reason, ma.created_at,
+  const rows = await db
+      .prepare(
+        `SELECT ma.id, ma.action, ma.reason, ma.created_at,
               ma.moderator_user_id, ma.target_user_id, ma.target_topic_id, ma.target_post_id,
               m.username as moderator_username,
               t.username as target_username
@@ -891,8 +891,8 @@ export function listModeration(filters: ModerationFilters) {
        WHERE ${whereSql}
        ORDER BY ma.id DESC
        LIMIT ? OFFSET ?`,
-    )
-    .all(...params, filters.limit, filters.offset) as Array<{
+      )
+      .all(...params, filters.limit, filters.offset) as Array<{
     id: number;
     action: string;
     reason: string | null;
@@ -928,18 +928,18 @@ export type BanListFilters = {
   limit: number;
 };
 
-export function listBans(filters: BanListFilters) {
+export async function listBans(filters: BanListFilters) {
   const db = getDb();
   const now = nowIso();
 
   if (filters.state === "active") {
     const where = bannedClause("u");
     const total = (
-      db.prepare(`SELECT COUNT(*) as c FROM users u WHERE ${where}`).get(now) as { c: number }
+      await db.prepare(`SELECT COUNT(*) as c FROM users u WHERE ${where}`).get(now) as { c: number }
     ).c;
-    const rows = db
-      .prepare(
-        `SELECT u.id, u.username, u.banned_at, u.ban_reason, u.ban_expires_at, u.status,
+    const rows = await db
+          .prepare(
+            `SELECT u.id, u.username, u.banned_at, u.ban_reason, u.ban_expires_at, u.status,
                 (SELECT m.username FROM moderation_actions ma
                  JOIN users m ON m.id = ma.moderator_user_id
                  WHERE ma.target_user_id = u.id AND ma.action = 'ban_user'
@@ -948,8 +948,8 @@ export function listBans(filters: BanListFilters) {
          WHERE ${where}
          ORDER BY u.banned_at DESC
          LIMIT ? OFFSET ?`,
-      )
-      .all(now, filters.limit, filters.offset) as Array<{
+          )
+          .all(now, filters.limit, filters.offset) as Array<{
       id: number;
       username: string;
       banned_at: string | null;
@@ -974,16 +974,16 @@ export function listBans(filters: BanListFilters) {
   }
 
   const total = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM moderation_actions
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM moderation_actions
          WHERE action IN ('ban_user','unban_user')`,
-      )
-      .get() as { c: number }
+            )
+            .get() as { c: number }
   ).c;
-  const rows = db
-    .prepare(
-      `SELECT ma.id, ma.action, ma.reason, ma.created_at, ma.target_user_id,
+  const rows = await db
+      .prepare(
+        `SELECT ma.id, ma.action, ma.reason, ma.created_at, ma.target_user_id,
               m.username as moderator_username,
               u.username as target_username,
               u.banned_at, u.ban_expires_at, u.status
@@ -993,8 +993,8 @@ export function listBans(filters: BanListFilters) {
        WHERE ma.action IN ('ban_user','unban_user')
        ORDER BY ma.id DESC
        LIMIT ? OFFSET ?`,
-    )
-    .all(filters.limit, filters.offset) as Array<{
+      )
+      .all(filters.limit, filters.offset) as Array<{
     id: number;
     action: string;
     reason: string | null;
@@ -1057,18 +1057,18 @@ export function adminCountHeld() {
   return countHeldItems(getDb());
 }
 
-export function adminApproveHeld(
+export async function adminApproveHeld(
   kind: HeldKind,
   id: number,
   moderator: UserRow,
   reason: string | null,
 ) {
-  const result = approveHeldContent(getDb(), kind, id, moderator.id, reason);
+  const result = await approveHeldContent(getDb(), kind, id, moderator.id, reason);
   if (result.ok) {
-    const author = getDb()
-      .prepare(kind === "topic" ? `SELECT user_id FROM forum_topics WHERE id = ?` : `SELECT user_id FROM forum_posts WHERE id = ?`)
-      .get(id) as { user_id: number } | undefined;
-    if (author) refreshBadges(getDb(), author.user_id);
+    const author = await getDb()
+          .prepare(kind === "topic" ? `SELECT user_id FROM forum_topics WHERE id = ?` : `SELECT user_id FROM forum_posts WHERE id = ?`)
+          .get(id) as { user_id: number } | undefined;
+    if (author) await refreshBadges(getDb(), author.user_id);
   }
   return result;
 }
@@ -1082,7 +1082,7 @@ export function adminRejectHeld(
   return rejectHeldContent(getDb(), kind, id, moderator.id, reason);
 }
 
-export function adminBanHeld(
+export async function adminBanHeld(
   kind: HeldKind,
   id: number,
   moderator: UserRow,
@@ -1093,21 +1093,21 @@ export function adminBanHeld(
     return { ok: false as const, error: "Gerekçe zorunlu.", status: 400 };
   }
   const db = getDb();
-  const loaded = loadHeldTarget(db, kind, id);
+  const loaded = await loadHeldTarget(db, kind, id);
   if (!loaded.ok) return loaded;
   if (!canBanRole(moderator.role, loaded.target.authorRole)) {
     return { ok: false as const, error: "Bu hesabı banlama yetkin yok.", status: 409 };
   }
   try {
-    return db.transaction(() => {
-      const rejected = rejectHeldContent(db, kind, id, moderator.id, trimmed);
-      if (!rejected.ok) return rejected;
-      const banned = banUser(loaded.target.userId, trimmed, null, moderator.id);
-      if (!banned.ok) {
-        throw new Error(banned.error);
-      }
-      return { ok: true as const };
-    })();
+    return await db.transaction(async () => {
+          const rejected = await rejectHeldContent(db, kind, id, moderator.id, trimmed);
+          if (!rejected.ok) return rejected;
+          const banned = await banUser(loaded.target.userId, trimmed, null, moderator.id);
+          if (!banned.ok) {
+            throw new Error(banned.error);
+          }
+          return { ok: true as const };
+        })();
   } catch (err) {
     return {
       ok: false as const,

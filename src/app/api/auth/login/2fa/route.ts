@@ -33,24 +33,24 @@ export async function POST(req: Request) {
 
   const ipHash = hashedIp(`auth-totp:${await clientIp()}`);
   const uaHash = hmac(`ua:${req.headers.get("user-agent") || ""}`);
-  const result = completeLoginChallenge(getDb(), challenge, parsed.data.code, {
-    ipHash,
-    uaHash,
-  });
+  const result = await completeLoginChallenge(getDb(), challenge, parsed.data.code, {
+      ipHash,
+      uaHash,
+    });
   if (!result.ok) {
     return noStoreJson({ error: result.error }, result.status);
   }
 
-  const loaded = findUserById(result.userId);
+  const loaded = await findUserById(result.userId);
   if (!loaded) {
     return noStoreJson({ error: "Doğrulama kodu hatalı." }, 401);
   }
-  const user = reconcileExpiredBan(loaded);
+  const user = await reconcileExpiredBan(loaded);
   if (isUserBanned(user)) {
     return noStoreJson({ error: "Doğrulama kodu hatalı." }, 401);
   }
 
-  const raw = createSession(user.id);
+  const raw = await createSession(user.id);
   const res = noStoreJson({
     ok: true,
     user: toPublicUser({ ...user, last_login_at: new Date().toISOString() }),

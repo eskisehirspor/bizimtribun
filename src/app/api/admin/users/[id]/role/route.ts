@@ -29,7 +29,7 @@ export async function PUT(
   const reason = cleanAdminReason(parsed.data.reason);
   if (!reason) return noStoreJson({ error: "Gerekçe en az 3 karakter olmalı." }, 400);
 
-  const result = adminSetRole(id, parsed.data.role, reason, gate.user);
+  const result = await adminSetRole(id, parsed.data.role, reason, gate.user);
   if (!result.ok) return noStoreJson({ error: result.error }, 409);
   return noStoreJson({ ok: true });
 }

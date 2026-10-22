@@ -1,6 +1,23 @@
 /** Crawler policy only. Does not replace server-side auth or requireAdmin(). */
 
-export const ROBOTS_ALLOW = ["/", "/il/", "/takimlar", "/takim/", "/forum", "/u/"] as const;
+export const ROBOTS_ALLOW = [
+  "/",
+  "/il/",
+  "/takimlar",
+  "/takim/",
+  "/forum",
+  "/u/",
+  // Read-only data the public pages load in the browser. Google renders pages
+  // with JavaScript and needs these to see what a visitor sees; the responses
+  // themselves carry X-Robots-Tag: noindex (next.config.ts).
+  "/api/stats",
+  "/api/site",
+  "/api/teams/catalog",
+  "/api/forum/boards/summary",
+  "/api/forum/genel/topics",
+  "/api/forum/topics/",
+  "/api/users/",
+] as const;
 
 export const ROBOTS_DISALLOW = [
   "/admin",

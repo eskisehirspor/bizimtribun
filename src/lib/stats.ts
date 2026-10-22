@@ -1,4 +1,4 @@
-import { getDb, type Participant } from "./db";
+import { dbGeneration, getDb, type Participant } from "./db";
 import { listTeamCatalog } from "./team-catalog";
 import { hmac } from "./crypto";
 
@@ -17,24 +17,24 @@ const LIVE = `fv.status = 'active'`;
  */
 const memo = new WeakMap<object, Map<string, { key: string; value: unknown }>>();
 
-function dataVersion() {
+async function dataVersion() {
   const db = getDb();
-  const v = db
-    .prepare(
-      `SELECT (SELECT COUNT(*) FROM fan_votes WHERE status = 'active') as active,
+  const v = await db
+      .prepare(
+        `SELECT (SELECT COUNT(*) FROM fan_votes WHERE status = 'active') as active,
               (SELECT COALESCE(MAX(id), 0) FROM fan_votes) || ':' ||
                 (SELECT COUNT(*) FROM fan_vote_restores) as maxId,
               (SELECT COUNT(*) || ':' || COALESCE(MAX(admin_edited_at), '') FROM teams) as teams`,
-    )
-    .get() as { active: number; maxId: string; teams: string };
+      )
+      .get() as { active: number; maxId: string; teams: string };
   return `${v.active}:${v.maxId}:${v.teams}`;
 }
 
-function memoized<T>(name: string, compute: () => T): T {
-  const db = getDb();
-  let slot = memo.get(db);
-  if (!slot) memo.set(db, (slot = new Map()));
-  const key = dataVersion();
+async function memoized<T>(name: string, compute: () => T): Promise<T> {
+  const gen = dbGeneration();
+  let slot = memo.get(gen);
+  if (!slot) memo.set(gen, (slot = new Map()));
+  const key = await dataVersion();
   const hit = slot.get(name);
   if (hit && hit.key === key) return hit.value as T;
   const value = compute();
@@ -46,18 +46,18 @@ export function teamCounts() {
   return memoized("teamCounts", computeTeamCounts);
 }
 
-function computeTeamCounts() {
-  const rows = getDb()
-    .prepare(
-      `SELECT fv.team_id as id, COUNT(*) as votes
+async function computeTeamCounts() {
+  const rows = await getDb()
+      .prepare(
+        `SELECT fv.team_id as id, COUNT(*) as votes
        FROM fan_votes fv WHERE ${LIVE}
        GROUP BY fv.team_id`,
-    )
-    .all() as { id: string; votes: number }[];
+      )
+      .all() as { id: string; votes: number }[];
   const map = Object.fromEntries(rows.map((r) => [r.id, r.votes]));
   // Inactive teams stay listed while they still hold votes, so history
   // never silently disappears from the public count.
-  return listTeamCatalog()
+  return (await listTeamCatalog())
     .map((t) => ({ ...t, votes: map[t.id] ?? 0 }))
     .filter((t) => t.isActive || t.votes > 0);
 }
@@ -73,15 +73,15 @@ export function cityStandings() {
   return memoized("cityStandings", computeCityStandings);
 }
 
-function computeCityStandings(): Record<string, CityStanding[]> {
-  const rows = getDb()
-    .prepare(
-      `SELECT fv.city, fv.team_id, COUNT(*) as c
+async function computeCityStandings(): Promise<Record<string, CityStanding[]>> {
+  const rows = await getDb()
+      .prepare(
+        `SELECT fv.city, fv.team_id, COUNT(*) as c
        FROM fan_votes fv
        WHERE ${LIVE} AND fv.city IS NOT NULL
        GROUP BY fv.city, fv.team_id`,
-    )
-    .all() as { city: string; team_id: string; c: number }[];
+      )
+      .all() as { city: string; team_id: string; c: number }[];
 
   const byCity = new Map<string, CityStanding[]>();
   for (const row of rows) {
@@ -102,7 +102,8 @@ export function leaderOf(rows: CityStanding[]): CityLeader | undefined {
   return { ...top, tied: coLeaderIds.length > 1, coLeaderIds };
 }
 
-export function cityLeaders(standings = cityStandings()) {
+export async function cityLeaders(standings?: Awaited<ReturnType<typeof cityStandings>>) {
+  standings ??= await cityStandings();
   const out: Record<string, CityLeader> = {};
   for (const [city, rows] of Object.entries(standings)) {
     const leader = leaderOf(rows);
@@ -112,28 +113,28 @@ export function cityLeaders(standings = cityStandings()) {
 }
 
 /** "Doğrulanmış taraftar": active, phone-verified, one-per-account votes. */
-export function totalVerified() {
-  const row = getDb()
-    .prepare(`SELECT COUNT(*) as c FROM fan_votes fv WHERE ${LIVE}`)
-    .get() as { c: number };
+export async function totalVerified() {
+  const row = await getDb()
+      .prepare(`SELECT COUNT(*) as c FROM fan_votes fv WHERE ${LIVE}`)
+      .get() as { c: number };
   return row.c;
 }
 
 /** Legacy census lookup, used only by the old data-deletion flow. */
-export function findByEmailNorm(emailNorm: string) {
-  return getDb()
-    .prepare(`SELECT * FROM participants WHERE email_norm = ?`)
-    .get(emailNorm) as Participant | undefined;
+export async function findByEmailNorm(emailNorm: string) {
+  return await getDb()
+      .prepare(`SELECT * FROM participants WHERE email_norm = ?`)
+      .get(emailNorm) as Participant | undefined;
 }
 
-export function registerAttemptCount(ipHash: string) {
+export async function registerAttemptCount(ipHash: string) {
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const row = getDb()
-    .prepare(
-      `SELECT COUNT(*) as c FROM register_attempts
+  const row = await getDb()
+      .prepare(
+        `SELECT COUNT(*) as c FROM register_attempts
        WHERE ip_hash = ? AND created_at >= ?`,
-    )
-    .get(ipHash, since) as { c: number };
+      )
+      .get(ipHash, since) as { c: number };
   return row.c;
 }
 
@@ -154,8 +155,8 @@ export type TeamSummary = {
 };
 
 /** One team's public numbers, from the same active fan_votes rows as every other count. */
-export function teamSummary(teamId: string): TeamSummary | null {
-  const teams = teamCounts();
+export async function teamSummary(teamId: string): Promise<TeamSummary | null> {
+  const teams = await teamCounts();
   const team = teams.find((t) => t.id === teamId);
   if (!team) return null;
   const total = teams.reduce((sum, t) => sum + t.votes, 0);
@@ -163,18 +164,18 @@ export function teamSummary(teamId: string): TeamSummary | null {
     team.votes > 0 ? 1 + list.filter((t) => t.votes > team.votes).length : null;
   let provincesLed = 0;
   let provincesCoLed = 0;
-  for (const leader of Object.values(cityLeaders())) {
+  for (const leader of Object.values(await cityLeaders())) {
     if (!leader.coLeaderIds.includes(teamId)) continue;
     if (leader.tied) provincesCoLed += 1;
     else provincesLed += 1;
   }
-  const topProvinces = getDb()
-    .prepare(
-      `SELECT fv.city as province, COUNT(*) as votes FROM fan_votes fv
+  const topProvinces = await getDb()
+      .prepare(
+        `SELECT fv.city as province, COUNT(*) as votes FROM fan_votes fv
        WHERE ${LIVE} AND fv.team_id = ? AND fv.city IS NOT NULL
        GROUP BY fv.city ORDER BY votes DESC, fv.city LIMIT 5`,
-    )
-    .all(teamId) as { province: string; votes: number }[];
+      )
+      .all(teamId) as { province: string; votes: number }[];
   return {
     votes: team.votes,
     total,

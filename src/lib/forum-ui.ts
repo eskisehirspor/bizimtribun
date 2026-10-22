@@ -5,6 +5,8 @@ export function formatForumDate(iso: string) {
       month: "short",
       hour: "2-digit",
       minute: "2-digit",
+      // Same zone on the server (UTC) and in the browser, so the HTML matches.
+      timeZone: "Europe/Istanbul",
     });
   } catch {
     return iso;

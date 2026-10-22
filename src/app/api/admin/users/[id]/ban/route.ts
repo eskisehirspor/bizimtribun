@@ -31,7 +31,7 @@ export async function POST(
   const expiry = parseBanExpiry(parsed.data.expiresAt ?? null);
   if (!expiry.ok) return noStoreJson({ error: "Geçersiz ban bitiş tarihi." }, 400);
 
-  const result = adminBanUser(id, reason, expiry.value, gate.user);
+  const result = await adminBanUser(id, reason, expiry.value, gate.user);
   if (!result.ok) return noStoreJson({ error: result.error }, 409);
   return noStoreJson({ ok: true });
 }

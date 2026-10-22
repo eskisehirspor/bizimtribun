@@ -15,8 +15,8 @@ import { recentPublicTopics } from "@/lib/home-feed";
 import { invalidateSettingsCache } from "@/lib/site-settings";
 import { freshDb, invoke, smsSignup, trPhone, uniq } from "./harness";
 
-beforeEach(() => {
-  freshDb();
+beforeEach(async () => {
+  await freshDb();
   invalidateSettingsCache();
 });
 
@@ -24,7 +24,7 @@ let n = 0;
 async function member(teamId = "galatasaray", role: "user" | "moderator" | "admin" | "super_admin" = "user") {
   n += 1;
   const u = await smsSignup({ phone: trPhone(7100 + n), username: uniq("tb").slice(0, 20), teamId, ip: `198.51.100.${n % 250}` });
-  if (role !== "user") getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
+  if (role !== "user") await getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
   return u;
 }
 
@@ -100,7 +100,7 @@ test("team topics stay inside the tribune: home feed, featured, profile activity
   const sup = await member("besiktas", "super_admin");
   const id = await teamTopic(fan.cookie);
 
-  assert.equal(recentPublicTopics().some((t) => t.id === id), false);
+  assert.equal((await recentPublicTopics()).some((t) => t.id === id), false);
   const featured = await invoke(putSetting, {
     method: "PUT",
     path: "/api/admin/settings",

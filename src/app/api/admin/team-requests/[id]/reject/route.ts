@@ -30,7 +30,7 @@ export async function POST(
     return noStoreJson({ error: "Red gerekçesi zorunlu." }, 400);
   }
 
-  const result = rejectTeamRequest(getDb(), id, gate.user.id, reason);
+  const result = await rejectTeamRequest(getDb(), id, gate.user.id, reason);
   if (!result.ok) {
     return noStoreJson({ error: result.error }, result.status);
   }

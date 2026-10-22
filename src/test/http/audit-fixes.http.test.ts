@@ -16,15 +16,15 @@ import { banUser } from "@/lib/users";
 import { deleteAccount } from "@/lib/accounts";
 import { freshDb, invoke, smsSignup, trPhone, uniq } from "./harness";
 
-beforeEach(() => {
-  freshDb();
+beforeEach(async () => {
+  await freshDb();
 });
 
 let n = 0;
 async function member(role: "user" | "moderator" | "admin" | "super_admin" = "user") {
   n += 1;
   const u = await smsSignup({ phone: trPhone(6100 + n), username: uniq("af").slice(0, 20), ip: `192.0.2.${100 + (n % 100)}` });
-  if (role !== "user") getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
+  if (role !== "user") await getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
   return u;
 }
 
@@ -78,13 +78,13 @@ test("profile names can't pose as staff; deleted accounts can't be banned", asyn
     body: { displayName: "Moderatör Ekibi" },
   });
   assert.equal(res.status, 400);
-  getDb().prepare(`UPDATE users SET deleted_at = ? WHERE id = ?`).run(new Date().toISOString(), u.id);
-  assert.equal(banUser(u.id, "test").ok, false);
+  await getDb().prepare(`UPDATE users SET deleted_at = ? WHERE id = ?`).run(new Date().toISOString(), u.id);
+  assert.equal((await banUser(u.id, "test")).ok, false);
 });
 
 test("staff without 2FA reach only their security settings", async () => {
   const admin = await member("admin");
-  getDb().prepare(`UPDATE users SET totp_enabled = 0 WHERE id = ?`).run(admin.id);
+  await getDb().prepare(`UPDATE users SET totp_enabled = 0 WHERE id = ?`).run(admin.id);
   const dash = await invoke(dashboard, { path: "/api/admin/dashboard", cookie: admin.cookie });
   assert.equal(dash.status, 403);
   assert.match((dash.json as { error: string }).error, /2FA/);
@@ -95,11 +95,11 @@ test("staff without 2FA reach only their security settings", async () => {
 test("deleting an account holds the number: a year after a vote, for good after a ban", async () => {
   const voter = await member();
   const banned = await member();
-  assert.equal(banUser(banned.id, "kural ihlali").ok, true);
+  assert.equal((await banUser(banned.id, "kural ihlali")).ok, true);
   for (const u of [voter, banned]) {
-    assert.equal(deleteAccount(getDb(), { userId: u.id, actorUserId: u.id, reason: "test" }).ok, true);
+    assert.equal((await deleteAccount(getDb(), { userId: u.id, actorUserId: u.id, reason: "test" })).ok, true);
   }
-  const holds = getDb().prepare(`SELECT reason, release_at FROM phone_holds ORDER BY created_at`).all() as {
+  const holds = await getDb().prepare(`SELECT reason, release_at FROM phone_holds ORDER BY created_at`).all() as {
     reason: string;
     release_at: string;
   }[];
@@ -125,14 +125,14 @@ test("only a super admin can undo a voided vote, and only with a record", async 
   assert.equal(voided.status, 200, voided.text);
 
   // A direct write can't bring the vote back without a restore record.
-  assert.throws(
+  await assert.rejects(
     () => getDb().prepare(`UPDATE fan_votes SET status = 'active', restored_at = ? WHERE user_id = ?`).run(new Date().toISOString(), fan.id),
     /VOTE_IMMUTABLE/,
   );
   assert.equal((await call(restoreVote, "POST", admin.cookie)).status, 403);
   const restored = await call(restoreVote, "POST", boss.cookie);
   assert.equal(restored.status, 200, restored.text);
-  const vote = getDb().prepare(`SELECT status, team_id, restored_at FROM fan_votes WHERE user_id = ?`).get(fan.id) as {
+  const vote = await getDb().prepare(`SELECT status, team_id, restored_at FROM fan_votes WHERE user_id = ?`).get(fan.id) as {
     status: string;
     team_id: string;
     restored_at: string | null;
@@ -144,7 +144,7 @@ test("only a super admin can undo a voided vote, and only with a record", async 
 
   // A deleted account's vote stays void.
   const gone = await member();
-  assert.equal(deleteAccount(getDb(), { userId: gone.id, actorUserId: gone.id, reason: "test" }).ok, true);
+  assert.equal((await deleteAccount(getDb(), { userId: gone.id, actorUserId: gone.id, reason: "test" })).ok, true);
   const res = await invoke(restoreVote, {
     method: "POST",
     path: `/api/admin/users/${gone.id}/vote`,

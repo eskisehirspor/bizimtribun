@@ -30,7 +30,7 @@ export async function POST(
       ? reasonRaw.trim().slice(0, 500)
       : null;
 
-  const result = approveTeamRequest(getDb(), id, gate.user.id, reason);
+  const result = await approveTeamRequest(getDb(), id, gate.user.id, reason);
   if (!result.ok) {
     return noStoreJson({ error: result.error }, result.status);
   }

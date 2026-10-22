@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     return noStoreJson({ error: "Link geçersiz." }, 400);
   }
 
-  const result = consumeUserEmailToken(token);
+  const result = await consumeUserEmailToken(token);
   if (!result.ok) {
     const status = result.error === "Hesap askıya alınmış." ? 403 : 400;
     return noStoreJson({ error: result.error }, status);

@@ -16,7 +16,7 @@ export async function GET(
     return noStoreJson({ error: "Talep bulunamadı." }, 404);
   }
 
-  const group = getTeamRequestGroup(getDb(), id);
+  const group = await getTeamRequestGroup(getDb(), id);
   if (!group) {
     return noStoreJson({ error: "Talep bulunamadı." }, 404);
   }

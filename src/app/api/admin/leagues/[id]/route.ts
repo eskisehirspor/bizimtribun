@@ -22,13 +22,13 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const reason = cleanAdminReason(parsed.data.reason);
   if (!reason) return noStoreJson({ error: "Gerekçe en az 3 karakter olmalı." }, 400);
 
-  const result = updateLeague(
-    getDb(),
-    gate.user.id,
-    id,
-    { name: parsed.data.name, sortOrder: parsed.data.sortOrder },
-    reason,
-  );
+  const result = await updateLeague(
+      getDb(),
+      gate.user.id,
+      id,
+      { name: parsed.data.name, sortOrder: parsed.data.sortOrder },
+      reason,
+    );
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true });
 }

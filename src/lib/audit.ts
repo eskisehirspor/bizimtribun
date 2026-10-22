@@ -1,11 +1,11 @@
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 
 /**
  * Append-only audit trail for privileged and integrity-relevant actions.
  * Never pass OTPs, passwords, tokens or phone numbers in `meta`.
  */
-export function writeAudit(
-  db: Database.Database,
+export async function writeAudit(
+  db: Db,
   entry: {
     actorUserId: number | null;
     action: string;
@@ -15,18 +15,18 @@ export function writeAudit(
     meta?: Record<string, string | number | boolean | null>;
   },
 ) {
-  db.prepare(
-    `INSERT INTO audit_log (actor_user_id, action, target_type, target_id, reason, meta, created_at)
+  await db.prepare(
+        `INSERT INTO audit_log (actor_user_id, action, target_type, target_id, reason, meta, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    entry.actorUserId,
-    entry.action.slice(0, 64),
-    entry.targetType ?? null,
-    entry.targetId == null ? null : String(entry.targetId),
-    entry.reason ? entry.reason.slice(0, 500) : null,
-    entry.meta ? JSON.stringify(entry.meta).slice(0, 2000) : null,
-    new Date().toISOString(),
-  );
+      ).run(
+        entry.actorUserId,
+        entry.action.slice(0, 64),
+        entry.targetType ?? null,
+        entry.targetId == null ? null : String(entry.targetId),
+        entry.reason ? entry.reason.slice(0, 500) : null,
+        entry.meta ? JSON.stringify(entry.meta).slice(0, 2000) : null,
+        new Date().toISOString(),
+      );
 }
 
 export type AuditRow = {
@@ -41,22 +41,22 @@ export type AuditRow = {
   created_at: string;
 };
 
-export function listAudit(
-  db: Database.Database,
+export async function listAudit(
+  db: Db,
   opts: { limit: number; offset: number; action?: string | null },
 ) {
   const where = opts.action ? `WHERE a.action = ?` : "";
   const params: (string | number)[] = opts.action ? [opts.action] : [];
-  const rows = db
-    .prepare(
-      `SELECT a.*, u.username as actor_username
+  const rows = await db
+      .prepare(
+        `SELECT a.*, u.username as actor_username
        FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id
        ${where}
        ORDER BY a.id DESC LIMIT ? OFFSET ?`,
-    )
-    .all(...params, opts.limit, opts.offset) as AuditRow[];
+      )
+      .all(...params, opts.limit, opts.offset) as AuditRow[];
   const total = (
-    db.prepare(`SELECT COUNT(*) as c FROM audit_log a ${where}`).get(...params) as { c: number }
+    await db.prepare(`SELECT COUNT(*) as c FROM audit_log a ${where}`).get(...params) as { c: number }
   ).c;
   return { rows, total };
 }

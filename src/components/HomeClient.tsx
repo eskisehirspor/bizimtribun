@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
@@ -13,10 +14,23 @@ import {
   type Team,
 } from "@/lib/teams";
 import PitchDecor from "@/components/PitchDecor";
-import TurkeyMap from "@/components/TurkeyMap";
 import TeamColors from "@/components/TeamColors";
 import { MilliTag } from "@/components/AyYildiz";
 import { btnSm, chipClass, fieldClass } from "@/components/ui";
+import { useLiveVotes } from "@/components/useLiveVotes";
+
+// The map is ~300 KB of outlines with nothing for search engines to read, so it
+// is drawn in the browser only; the server skips that work and the HTML stays
+// small. The placeholder keeps its space so nothing jumps when it appears.
+const TurkeyMap = dynamic(() => import("@/components/TurkeyMap"), {
+  ssr: false,
+  loading: () => (
+    <div aria-hidden className="w-full">
+      <div className="w-full aspect-[1007/527] bg-[#E4E0D4]/40" />
+      <div className="min-h-[190px]" />
+    </div>
+  ),
+});
 
 /** Rows shown on phones before "Tümünü göster"; desktop scrolls inside the box. */
 const MOBILE_ROWS = 10;
@@ -128,6 +142,9 @@ export default function HomeClient({
     }
   }
 
+  // Counts move on their own when someone votes.
+  useLiveVotes(() => void refresh());
+
   function teamAction(teamId: string) {
     if (myTeamId) return null;
     if (!user) return `/uye-ol?takim=${encodeURIComponent(teamId)}`;
@@ -150,6 +167,8 @@ export default function HomeClient({
               year: "numeric",
               hour: "2-digit",
               minute: "2-digit",
+              // Same zone on the server (UTC) and in the browser, so the HTML matches.
+              timeZone: "Europe/Istanbul",
             })}
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[auto_minmax(0,1fr)_auto] items-start md:items-end gap-x-3 gap-y-2 md:gap-x-6">

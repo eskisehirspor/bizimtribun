@@ -45,13 +45,13 @@ export async function POST(req: Request) {
     : normalizeUsername(loginRaw);
 
   const ipHash = hashedIp(`auth-login:${await clientIp()}`);
-  if (authLoginLimited(ipHash, loginKey)) {
+  if (await authLoginLimited(ipHash, loginKey)) {
     return noStoreJson({ error: "Çok fazla deneme. Biraz sonra dene." }, 429);
   }
-  noteLoginAttempts(ipHash, loginKey);
+  await noteLoginAttempts(ipHash, loginKey);
 
-  const generic = { error: "Kullanıcı adı/e-posta veya parola hatalı." };
-  const user = findUserByLogin(loginKey);
+  const generic = { error: "E-posta/kullanıcı adı veya şifre hatalı." };
+  const user = await findUserByLogin(loginKey);
   if (!user) {
     // Run the same scrypt cost as a real check so response timing does not
     // leak whether the login (username/email) exists.
@@ -64,20 +64,20 @@ export async function POST(req: Request) {
     return noStoreJson(generic, 401);
   }
 
-  applyDevAdminBootstrap();
-  const fresh = reconcileExpiredBan(findUserByLogin(loginKey) ?? user);
+  await applyDevAdminBootstrap();
+  const fresh = await reconcileExpiredBan(await findUserByLogin(loginKey) ?? user);
 
   if (isUserBanned(fresh)) {
     return noStoreJson({ error: "Hesap askıya alınmış." }, 403);
   }
 
   if (passwordLoginNextStep(fresh) === "need2fa") {
-    const challenge = createLoginChallenge(getDb(), fresh.id);
+    const challenge = await createLoginChallenge(getDb(), fresh.id);
     const res = noStoreJson({ ok: true, need2fa: true });
     return attachAdmin2faCookie(res, challenge);
   }
 
-  const raw = createSession(fresh.id);
+  const raw = await createSession(fresh.id);
   const res = noStoreJson({
     ok: true,
     user: toPublicUser({ ...fresh, last_login_at: new Date().toISOString() }),

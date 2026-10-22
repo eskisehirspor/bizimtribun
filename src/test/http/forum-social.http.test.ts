@@ -16,8 +16,8 @@ import { POST as closeReport } from "../../app/api/admin/reports/[id]/route";
 import { getDb } from "@/lib/db";
 import { freshDb, invoke, smsSignup, trPhone, uniq } from "./harness";
 
-beforeEach(() => {
-  freshDb();
+beforeEach(async () => {
+  await freshDb();
 });
 
 let n = 0;
@@ -28,7 +28,7 @@ async function member(role: "user" | "moderator" = "user") {
     username: uniq("s").slice(0, 20),
     ip: `192.0.2.${n % 250}`,
   });
-  if (role !== "user") getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
+  if (role !== "user") await getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
   return u;
 }
 
@@ -171,7 +171,7 @@ test("reports: one per member per item, moderators close all at once, audited", 
     body: { outcome: "dismissed", reason: "kural ihlali yok" },
   });
   assert.deepEqual(closed.json, { ok: true, closed: 2 });
-  const audit = getDb().prepare(`SELECT action FROM audit_log WHERE action = 'report_dismiss'`).all();
+  const audit = await getDb().prepare(`SELECT action FROM audit_log WHERE action = 'report_dismiss'`).all();
   assert.equal(audit.length, 1);
 });
 
@@ -192,16 +192,16 @@ test("three members reporting a reply hide it until a moderator looks; staff rep
   const postId = (res.json as { post: { id: number } }).post.id;
   const fileOn = (cookie: string, target: number) =>
     invoke(report, { method: "POST", path: "/api/forum/reports", cookie, body: { type: "post", id: target, reason: "hakaret" } });
-  const held = () =>
-    (getDb().prepare(`SELECT held_at FROM forum_posts WHERE id = ?`).get(postId) as { held_at: string | null }).held_at;
+  const held = async () =>
+    (await getDb().prepare(`SELECT held_at FROM forum_posts WHERE id = ?`).get(postId) as { held_at: string | null }).held_at;
 
   for (let i = 0; i < 2; i++) assert.equal((await fileOn((await member()).cookie, postId)).status, 201);
-  assert.equal(held(), null);
+  assert.equal(await held(), null);
   assert.equal((await fileOn((await member()).cookie, postId)).status, 201);
-  assert.ok(held());
-  const action = getDb()
-    .prepare(`SELECT action, reason FROM moderation_actions WHERE target_post_id = ?`)
-    .get(postId) as { action: string; reason: string };
+  assert.ok(await held());
+  const action = await getDb()
+      .prepare(`SELECT action, reason FROM moderation_actions WHERE target_post_id = ?`)
+      .get(postId) as { action: string; reason: string };
   assert.equal(action.action, "auto_review");
   assert.match(action.reason, /^auto:review:reports:/);
 
@@ -209,7 +209,7 @@ test("three members reporting a reply hide it until a moderator looks; staff rep
   const modReply = await reply(mod.cookie, id, "Lütfen kurallara uyalım.");
   const modPostId = (modReply.json as { post: { id: number } }).post.id;
   for (let i = 0; i < 3; i++) await fileOn((await member()).cookie, modPostId);
-  const modHeld = getDb().prepare(`SELECT held_at FROM forum_posts WHERE id = ?`).get(modPostId) as { held_at: string | null };
+  const modHeld = await getDb().prepare(`SELECT held_at FROM forum_posts WHERE id = ?`).get(modPostId) as { held_at: string | null };
   assert.equal(modHeld.held_at, null);
 });
 

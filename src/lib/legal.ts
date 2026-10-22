@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 import {
   COOKIE_POLICY_VERSION,
   LEGAL_RECORD_AFTER_DELETE_MS,
@@ -45,12 +45,12 @@ export const LEGAL_DOC_IDS = Object.keys(LEGAL_DOCS) as LegalDocId[];
 export type PendingLegalDoc = { doc: LegalDocId; version: string; title: string; path: string; label: string };
 
 /** Current texts this member has not accepted (or acknowledged) yet. */
-export function pendingLegalDocs(db: Database.Database, userId: number): PendingLegalDoc[] {
+export async function pendingLegalDocs(db: Db, userId: number): Promise<PendingLegalDoc[]> {
   const done = new Set(
     (
-      db
-        .prepare(`SELECT doc, version FROM legal_acceptances WHERE user_id = ?`)
-        .all(userId) as { doc: string; version: string }[]
+      await db
+                  .prepare(`SELECT doc, version FROM legal_acceptances WHERE user_id = ?`)
+                  .all(userId) as { doc: string; version: string }[]
     ).map((r) => `${r.doc}:${r.version}`),
   );
   return LEGAL_DOC_IDS.filter((doc) => !done.has(`${doc}:${LEGAL_DOCS[doc].version}`)).map((doc) => ({
@@ -64,10 +64,10 @@ export function pendingLegalDocs(db: Database.Database, userId: number): Pending
  * pass only what the member explicitly ticked; a stale version is refused so
  * nobody "accepts" a text they were not shown.
  */
-export function recordLegalAcceptance(
-  db: Database.Database,
+export async function recordLegalAcceptance(
+  db: Db,
   input: { userId: number; accepted: { doc: string; version: string }[]; source: "signup" | "reaccept"; at?: string },
-): { ok: true } | { ok: false; error: string } {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const at = input.at ?? new Date().toISOString();
   for (const item of input.accepted) {
     const current = LEGAL_DOCS[item.doc as LegalDocId];
@@ -77,28 +77,28 @@ export function recordLegalAcceptance(
     }
   }
   const insert = db.prepare(
-    `INSERT OR IGNORE INTO legal_acceptances (user_id, doc, version, accepted_at, source) VALUES (?, ?, ?, ?, ?)`,
+    `INSERT INTO legal_acceptances (user_id, doc, version, accepted_at, source) VALUES (?, ?, ?, ?, ?) ON CONFLICT DO NOTHING`,
   );
-  for (const item of input.accepted) insert.run(input.userId, item.doc, item.version, at, input.source);
+  for (const item of input.accepted) await insert.run(input.userId, item.doc, item.version, at, input.source);
   if (input.accepted.some((a) => a.doc === "terms")) {
-    db.prepare(`UPDATE users SET terms_version = ?, terms_accepted_at = ? WHERE id = ?`).run(
-      LEGAL_DOCS.terms.version,
-      at,
-      input.userId,
-    );
+    await db.prepare(`UPDATE users SET terms_version = ?, terms_accepted_at = ? WHERE id = ?`).run(
+            LEGAL_DOCS.terms.version,
+            at,
+            input.userId,
+          );
   }
   return { ok: true };
 }
 
 /** Drops acceptance records of accounts deleted more than ten years ago. */
-export function purgeOldLegalRecords(db: Database.Database, now = Date.now()) {
+export async function purgeOldLegalRecords(db: Db, now = Date.now()) {
   const cutoff = new Date(now - LEGAL_RECORD_AFTER_DELETE_MS).toISOString();
-  return db
-    .prepare(
-      `DELETE FROM legal_acceptances
+  return (await db
+      .prepare(
+        `DELETE FROM legal_acceptances
        WHERE user_id IN (SELECT id FROM users WHERE deleted_at IS NOT NULL AND deleted_at < ?)`,
-    )
-    .run(cutoff).changes;
+      )
+      .run(cutoff)).changes;
 }
 
 export const LEGAL_PENDING_ERROR =

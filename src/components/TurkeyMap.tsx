@@ -67,6 +67,11 @@ export default function TurkeyMap({ leaders, standings }: Props) {
       >
         <title>Türkiye illeri</title>
         <defs>
+          {/* Each outline is drawn three times (gap, halo, fill); keeping one copy and
+              reusing it cuts the home page HTML by roughly two thirds. */}
+          {data.provinces.map((il, idx) =>
+            il.paths.map((d, i) => <path key={`${idx}-${i}`} id={`${uid}-p-${idx}-${i}`} d={d} />),
+          )}
           <pattern
             id={`${uid}-tie`}
             width="6"
@@ -96,12 +101,12 @@ export default function TurkeyMap({ leaders, standings }: Props) {
             );
           })}
         </defs>
-        {data.provinces.map((il) => (
+        {data.provinces.map((il, idx) => (
           <g key={`gap-${il.name}`} className="pointer-events-none">
-            {il.paths.map((d, i) => (
-              <path
+            {il.paths.map((_, i) => (
+              <use
                 key={i}
-                d={d}
+                href={`#${uid}-p-${idx}-${i}`}
                 fill="#F2EFE6"
                 stroke="#F2EFE6"
                 strokeWidth={4.6}
@@ -119,7 +124,6 @@ export default function TurkeyMap({ leaders, standings }: Props) {
             : t
               ? `url(#${uid}-il-${idx})`
               : NEUTRAL_FILL;
-          const active = shown === il.name;
           return (
             <g
               key={il.name}
@@ -139,26 +143,47 @@ export default function TurkeyMap({ leaders, standings }: Props) {
               aria-label={`${il.name} il sayfası`}
               className="cursor-pointer"
             >
-              {il.paths.map((d, i) => (
-                <path
-                  key={`halo-${i}`}
-                  d={d}
-                  fill="none"
-                  stroke={active ? "#FFEA00" : "transparent"}
-                  strokeWidth={active && !t ? 5 : 3.4}
-                  strokeLinejoin="round"
-                  className="pointer-events-none"
-                />
-              ))}
-              {il.paths.map((d, i) => (
-                <path
+              {il.paths.map((_, i) => (
+                <use
                   key={i}
-                  d={d}
+                  href={`#${uid}-p-${idx}-${i}`}
                   fill={fill}
-                  stroke={active ? "#111" : "#1A1A1A"}
-                  strokeWidth={active ? 2.15 : 1.5}
+                  stroke="#1A1A1A"
+                  strokeWidth={1.5}
                   strokeLinejoin="round"
                   paintOrder="fill stroke"
+                />
+              ))}
+            </g>
+          );
+        })}
+        {/* The hovered or picked province is drawn again on top, so its yellow
+            outline is never hidden under the neighbours' borders. */}
+        {data.provinces.map((il, idx) => {
+          if (shown !== il.name) return null;
+          const lead = leaders[il.name];
+          const t = lead && !lead.tied ? getTeam(lead.teamId) : undefined;
+          const fill = lead?.tied ? `url(#${uid}-tie)` : t ? `url(#${uid}-il-${idx})` : NEUTRAL_FILL;
+          return (
+            <g key={`active-${il.name}`} className="pointer-events-none">
+              {il.paths.map((_, i) => (
+                <use
+                  key={`halo-${i}`}
+                  href={`#${uid}-p-${idx}-${i}`}
+                  fill="none"
+                  stroke="#FFEA00"
+                  strokeWidth={6}
+                  strokeLinejoin="round"
+                />
+              ))}
+              {il.paths.map((_, i) => (
+                <use
+                  key={i}
+                  href={`#${uid}-p-${idx}-${i}`}
+                  fill={fill}
+                  stroke="#111"
+                  strokeWidth={1.6}
+                  strokeLinejoin="round"
                 />
               ))}
             </g>
@@ -194,7 +219,6 @@ export default function TurkeyMap({ leaders, standings }: Props) {
       ) : (
         <div className="mt-3 min-h-[48px] font-ultras text-[20px] md:text-[24px] leading-tight tracking-wide border-[3px] border-black p-3 bg-[#FFEA00] -rotate-[0.4deg] shadow-[4px_4px_0_black]">
           Bir ile dokun ya da üzerine gel: özetini gör, sonra il sayfasına geç. Gri: henüz oy yok.
-          Çizgili: liderlik eşit.
         </div>
       )}
       <label className="mt-4 block max-w-[420px]">

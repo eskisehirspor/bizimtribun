@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import Database from "better-sqlite3";
+import { scratchDb } from "./db-test";
+import type { Db } from "./db";
 import { CITIES } from "./cities";
 import { FORUM_ACTIVE_TEAM_IDS, TEAMS } from "./teams";
 import {
@@ -12,9 +13,9 @@ import {
 
 const BASE = "https://bizimtribun.example";
 
-function openDb() {
-  const db = new Database(":memory:");
-  db.exec(`
+async function openDb() {
+  const db = await scratchDb();
+  await db.exec(`
     CREATE TABLE teams (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL DEFAULT '',
@@ -52,19 +53,19 @@ function openDb() {
   return db;
 }
 
-function seedCatalog(db: Database.Database) {
+async function seedCatalog(db: Db) {
   const insert = db.prepare(
     `INSERT INTO teams (id, name, league, is_forum_active) VALUES (?, ?, ?, 0)`,
   );
   for (const team of TEAMS) {
-    insert.run(team.id, team.name, team.league);
+    await insert.run(team.id, team.name, team.league);
   }
   const activate = db.prepare(`UPDATE teams SET is_forum_active = 1 WHERE id = ?`);
-  for (const id of FORUM_ACTIVE_TEAM_IDS) activate.run(id);
+  for (const id of FORUM_ACTIVE_TEAM_IDS) await activate.run(id);
 }
 
-function insertTopic(
-  db: Database.Database,
+async function insertTopic(
+  db: Db,
   over: {
     teamId: string;
     updatedAt: string;
@@ -72,19 +73,19 @@ function insertTopic(
     heldAt?: string | null;
   },
 ) {
-  const info = db
-    .prepare(
-      `INSERT INTO forum_topics
+  const info = await db
+      .prepare(
+        `INSERT INTO forum_topics
        (team_id, title, content, created_at, updated_at, deleted_at, held_at)
        VALUES (?, 'Konu', 'Yazi', ?, ?, ?, ?)`,
-    )
-    .run(
-      over.teamId,
-      over.updatedAt,
-      over.updatedAt,
-      over.deletedAt ?? null,
-      over.heldAt ?? null,
-    );
+      )
+      .run(
+        over.teamId,
+        over.updatedAt,
+        over.updatedAt,
+        over.deletedAt ?? null,
+        over.heldAt ?? null,
+      );
   return Number(info.lastInsertRowid);
 }
 
@@ -99,24 +100,24 @@ test("static sitemap keeps home, 81 il, /takimlar, /kvkk", () => {
   assert.ok(urls.some((u) => u.endsWith("/il/istanbul")));
 });
 
-test("team tribunes are members-only and stay out of the sitemap", () => {
-  const db = openDb();
-  seedCatalog(db);
-  const teamTopic = insertTopic(db, { teamId: "galatasaray", updatedAt: "2026-09-01T12:00:00.000Z" });
-  const urls = buildPublicSitemap(db, BASE).map((e) => e.url);
+test("team tribunes are members-only and stay out of the sitemap", async () => {
+  const db = await openDb();
+  await seedCatalog(db);
+  const teamTopic = await insertTopic(db, { teamId: "galatasaray", updatedAt: "2026-09-01T12:00:00.000Z" });
+  const urls = (await buildPublicSitemap(db, BASE)).map((e) => e.url);
   assert.equal(urls.some((u) => /\/takim\/[^/]+\/forum/.test(u)), false);
   assert.equal(urls.includes(`${BASE}/forum/konu/${teamTopic}`), false);
-  assert.equal(publicTopicSitemapEntries(db, BASE, 1000).length, 0);
+  assert.equal((await publicTopicSitemapEntries(db, BASE, 1000)).length, 0);
 });
 
-test("private routes and post URLs are not in sitemap", () => {
-  const db = openDb();
-  seedCatalog(db);
-  insertTopic(db, {
-    teamId: "galatasaray",
-    updatedAt: "2026-09-02T08:00:00.000Z",
-  });
-  const urls = buildPublicSitemap(db, BASE).map((e) => e.url);
+test("private routes and post URLs are not in sitemap", async () => {
+  const db = await openDb();
+  await seedCatalog(db);
+  await insertTopic(db, {
+        teamId: "galatasaray",
+        updatedAt: "2026-09-02T08:00:00.000Z",
+      });
+  const urls = (await buildPublicSitemap(db, BASE)).map((e) => e.url);
   for (const path of [
     "/admin",
     "/giris",
@@ -139,34 +140,34 @@ test("private routes and post URLs are not in sitemap", () => {
   assert.equal(urls.length, new Set(urls).size);
 });
 
-test("topic query respects sitemap URL budget", () => {
+test("topic query respects sitemap URL budget", async () => {
   assert.ok(SITEMAP_MAX_URLS <= 50_000);
-  const db = openDb();
-  seedCatalog(db);
-  const sliced = publicTopicSitemapEntries(db, BASE, 0);
+  const db = await openDb();
+  await seedCatalog(db);
+  const sliced = await publicTopicSitemapEntries(db, BASE, 0);
   assert.equal(sliced.length, 0);
 });
 
-test("team pages, general topics (not old province topics), and only public profiles", () => {
-  const db = openDb();
-  seedCatalog(db);
-  db.prepare(`UPDATE teams SET is_active = 0 WHERE id IN ('bandirmaspor', 'sakaryaspor')`).run();
-  db.prepare(`INSERT INTO fan_votes (team_id) VALUES ('sakaryaspor')`).run();
+test("team pages, general topics (not old province topics), and only public profiles", async () => {
+  const db = await openDb();
+  await seedCatalog(db);
+  await db.prepare(`UPDATE teams SET is_active = 0 WHERE id IN ('bandirmaspor', 'sakaryaspor')`).run();
+  await db.prepare(`INSERT INTO fan_votes (team_id) VALUES ('sakaryaspor')`).run();
   const at = "2026-09-04T10:00:00.000Z";
   const general = Number(
-    db
-      .prepare(`INSERT INTO forum_topics (board, team_id, created_at, updated_at) VALUES ('general', NULL, ?, ?)`)
-      .run(at, at).lastInsertRowid,
+    (await db
+            .prepare(`INSERT INTO forum_topics (board, team_id, created_at, updated_at) VALUES ('general', NULL, ?, ?)`)
+            .run(at, at)).lastInsertRowid,
   );
   const city = Number(
-    db
-      .prepare(`INSERT INTO forum_topics (board, city, created_at, updated_at) VALUES ('city', 'Eskişehir', ?, ?)`)
-      .run(at, at).lastInsertRowid,
+    (await db
+            .prepare(`INSERT INTO forum_topics (board, city, created_at, updated_at) VALUES ('city', 'Eskişehir', ?, ?)`)
+            .run(at, at)).lastInsertRowid,
   );
-  db.prepare(`INSERT INTO users (username, profile_visibility) VALUES ('acik', 'public'), ('kapali', 'members')`).run();
-  db.prepare(`INSERT INTO users (username, profile_visibility, deleted_at) VALUES ('silinen', 'public', ?)`).run(at);
+  await db.prepare(`INSERT INTO users (username, profile_visibility) VALUES ('acik', 'public'), ('kapali', 'members')`).run();
+  await db.prepare(`INSERT INTO users (username, profile_visibility, deleted_at) VALUES ('silinen', 'public', ?)`).run(at);
 
-  const urls = buildPublicSitemap(db, BASE).map((e) => e.url);
+  const urls = (await buildPublicSitemap(db, BASE)).map((e) => e.url);
   assert.ok(urls.includes(`${BASE}/takim/galatasaray`));
   assert.ok(urls.includes(`${BASE}/takim/sakaryaspor`), "inactive team with votes stays");
   assert.equal(urls.includes(`${BASE}/takim/bandirmaspor`), false);
@@ -175,7 +176,7 @@ test("team pages, general topics (not old province topics), and only public prof
   assert.ok(urls.includes(`${BASE}/u/acik`));
   assert.equal(urls.some((u) => u.endsWith("/u/kapali") || u.endsWith("/u/silinen")), false);
 
-  const closed = buildPublicSitemap(db, BASE, new Date(), { generalBoardOpen: false }).map(
+  const closed = (await buildPublicSitemap(db, BASE, new Date(), { generalBoardOpen: false })).map(
     (e) => e.url,
   );
   assert.equal(closed.includes(`${BASE}/forum/konu/${general}`), false);

@@ -33,12 +33,14 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
+!.env.production
 
 # local sqlite and dev fallbacks
 /data/*.db
 /data/*.db-*
 /data/*.txt
 /data/backups/
+/data/pglite/
 !/data/.gitkeep
 
 # vercel
@@ -47,3 +49,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cloudflare
+/.open-next/
+/.wrangler/
+/.dev.vars*

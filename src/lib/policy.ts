@@ -36,9 +36,9 @@ export const PHONE_HOLD_VOTED_MS = 365 * 24 * 60 * 60 * 1000;
 /** Accounts deleted while banned: the number stays closed (no automatic release). */
 export const PHONE_HOLD_PERMANENT_UNTIL = "9999-12-31T00:00:00.000Z";
 /** Bump when the text changes; signed-in members are asked to accept the new version. */
-export const TERMS_VERSION = "2026-10-21";
+export const TERMS_VERSION = "2026-10-22";
 /** KVKK aydınlatma metni; members acknowledge each version once. */
-export const PRIVACY_NOTICE_VERSION = "2026-10-21";
+export const PRIVACY_NOTICE_VERSION = "2026-10-22";
 export const COOKIE_POLICY_VERSION = "2026-10-21";
 /** Acceptance records of deleted accounts are kept this long as proof (general limitation period). */
 export const LEGAL_RECORD_AFTER_DELETE_MS = 10 * 365 * 24 * 60 * 60 * 1000;
@@ -54,6 +54,10 @@ export const USER_EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 export const USER_EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
 export const USER_EMAIL_RESEND_PER_USER_HOUR = 3;
 export const USER_EMAIL_RESEND_PER_IP_HOUR = 8;
+export const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000;
+export const PASSWORD_RESET_COOLDOWN_MS = 60 * 1000;
+export const PASSWORD_RESET_PER_USER_HOUR = 3;
+export const PASSWORD_RESET_PER_IP_HOUR = 10;
 export const FORUM_PHONE_UNVERIFIED_ERROR =
   "Forumda yazabilmek için hesabını doğrulaman gerekiyor.";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -86,3 +90,6 @@ export const TEAM_REQUEST_MESSAGE_MAX = 500;
 export const TEAM_REQUESTS_PER_USER_HOUR = 3;
 export const TEAM_REQUESTS_PER_IP_HOUR = 8;
 export const MAX_JSON_BYTES = 8_192;
+
+export const ALREADY_MEMBER_ERROR =
+  "Bu adresle zaten üyesin. Giriş sayfasından şifrenle gir; şifreni unuttuysan \"Şifremi unuttum\" de.";

@@ -11,7 +11,7 @@ import BackLink from "@/components/BackLink";
 import CityShare from "@/components/CityShare";
 import { btnSecondary } from "@/components/ui";
 import TeamColors from "@/components/TeamColors";
-import { getCatalogTeam as getTeam } from "@/lib/team-catalog";
+import { listTeamCatalog } from "@/lib/team-catalog";
 
 type Props = {
   city: CityRecord;
@@ -36,7 +36,7 @@ function fmt(iso: string) {
   });
 }
 
-export default function CityPageView({
+export default async function CityPageView({
   city,
   total,
   rows,
@@ -46,6 +46,8 @@ export default function CityPageView({
   viewerTeamId = null,
   viewerIsStaff = false,
 }: Props) {
+  const catalog = new Map((await listTeamCatalog()).map((t) => [t.id, t]));
+  const getTeam = (id: string) => catalog.get(id);
   const locative = cityLocative(city.name);
   const headline = `${locative} tribün dağılımı`;
   const topVotes = rows[0]?.votes ?? 0;

@@ -14,7 +14,7 @@ const Body = z.object({
   confirmTeamLocked: z.literal(true),
 });
 
-function voteView(vote: ReturnType<typeof findFanVote>) {
+function voteView(vote: Awaited<ReturnType<typeof findFanVote>>) {
   if (!vote) return null;
   return {
     teamId: vote.team_id,
@@ -31,7 +31,7 @@ export async function GET(req: Request) {
     ok: true,
     phoneVerified: Boolean(active.user.phone_verified_at),
     verified: Boolean(active.user.phone_verified_at || active.user.email_verified_at),
-    vote: voteView(findFanVote(getDb(), active.user.id)),
+    vote: voteView(await findFanVote(getDb(), active.user.id)),
   });
 }
 
@@ -39,7 +39,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const active = requireActiveUser(await getSessionUser(req));
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
-  if (maintenanceBlocks(active.user.role)) return noStoreJson({ error: MAINTENANCE_ERROR }, 503);
+  if (await maintenanceBlocks(active.user.role)) return noStoreJson({ error: MAINTENANCE_ERROR }, 503);
   const body = await readJsonBody(req);
   if ("error" in body) return noStoreJson({ error: body.error }, 400);
   const parsed = Body.safeParse(body.data);
@@ -48,15 +48,15 @@ export async function POST(req: Request) {
   }
   const db = getDb();
   const key = hmac(`fan-vote-user:${active.user.id}`);
-  if (rateCount(db, key, 60 * 60 * 1000) >= FAN_VOTE_PER_USER_HOUR) {
+  if (await rateCount(db, key, 60 * 60 * 1000) >= FAN_VOTE_PER_USER_HOUR) {
     return noStoreJson({ error: "Çok fazla deneme. Biraz sonra tekrar dene." }, 429);
   }
-  rateNote(db, key);
-  const result = castFanVote(db, {
-    userId: active.user.id,
-    teamId: parsed.data.teamId,
-    city: parsed.data.city ?? null,
-  });
+  await rateNote(db, key);
+  const result = await castFanVote(db, {
+      userId: active.user.id,
+      teamId: parsed.data.teamId,
+      city: parsed.data.city ?? null,
+    });
   if (!result.ok) return noStoreJson({ error: result.error, code: result.code }, result.status);
   return noStoreJson({ ok: true, already: result.already, vote: voteView(result.vote) });
 }

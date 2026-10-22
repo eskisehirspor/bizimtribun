@@ -6,13 +6,20 @@ const globalSecurityHeaders = securityHeaders({ production });
 const noReferrer = [{ key: "Referrer-Policy", value: "no-referrer" }];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["@electric-sql/pglite"],
   poweredByHeader: false,
   allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.1.49"],
   async redirects() {
     // Province tribunes were removed; old links land on the province's count page.
     // Genel Tribün became the Milli Takım Tribünü.
     return [
+      // One address for search engines: www goes to the bare domain.
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.bizimtribun.com" }],
+        destination: "https://bizimtribun.com/:path*",
+        permanent: true,
+      },
       { source: "/forum/il/:citySlug/:rest*", destination: "/il/:citySlug", permanent: true },
       { source: "/forum/genel/:rest*", destination: "/forum/milli-takim/:rest*", permanent: true },
     ];
@@ -20,6 +27,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: globalSecurityHeaders },
+      // JSON is for the pages, never a search result of its own.
+      { source: "/api/:path*", headers: [{ key: "X-Robots-Tag", value: "noindex" }] },
       { source: "/dogrula", headers: noReferrer },
       { source: "/uye-dogrula", headers: noReferrer },
       { source: "/admin/:path*", headers: noReferrer },

@@ -81,3 +81,18 @@ test("sitemap private route içermiyor", () => {
     false,
   );
 });
+
+test("public read APIs open to Google's renderer, the rest of /api/ closed", () => {
+  for (const path of [
+    "/api/stats",
+    "/api/teams/catalog",
+    "/api/forum/boards/summary",
+    "/api/forum/genel/topics?page=2",
+    "/api/forum/topics/12?page=1&limit=20",
+  ]) {
+    assert.equal(robotsPathDecision(path), "allow", path);
+  }
+  for (const path of ["/api/auth/me", "/api/account/profile", "/api/notifications", "/api/admin/users", "/api/vote"]) {
+    assert.equal(robotsPathDecision(path), "disallow", path);
+  }
+});

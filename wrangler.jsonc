@@ -1,0 +1,55 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": "custom-worker.mjs",
+  "name": "bizimtribun",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+  // Public settings. Secrets (APP_SECRET, RESEND_API_KEY, TURNSTILE_SECRET_KEY,
+  // SUPER_ADMIN_EMAIL)
+  // are set with `wrangler secret put`, see docs/cloudflare.md.
+  "vars": {
+    "APP_URL": "https://bizimtribun.com",
+    "TRUST_PROXY": "cloudflare",
+    "VERIFY_CHANNEL": "email"
+  },
+  // Keep the workers.dev address next to the custom domains.
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "bizimtribun.com", "custom_domain": true },
+    { "pattern": "www.bizimtribun.com", "custom_domain": true }
+  ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "b52aecddb119402cbe903779272ed73f",
+      // Only used by `wrangler dev`; the deployed Worker uses Supabase.
+      "localConnectionString": "postgres://postgres@localhost:5432/postgres"
+    }
+  ],
+  // Test copy at bizimtribun-staging.bizimtribun.workers.dev for live checks
+  // with throwaway accounts: `npx opennextjs-cloudflare deploy --env staging`.
+  // Same database; its own APP_SECRET (wrangler secret put APP_SECRET --env staging).
+  "env": {
+    "staging": {
+      "name": "bizimtribun-staging",
+      // Only the workers.dev address, never the production domains.
+      "routes": [],
+      "workers_dev": true,
+      "vars": {
+        "APP_URL": "https://bizimtribun-staging.bizimtribun.workers.dev",
+        "TRUST_PROXY": "cloudflare",
+        "VERIFY_CHANNEL": "email",
+        "MAIL_LINK_URL": "https://bizimtribun-staging.bizimtribun.workers.dev"
+      },
+      "hyperdrive": [
+        {
+          "binding": "HYPERDRIVE",
+          "id": "b52aecddb119402cbe903779272ed73f",
+          "localConnectionString": "postgres://postgres@localhost:5432/postgres"
+        }
+      ]
+    }
+  }
+}

@@ -1,17 +1,21 @@
 import { getCityBySlug } from "@/lib/cities";
 import { cityVoteTotals } from "@/lib/city-stats";
-import { OG_SIZE, renderShareCard } from "@/lib/og-card";
+import { OG_SIZE, renderShareCard, shareCardOrFallback } from "@/lib/og-card";
 
 export const dynamic = "force-dynamic";
 export const size = OG_SIZE;
 export const contentType = "image/png";
 export const alt = "Bizim Tribün il sayımı";
 
-export default async function Image({ params }: { params: Promise<{ citySlug: string }> }) {
+export default function Image({ params }: { params: Promise<{ citySlug: string }> }) {
+  return shareCardOrFallback(() => draw(params));
+}
+
+async function draw(params: Promise<{ citySlug: string }>) {
   const { citySlug } = await params;
   const city = getCityBySlug(citySlug);
   if (!city) return renderShareCard({ eyebrow: "Bizim Tribün", title: "İl bulunamadı" });
-  const { total, rows } = cityVoteTotals(city.name);
+  const { total, rows } = await cityVoteTotals(city.name);
   const top = rows[0];
   const leaders = top ? rows.filter((r) => r.votes === top.votes) : [];
   const lines =

@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const { page, limit, offset } = parseAdminPage(url);
   const action = url.searchParams.get("action")?.trim().slice(0, 64) || null;
-  const { rows, total } = listAudit(getDb(), { limit, offset, action });
+  const { rows, total } = await listAudit(getDb(), { limit, offset, action });
   return noStoreJson({
     ok: true,
     page,

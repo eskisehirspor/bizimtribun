@@ -4,6 +4,7 @@ import {
   HSTS_VALUE,
   contentSecurityPolicy,
   isProductionNodeEnv,
+  realtimeOrigins,
   securityHeaders,
 } from "./security-headers";
 
@@ -53,4 +54,10 @@ test("isProductionNodeEnv follows NODE_ENV", () => {
   assert.equal(isProductionNodeEnv("production"), true);
   assert.equal(isProductionNodeEnv("development"), false);
   assert.equal(isProductionNodeEnv(undefined), false);
+});
+
+test("CSP lets the browser reach Supabase Realtime for live votes", () => {
+  assert.equal(realtimeOrigins("https://abc.supabase.co"), " https://abc.supabase.co wss://abc.supabase.co");
+  assert.equal(realtimeOrigins(""), "");
+  assert.equal(realtimeOrigins("not a url"), "");
 });

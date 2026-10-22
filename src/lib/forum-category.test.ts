@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import Database from "better-sqlite3";
+import { scratchDb } from "./db-test";
 import { moderateForumContent } from "./moderation/engine";
-import { MIGRATIONS } from "./migrations";
 import {
   FORUM_CATEGORIES,
   FORUM_CATEGORY_DEFAULT,
@@ -58,54 +57,9 @@ test("eski kategori linkleri yeni başlığa gider", () => {
   assert.equal(parseForumCategoryInput("gundem", null).ok, false);
 });
 
-test("013 migration eski konuları yeni başlıklara taşır", () => {
-  const db = new Database(":memory:");
-  db.exec(`CREATE TABLE forum_topics (id INTEGER PRIMARY KEY, category TEXT NOT NULL)`);
-  const ins = db.prepare(`INSERT INTO forum_topics (id, category) VALUES (?, ?)`);
-  const old = ["gundem", "tartisma", "mac-gunu", "deplasman", "anilar", "bilinmeyen"];
-  old.forEach((c, i) => ins.run(i + 1, c));
-  MIGRATIONS.find((m) => m.id === "013_forum_categories_v2")!.up(db);
-  const rows = db.prepare(`SELECT category FROM forum_topics ORDER BY id`).all() as { category: string }[];
-  assert.deepEqual(
-    rows.map((r) => r.category),
-    ["genel-sohbet", "genel-sohbet", "mac-gundemi", "deplasman", "kulup-tarihi", "genel-sohbet"],
-  );
-  for (const r of rows) assert.equal(isForumCategory(r.category), true);
-  db.close();
-});
-
-test("mevcut topicler migration sonrası gundem", () => {
-  const db = new Database(":memory:");
-  db.exec(`
-    CREATE TABLE forum_topics (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-  db.prepare(
-    `INSERT INTO forum_topics (team_id, title, created_at, updated_at)
-     VALUES (?, ?, ?, ?)`,
-  ).run("eski", "Eski konu", "2026-01-01T00:00:00.000Z", "2026-01-01T00:00:00.000Z");
-  db.exec(
-    `ALTER TABLE forum_topics ADD COLUMN category TEXT NOT NULL DEFAULT 'gundem'`,
-  );
-  db.exec(
-    `ALTER TABLE forum_topics ADD COLUMN is_pinned INTEGER NOT NULL DEFAULT 0`,
-  );
-  const row = db
-    .prepare(`SELECT category, is_pinned FROM forum_topics WHERE title = ?`)
-    .get("Eski konu") as { category: string; is_pinned: number };
-  assert.equal(row.category, "gundem");
-  assert.equal(row.is_pinned, 0);
-  db.close();
-});
-
-test("yeni konu doğru kategoriye kaydolur ve filtre çalışır", () => {
-  const db = new Database(":memory:");
-  db.exec(`
+test("yeni konu doğru kategoriye kaydolur ve filtre çalışır", async () => {
+  const db = await scratchDb();
+  await db.exec(`
     CREATE TABLE forum_topics (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       team_id TEXT NOT NULL,
@@ -122,24 +76,23 @@ test("yeni konu doğru kategoriye kaydolur ve filtre çalışır", () => {
     `INSERT INTO forum_topics (team_id, title, category, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?)`,
   );
-  insert.run("gs", "Transfer", "gundem", "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z");
-  insert.run("gs", "Otobüs", "deplasman", "2026-01-01T00:00:00.000Z", "2026-01-03T00:00:00.000Z");
-  const created = db
-    .prepare(`SELECT category FROM forum_topics WHERE title = ?`)
-    .get("Otobüs") as { category: string };
+  await insert.run("gs", "Transfer", "gundem", "2026-01-01T00:00:00.000Z", "2026-01-02T00:00:00.000Z");
+  await insert.run("gs", "Otobüs", "deplasman", "2026-01-01T00:00:00.000Z", "2026-01-03T00:00:00.000Z");
+  const created = await db
+      .prepare(`SELECT category FROM forum_topics WHERE title = ?`)
+      .get("Otobüs") as { category: string };
   assert.equal(created.category, "deplasman");
 
-  const filtered = db
-    .prepare(
-      `SELECT title FROM forum_topics t
+  const filtered = await db
+      .prepare(
+        `SELECT title FROM forum_topics t
        WHERE t.team_id = ? AND t.deleted_at IS NULL AND t.held_at IS NULL AND t.category = ?`,
-    )
-    .all("gs", "deplasman") as { title: string }[];
+      )
+      .all("gs", "deplasman") as { title: string }[];
   assert.deepEqual(
     filtered.map((r) => r.title),
     ["Otobüs"],
   );
-  db.close();
 });
 
 test("pinned sıralaması doğru", () => {

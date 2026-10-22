@@ -29,7 +29,7 @@ const Body = z
 export async function GET(req: Request) {
   const active = requireActiveUser(await getSessionUser(req));
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
-  return noStoreJson({ ok: true, settings: getProfileSettings(getDb(), active.user.id) });
+  return noStoreJson({ ok: true, settings: await getProfileSettings(getDb(), active.user.id) });
 }
 
 export async function PATCH(req: Request) {
@@ -39,7 +39,7 @@ export async function PATCH(req: Request) {
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) return noStoreJson({ error: "Geçersiz istek." }, 400);
-  const result = updateProfileSettings(getDb(), active.user.id, parsed.data);
+  const result = await updateProfileSettings(getDb(), active.user.id, parsed.data);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true, settings: result.settings });
 }

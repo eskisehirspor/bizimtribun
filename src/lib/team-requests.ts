@@ -1,5 +1,5 @@
 import { can } from "./permissions";
-import type Database from "better-sqlite3";
+import { isConstraintViolation, type Db } from "./db";
 import { getCityByName, getCityBySlug } from "./cities";
 import { isProvince } from "./provinces";
 import { foldTr } from "./teams";
@@ -97,10 +97,10 @@ export function parseTeamRequestInput(raw: TeamRequestInput) {
   };
 }
 
-function findTeamByNormalizedName(db: Database.Database, normalizedName: string) {
-  const rows = db
-    .prepare(`SELECT id, name, is_forum_active FROM teams`)
-    .all() as { id: string; name: string; is_forum_active: number }[];
+async function findTeamByNormalizedName(db: Db, normalizedName: string) {
+  const rows = await db
+      .prepare(`SELECT id, name, is_forum_active FROM teams`)
+      .all() as { id: string; name: string; is_forum_active: number }[];
   return (
     rows.find(
       (row) =>
@@ -110,12 +110,12 @@ function findTeamByNormalizedName(db: Database.Database, normalizedName: string)
   );
 }
 
-function uniqueTeamId(db: Database.Database, normalizedName: string) {
+async function uniqueTeamId(db: Db, normalizedName: string) {
   const base = (normalizedName || "takim").slice(0, 48);
   let id = base;
   let n = 2;
   while (
-    db.prepare(`SELECT id FROM teams WHERE id = ?`).get(id) as
+    await db.prepare(`SELECT id FROM teams WHERE id = ?`).get(id) as
       | { id: string }
       | undefined
   ) {
@@ -125,16 +125,16 @@ function uniqueTeamId(db: Database.Database, normalizedName: string) {
   return id;
 }
 
-export function createTeamRequest(
-  db: Database.Database,
+export async function createTeamRequest(
+  db: Db,
   userId: number,
   raw: TeamRequestInput,
-): TeamRequestCreateResult {
+): Promise<TeamRequestCreateResult> {
   const parsed = parseTeamRequestInput(raw);
   if (!parsed.ok) {
     return { ok: false, error: parsed.error, status: 400 };
   }
-  const existingTeam = findTeamByNormalizedName(db, parsed.normalizedName);
+  const existingTeam = await findTeamByNormalizedName(db, parsed.normalizedName);
   if (existingTeam) {
     return {
       ok: false,
@@ -147,21 +147,21 @@ export function createTeamRequest(
 
   const now = new Date().toISOString();
   try {
-    const info = db
-      .prepare(
-        `INSERT INTO team_requests
+    const info = await db
+          .prepare(
+            `INSERT INTO team_requests
          (requested_name, normalized_name, city_slug, message, requested_by_user_id,
           status, created_at)
          VALUES (?, ?, ?, ?, ?, 'pending', ?)`,
-      )
-      .run(
-        parsed.teamName,
-        parsed.normalizedName,
-        parsed.city.slug,
-        parsed.message,
-        userId,
-        now,
-      );
+          )
+          .run(
+            parsed.teamName,
+            parsed.normalizedName,
+            parsed.city.slug,
+            parsed.message,
+            userId,
+            now,
+          );
     return {
       ok: true,
       id: Number(info.lastInsertRowid),
@@ -170,11 +170,7 @@ export function createTeamRequest(
       status: "pending",
     };
   } catch (err) {
-    const code =
-      err && typeof err === "object" && "code" in err
-        ? String((err as { code: unknown }).code)
-        : "";
-    if (code.includes("CONSTRAINT")) {
+    if (isConstraintViolation(err)) {
       return {
         ok: false,
         error: "Bu takım için zaten bekleyen talebin var.",
@@ -185,8 +181,8 @@ export function createTeamRequest(
   }
 }
 
-export function listTeamRequestGroups(
-  db: Database.Database,
+export async function listTeamRequestGroups(
+  db: Db,
   filters: {
     status?: TeamRequestStatus | null;
     q?: string | null;
@@ -207,28 +203,28 @@ export function listTeamRequestGroups(
   }
   if (filters.q) {
     where.push(
-      `(r.requested_name LIKE ? OR r.normalized_name LIKE ? OR r.city_slug LIKE ? OR r.message LIKE ? OR u.username LIKE ?)`,
+      `(r.requested_name ILIKE ? OR r.normalized_name ILIKE ? OR r.city_slug ILIKE ? OR r.message ILIKE ? OR u.username ILIKE ?)`,
     );
     params.push(filters.q, filters.q, filters.q, filters.q, filters.q);
   }
   const whereSql = where.join(" AND ");
   const total = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM (
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM (
            SELECT r.normalized_name, r.status
            FROM team_requests r
            JOIN users u ON u.id = r.requested_by_user_id
            WHERE ${whereSql}
            GROUP BY r.normalized_name, r.status
          )`,
-      )
-      .get(...params) as { c: number }
+            )
+            .get(...params) as { c: number }
   ).c;
 
-  const rows = db
-    .prepare(
-      `SELECT
+  const rows = await db
+      .prepare(
+        `SELECT
          MIN(r.id) as id,
          r.normalized_name as normalizedName,
          r.status as status,
@@ -243,8 +239,8 @@ export function listTeamRequestGroups(
        GROUP BY r.normalized_name, r.status
        ORDER BY MAX(r.created_at) DESC
        LIMIT ? OFFSET ?`,
-    )
-    .all(...params, filters.limit, filters.offset) as Array<{
+      )
+      .all(...params, filters.limit, filters.offset) as Array<{
     id: number;
     normalizedName: string;
     status: TeamRequestStatus;
@@ -270,13 +266,13 @@ export function listTeamRequestGroups(
   };
 }
 
-export function getTeamRequestGroup(db: Database.Database, id: number) {
-  const head = db
-    .prepare(
-      `SELECT id, requested_name, normalized_name, city_slug, status, created_at
+export async function getTeamRequestGroup(db: Db, id: number) {
+  const head = await db
+      .prepare(
+        `SELECT id, requested_name, normalized_name, city_slug, status, created_at
        FROM team_requests WHERE id = ?`,
-    )
-    .get(id) as
+      )
+      .get(id) as
     | {
         id: number;
         requested_name: string;
@@ -288,16 +284,16 @@ export function getTeamRequestGroup(db: Database.Database, id: number) {
     | undefined;
   if (!head) return null;
 
-  const requests = db
-    .prepare(
-      `SELECT r.id, r.message, r.created_at as createdAt, r.reviewed_at as reviewedAt,
+  const requests = await db
+      .prepare(
+        `SELECT r.id, r.message, r.created_at as createdAt, r.reviewed_at as reviewedAt,
               r.review_reason as reviewReason, u.id as userId, u.username
        FROM team_requests r
        JOIN users u ON u.id = r.requested_by_user_id
        WHERE r.normalized_name = ? AND r.status = ?
        ORDER BY r.created_at ASC`,
-    )
-    .all(head.normalized_name, head.status) as Array<{
+      )
+      .all(head.normalized_name, head.status) as Array<{
     id: number;
     message: string;
     createdAt: string;
@@ -326,8 +322,8 @@ export function getTeamRequestGroup(db: Database.Database, id: number) {
   };
 }
 
-function writeAudit(
-  db: Database.Database,
+async function writeAudit(
+  db: Db,
   input: {
     moderatorUserId: number;
     targetUserId: number;
@@ -335,32 +331,32 @@ function writeAudit(
     reason: string | null;
   },
 ) {
-  db.prepare(
-    `INSERT INTO moderation_actions
+  await db.prepare(
+        `INSERT INTO moderation_actions
      (moderator_user_id, target_user_id, target_topic_id, target_post_id, action, reason, created_at)
      VALUES (?, ?, NULL, NULL, ?, ?, ?)`,
-  ).run(
-    input.moderatorUserId,
-    input.targetUserId,
-    input.action,
-    input.reason,
-    new Date().toISOString(),
-  );
+      ).run(
+        input.moderatorUserId,
+        input.targetUserId,
+        input.action,
+        input.reason,
+        new Date().toISOString(),
+      );
 }
 
 export function approveTeamRequest(
-  db: Database.Database,
+  db: Db,
   requestId: number,
   moderatorUserId: number,
   reason: string | null,
 ) {
-  const run = db.transaction(() => {
-    const row = db
-      .prepare(
-        `SELECT id, requested_name, normalized_name, requested_by_user_id, status
+  const run = db.transaction(async () => {
+    const row = await db
+          .prepare(
+            `SELECT id, requested_name, normalized_name, requested_by_user_id, status
          FROM team_requests WHERE id = ?`,
-      )
-      .get(requestId) as
+          )
+          .get(requestId) as
       | {
           id: number;
           requested_name: string;
@@ -374,30 +370,30 @@ export function approveTeamRequest(
       return { ok: false as const, error: "Bu talep zaten sonuçlanmış.", status: 409 };
     }
 
-    let team = findTeamByNormalizedName(db, row.normalized_name);
+    let team = await findTeamByNormalizedName(db, row.normalized_name);
     let created = false;
     if (!team) {
-      const id = uniqueTeamId(db, row.normalized_name);
-      db.prepare(
-        `INSERT INTO teams (id, name, league, is_forum_active) VALUES (?, ?, 'bal', 0)`,
-      ).run(id, row.requested_name);
+      const id = await uniqueTeamId(db, row.normalized_name);
+      await db.prepare(
+                `INSERT INTO teams (id, name, league, is_forum_active) VALUES (?, ?, 'bal', 0)`,
+              ).run(id, row.requested_name);
       team = { id, name: row.requested_name, is_forum_active: 0 };
       created = true;
     }
 
     const now = new Date().toISOString();
-    db.prepare(
-      `UPDATE team_requests
+    await db.prepare(
+            `UPDATE team_requests
        SET status = 'approved', reviewed_at = ?, reviewed_by_user_id = ?, review_reason = ?
        WHERE normalized_name = ? AND status = 'pending'`,
-    ).run(now, moderatorUserId, reason, row.normalized_name);
+          ).run(now, moderatorUserId, reason, row.normalized_name);
 
-    writeAudit(db, {
-      moderatorUserId,
-      targetUserId: row.requested_by_user_id,
-      action: "approve_team_request",
-      reason,
-    });
+    await writeAudit(db, {
+            moderatorUserId,
+            targetUserId: row.requested_by_user_id,
+            action: "approve_team_request",
+            reason,
+          });
 
     return {
       ok: true as const,
@@ -410,7 +406,7 @@ export function approveTeamRequest(
 }
 
 export function rejectTeamRequest(
-  db: Database.Database,
+  db: Db,
   requestId: number,
   moderatorUserId: number,
   reason: string,
@@ -420,13 +416,13 @@ export function rejectTeamRequest(
     return { ok: false as const, error: "Red gerekçesi zorunlu.", status: 400 };
   }
 
-  const run = db.transaction(() => {
-    const row = db
-      .prepare(
-        `SELECT id, normalized_name, requested_by_user_id, status
+  const run = db.transaction(async () => {
+    const row = await db
+          .prepare(
+            `SELECT id, normalized_name, requested_by_user_id, status
          FROM team_requests WHERE id = ?`,
-      )
-      .get(requestId) as
+          )
+          .get(requestId) as
       | {
           id: number;
           normalized_name: string;
@@ -440,18 +436,18 @@ export function rejectTeamRequest(
     }
 
     const now = new Date().toISOString();
-    db.prepare(
-      `UPDATE team_requests
+    await db.prepare(
+            `UPDATE team_requests
        SET status = 'rejected', reviewed_at = ?, reviewed_by_user_id = ?, review_reason = ?
        WHERE normalized_name = ? AND status = 'pending'`,
-    ).run(now, moderatorUserId, trimmed, row.normalized_name);
+          ).run(now, moderatorUserId, trimmed, row.normalized_name);
 
-    writeAudit(db, {
-      moderatorUserId,
-      targetUserId: row.requested_by_user_id,
-      action: "reject_team_request",
-      reason: trimmed,
-    });
+    await writeAudit(db, {
+            moderatorUserId,
+            targetUserId: row.requested_by_user_id,
+            action: "reject_team_request",
+            reason: trimmed,
+          });
 
     return { ok: true as const };
   });

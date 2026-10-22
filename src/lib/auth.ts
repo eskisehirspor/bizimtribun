@@ -11,7 +11,7 @@ import {
   SESSION_COOKIE,
   SESSION_TTL_MS,
 } from "./policy";
-import { applyDevAdminBootstrap } from "./admin-bootstrap";
+import { applyDevAdminBootstrap, applySuperAdminEmailBootstrap } from "./admin-bootstrap";
 import {
   findUserById,
   isUserBanned,
@@ -100,33 +100,34 @@ export async function readCookie(req: Request | undefined, name: string) {
   return jar.get(name)?.value ?? null;
 }
 
-export function createSession(userId: number) {
+export async function createSession(userId: number) {
+  await applySuperAdminEmailBootstrap(userId);
   const raw = newToken();
   const now = new Date();
-  const user = findUserById(userId);
+  const user = await findUserById(userId);
   const ttl = sessionTtlMsForUser(user);
   const expires = new Date(now.getTime() + ttl).toISOString();
   const nowIso = now.toISOString();
-  getDb()
-    .prepare(
-      `INSERT INTO sessions (user_id, token_hash, expires_at, created_at, last_seen_at)
+  await getDb()
+        .prepare(
+          `INSERT INTO sessions (user_id, token_hash, expires_at, created_at, last_seen_at)
        VALUES (?, ?, ?, ?, ?)`,
-    )
-    .run(userId, tokenHash(raw), expires, nowIso, nowIso);
-  getDb()
-    .prepare(`UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?`)
-    .run(nowIso, nowIso, userId);
+        )
+        .run(userId, tokenHash(raw), expires, nowIso, nowIso);
+  await getDb()
+        .prepare(`UPDATE users SET last_login_at = ?, updated_at = ? WHERE id = ?`)
+        .run(nowIso, nowIso, userId);
   return raw;
 }
 
-export function revokeSessionByToken(raw: string | null | undefined) {
+export async function revokeSessionByToken(raw: string | null | undefined) {
   if (!raw) return;
   const now = new Date().toISOString();
-  getDb()
-    .prepare(
-      `UPDATE sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL`,
-    )
-    .run(now, tokenHash(raw));
+  await getDb()
+        .prepare(
+          `UPDATE sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL`,
+        )
+        .run(now, tokenHash(raw));
 }
 
 function cookieFromHeader(header: string | null, cookieName: string) {
@@ -151,38 +152,38 @@ export async function readAdmin2faToken(req?: Request) {
   return jar.get(ADMIN_2FA_COOKIE)?.value ?? null;
 }
 
-export function userFromSessionToken(raw: string | null | undefined) {
+export async function userFromSessionToken(raw: string | null | undefined) {
   if (!raw) return undefined;
-  const row = getDb()
-    .prepare(`SELECT * FROM sessions WHERE token_hash = ?`)
-    .get(tokenHash(raw)) as SessionRow | undefined;
+  const row = await getDb()
+      .prepare(`SELECT * FROM sessions WHERE token_hash = ?`)
+      .get(tokenHash(raw)) as SessionRow | undefined;
   if (!row || row.revoked_at) return undefined;
   if (new Date(row.expires_at).getTime() < Date.now()) return undefined;
-  const loaded = findUserById(row.user_id);
+  const loaded = await findUserById(row.user_id);
   if (!loaded || loaded.deleted_at) return undefined;
-  const user = reconcileExpiredBan(loaded);
+  const user = await reconcileExpiredBan(loaded);
   if (isStaffRole(user.role)) {
     const last = Date.parse(row.last_seen_at || row.created_at);
     if (Number.isFinite(last) && Date.now() - last > SESSION_ADMIN_IDLE_MS) {
       const now = new Date().toISOString();
-      getDb()
-        .prepare(
-          `UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`,
-        )
-        .run(now, row.id);
+      await getDb()
+                .prepare(
+                  `UPDATE sessions SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`,
+                )
+                .run(now, row.id);
       return undefined;
     }
-    getDb()
-      .prepare(
-        `UPDATE sessions SET last_seen_at = ? WHERE id = ? AND revoked_at IS NULL`,
-      )
-      .run(new Date().toISOString(), row.id);
+    await getDb()
+            .prepare(
+              `UPDATE sessions SET last_seen_at = ? WHERE id = ? AND revoked_at IS NULL`,
+            )
+            .run(new Date().toISOString(), row.id);
   }
   return user;
 }
 
 export async function getSessionUser(req?: Request) {
-  applyDevAdminBootstrap();
+  await applyDevAdminBootstrap();
   const token = await readSessionToken(req);
   return userFromSessionToken(token);
 }
@@ -200,16 +201,16 @@ export function requireActiveUser(user: UserRow | undefined): {
   return { ok: true, user, publicUser: toPublicUser(user) };
 }
 
-const hasPendingLegal = (userId: number) => pendingLegalDocs(getDb(), userId).length > 0;
+const hasPendingLegal = async (userId: number) => (await pendingLegalDocs(getDb(), userId)).length > 0;
 
-export function requireForumWriter(
+export async function requireForumWriter(
   user: UserRow | undefined,
-  legalPending: (userId: number) => boolean = hasPendingLegal,
-): {
-  ok: true;
-  user: UserRow;
-  publicUser: PublicUser;
-} | { ok: false; error: string; status: number } {
+  legalPending: (userId: number) => boolean | Promise<boolean> = hasPendingLegal,
+): Promise<{
+      ok: true;
+      user: UserRow;
+      publicUser: PublicUser;
+    } | { ok: false; error: string; status: number }> {
   const active = requireActiveUser(user);
   if (!active.ok) return active;
   if (!active.user.phone_verified_at && !active.user.email_verified_at) {
@@ -219,11 +220,11 @@ export function requireForumWriter(
       status: 403,
     };
   }
-  if (maintenanceBlocks(active.user.role)) {
+  if (await maintenanceBlocks(active.user.role)) {
     return { ok: false, error: MAINTENANCE_ERROR, status: 503 };
   }
   // Writing waits until the member has accepted the current terms and notice.
-  if (legalPending(active.user.id)) {
+  if (await legalPending(active.user.id)) {
     return { ok: false, error: LEGAL_PENDING_ERROR, status: 403 };
   }
   return active;

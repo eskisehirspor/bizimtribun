@@ -30,12 +30,12 @@ export async function POST(req: Request) {
   const email = active.user.email;
 
   const ip = await clientIp();
-  const limited = userEmailResendLimited(ip, active.user.id);
+  const limited = await userEmailResendLimited(ip, active.user.id);
   if (limited.limited) {
     return noStoreJson({ error: "Çok fazla deneme. Biraz sonra dene." }, 429);
   }
 
-  const raw = issueUserEmailToken(active.user.id);
+  const raw = await issueUserEmailToken(active.user.id);
   try {
     await sendUserVerifyEmail(email, raw);
   } catch {
@@ -44,6 +44,6 @@ export async function POST(req: Request) {
       503,
     );
   }
-  noteUserEmailResend(ip, active.user.id);
+  await noteUserEmailResend(ip, active.user.id);
   return noStoreJson({ ok: true, message: USER_VERIFY_GENERIC_SENT });
 }

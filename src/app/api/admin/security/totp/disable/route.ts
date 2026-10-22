@@ -27,10 +27,10 @@ export async function POST(req: Request) {
 
   const ipHash = hashedIp(`auth-totp:${await clientIp()}`);
   const db = getDb();
-  if (totpVerifyLimited(db, ipHash, gate.user.id)) {
+  if (await totpVerifyLimited(db, ipHash, gate.user.id)) {
     return noStoreJson({ error: "Çok fazla deneme. Biraz sonra dene." }, 429);
   }
-  noteTotpVerifyAttempt(db, ipHash, gate.user.id);
+  await noteTotpVerifyAttempt(db, ipHash, gate.user.id);
 
   const passwordOk =
     gate.user.password_hash == null || (await verifyPassword(parsed.data.password ?? "", gate.user.password_hash));
@@ -38,10 +38,10 @@ export async function POST(req: Request) {
     return noStoreJson({ error: "Doğrulama kodu hatalı." }, 401);
   }
 
-  const result = disableTotp(db, gate.user, parsed.data.code, {
-    ipHash,
-    uaHash: hmac(`ua:${req.headers.get("user-agent") || ""}`),
-  });
+  const result = await disableTotp(db, gate.user, parsed.data.code, {
+      ipHash,
+      uaHash: hmac(`ua:${req.headers.get("user-agent") || ""}`),
+    });
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true });
 }

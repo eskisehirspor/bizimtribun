@@ -1,4 +1,5 @@
-import type Database from "better-sqlite3";
+import { isConstraintViolation, type Db } from "./db";
+import { announceVoteChange } from "./live";
 import { writeAudit } from "./audit";
 import { isProvince } from "./provinces";
 
@@ -23,21 +24,15 @@ export type FanVote = {
   void_reason: string | null;
 };
 
-export function findFanVote(db: Database.Database, userId: number) {
-  return db
-    .prepare(`SELECT * FROM fan_votes WHERE user_id = ?`)
-    .get(userId) as FanVote | undefined;
+export async function findFanVote(db: Db, userId: number) {
+  return await db
+      .prepare(`SELECT * FROM fan_votes WHERE user_id = ?`)
+      .get(userId) as FanVote | undefined;
 }
 
 export type CastFanVoteResult =
   | { ok: true; already: boolean; vote: FanVote }
   | { ok: false; status: number; error: string; code: string };
-
-function sqliteCode(err: unknown) {
-  return err && typeof err === "object" && "code" in err
-    ? String((err as { code: unknown }).code)
-    : "";
-}
 
 function errMessage(err: unknown) {
   return err instanceof Error ? err.message : "";
@@ -48,21 +43,21 @@ function errMessage(err: unknown) {
  * any other team is refused once a vote exists. Must run server side with
  * the session user's id, never an id from the request body.
  */
-export function castFanVote(
-  db: Database.Database,
+export async function castFanVote(
+  db: Db,
   input: { userId: number; teamId: string; city: string | null },
-): CastFanVoteResult {
+): Promise<CastFanVoteResult> {
   const city = input.city?.trim() || null;
   if (city && !isProvince(city)) {
     return { ok: false, status: 400, error: "İl geçersiz.", code: "BAD_CITY" };
   }
-  const run = db.transaction((): CastFanVoteResult => {
-    const user = db
-      .prepare(
-        `SELECT id, phone_verified_at, email_verified_at, deleted_at, status, banned_at, ban_expires_at
+  const run = db.transaction(async (): Promise<CastFanVoteResult> => {
+    const user = await db
+          .prepare(
+            `SELECT id, phone_verified_at, email_verified_at, deleted_at, status, banned_at, ban_expires_at
          FROM users WHERE id = ?`,
-      )
-      .get(input.userId) as
+          )
+          .get(input.userId) as
       | {
           id: number;
           phone_verified_at: string | null;
@@ -91,7 +86,7 @@ export function castFanVote(
       return { ok: false, status: 403, error: "Hesap askıya alınmış.", code: "BANNED" };
     }
 
-    const existing = findFanVote(db, input.userId);
+    const existing = await findFanVote(db, input.userId);
     if (existing) {
       if (existing.team_id === input.teamId && existing.status === "active") {
         return { ok: true, already: true, vote: existing };
@@ -104,28 +99,30 @@ export function castFanVote(
       };
     }
 
-    const team = db
-      .prepare(`SELECT id, is_active FROM teams WHERE id = ?`)
-      .get(input.teamId) as { id: string; is_active: number } | undefined;
+    const team = await db
+          .prepare(`SELECT id, is_active FROM teams WHERE id = ?`)
+          .get(input.teamId) as { id: string; is_active: number } | undefined;
     if (!team || !team.is_active) {
       return { ok: false, status: 400, error: "Bu takım seçilemez.", code: "BAD_TEAM" };
     }
 
     const now = new Date().toISOString();
-    db.prepare(
-      `UPDATE users SET team_id = ?, city = COALESCE(city, ?), updated_at = ? WHERE id = ?`,
-    ).run(input.teamId, city, now, input.userId);
-    db.prepare(
-      `INSERT INTO fan_votes (user_id, team_id, city, cast_at) VALUES (?, ?, ?, ?)`,
-    ).run(input.userId, input.teamId, city, now);
-    return { ok: true, already: false, vote: findFanVote(db, input.userId)! };
+    await db.prepare(
+            `UPDATE users SET team_id = ?, city = COALESCE(city, ?), updated_at = ? WHERE id = ?`,
+          ).run(input.teamId, city, now, input.userId);
+    await db.prepare(
+            `INSERT INTO fan_votes (user_id, team_id, city, cast_at) VALUES (?, ?, ?, ?)`,
+          ).run(input.userId, input.teamId, city, now);
+    return { ok: true, already: false, vote: (await findFanVote(db, input.userId))! };
   });
 
   try {
-    return run();
+    const result = await run();
+    if (result.ok && !result.already) announceVoteChange();
+    return result;
   } catch (err) {
-    const existing = findFanVote(db, input.userId);
-    if (sqliteCode(err).includes("CONSTRAINT") && existing) {
+    const existing = await findFanVote(db, input.userId);
+    if (isConstraintViolation(err) && existing) {
       if (existing.team_id === input.teamId && existing.status === "active") {
         return { ok: true, already: true, vote: existing };
       }
@@ -158,27 +155,28 @@ export function castFanVote(
  * Callers must be in the same transaction as their own audit needs, or rely
  * on the audit entry written here.
  */
-export function voidFanVote(
-  db: Database.Database,
+export async function voidFanVote(
+  db: Db,
   input: { userId: number; reason: string; actorUserId: number | null; action?: string },
-): { ok: true } | { ok: false; error: string } {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const reason = input.reason.trim();
   if (reason.length < 3) return { ok: false, error: "Gerekçe gerekli." };
   const now = new Date().toISOString();
-  const hit = db
-    .prepare(
-      `UPDATE fan_votes SET status = 'void', voided_at = ?, void_reason = ?, voided_by_user_id = ?
+  const hit = await db
+      .prepare(
+        `UPDATE fan_votes SET status = 'void', voided_at = ?, void_reason = ?, voided_by_user_id = ?
        WHERE user_id = ? AND status = 'active'`,
-    )
-    .run(now, reason.slice(0, 300), input.actorUserId, input.userId);
+      )
+      .run(now, reason.slice(0, 300), input.actorUserId, input.userId);
   if (hit.changes !== 1) return { ok: false, error: "Geçerli oy yok." };
-  writeAudit(db, {
-    actorUserId: input.actorUserId,
-    action: input.action ?? "fan_vote_void",
-    targetType: "user",
-    targetId: input.userId,
-    reason,
-  });
+  await writeAudit(db, {
+        actorUserId: input.actorUserId,
+        action: input.action ?? "fan_vote_void",
+        targetType: "user",
+        targetId: input.userId,
+        reason,
+      });
+  announceVoteChange();
   return { ok: true };
 }
 
@@ -189,40 +187,41 @@ export function voidFanVote(
  * refuses the update without that record, and for deleted or unverified
  * accounts.
  */
-export function restoreFanVote(
-  db: Database.Database,
+export async function restoreFanVote(
+  db: Db,
   input: { userId: number; reason: string; actorUserId: number },
-): { ok: true } | { ok: false; error: string } {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const reason = input.reason.trim();
   if (reason.length < 3) return { ok: false, error: "Gerekçe gerekli." };
-  const vote = findFanVote(db, input.userId);
+  const vote = await findFanVote(db, input.userId);
   if (!vote || vote.status !== "void") return { ok: false, error: "Geri alınacak iptal edilmiş oy yok." };
   if (vote.void_reason === "account_deleted") {
     return { ok: false, error: "Silinen hesabın oyu geri alınamaz." };
   }
   const now = new Date().toISOString();
   try {
-    db.prepare(
-      `INSERT INTO fan_vote_restores (vote_id, actor_user_id, reason, voided_at, void_reason, voided_by_user_id, created_at)
+    await db.prepare(
+            `INSERT INTO fan_vote_restores (vote_id, actor_user_id, reason, voided_at, void_reason, voided_by_user_id, created_at)
        SELECT id, ?, ?, voided_at, void_reason, voided_by_user_id, ? FROM fan_votes WHERE id = ?`,
-    ).run(input.actorUserId, reason.slice(0, 300), now, vote.id);
-    db.prepare(
-      `UPDATE fan_votes SET status = 'active', voided_at = NULL, void_reason = NULL, voided_by_user_id = NULL,
+          ).run(input.actorUserId, reason.slice(0, 300), now, vote.id);
+    await db.prepare(
+            `UPDATE fan_votes SET status = 'active', voided_at = NULL, void_reason = NULL, voided_by_user_id = NULL,
          restored_at = ?
        WHERE id = ? AND status = 'void'`,
-    ).run(now, vote.id);
+          ).run(now, vote.id);
   } catch (err) {
     if (errMessage(err).includes("VOTE_IMMUTABLE")) {
       return { ok: false, error: "Bu oy geri alınamaz (hesap silinmiş ya da telefonu doğrulanmamış)." };
     }
     throw err;
   }
-  writeAudit(db, {
-    actorUserId: input.actorUserId,
-    action: "admin_fan_vote_restore",
-    targetType: "user",
-    targetId: input.userId,
-    reason,
-  });
+  await writeAudit(db, {
+        actorUserId: input.actorUserId,
+        action: "admin_fan_vote_restore",
+        targetType: "user",
+        targetId: input.userId,
+        reason,
+      });
+  announceVoteChange();
   return { ok: true };
 }

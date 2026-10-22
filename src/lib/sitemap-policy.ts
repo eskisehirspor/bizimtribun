@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 import { CITIES } from "./cities";
 
 /** Google sitemap protocol: max 50_000 URLs per sitemap document. */
@@ -49,9 +49,10 @@ export function staticSitemapEntries(base: string, now = new Date()): SitemapEnt
       changeFrequency: "hourly",
       priority: 0.8,
     },
+    // No lastModified: these change rarely, and a date that moves on every
+    // request teaches Google to ignore the dates that do matter.
     ...["/kvkk", "/kullanim-kosullari", "/cerez-politikasi"].map((path) => ({
       url: `${root}${path}`,
-      lastModified: now,
       changeFrequency: "yearly" as const,
       priority: 0.3,
     })),
@@ -67,28 +68,28 @@ export function staticSitemapEntries(base: string, now = new Date()): SitemapEnt
 export type BoardFlags = { generalBoardOpen: boolean };
 const ALL_BOARDS: BoardFlags = { generalBoardOpen: true };
 
-export function publicTopicSitemapEntries(
-  db: Database.Database,
+export async function publicTopicSitemapEntries(
+  db: Db,
   base: string,
   limit: number,
   boards: BoardFlags = ALL_BOARDS,
-): SitemapEntry[] {
+): Promise<SitemapEntry[]> {
   if (limit <= 0) return [];
   const root = origin(base);
-  const rows = db
-    .prepare(
-      `SELECT ft.id AS id, ft.updated_at AS updated_at
+  const rows = await db
+      .prepare(
+        `SELECT ft.id AS id, ft.updated_at AS updated_at
        FROM forum_topics ft
        WHERE ft.deleted_at IS NULL
          AND ft.held_at IS NULL
          AND (
-           0
+           FALSE
            ${boards.generalBoardOpen ? "OR ft.board = 'general'" : ""}
          )
        ORDER BY ft.updated_at DESC, ft.id DESC
        LIMIT ?`,
-    )
-    .all(limit) as { id: number; updated_at: string }[];
+      )
+      .all(limit) as { id: number; updated_at: string }[];
 
   return rows.map((row) => {
     const lastModified = parseStamp(row.updated_at);
@@ -102,29 +103,29 @@ export function publicTopicSitemapEntries(
 }
 
 /** Team detail pages: active teams, plus inactive ones that still hold votes. */
-export function teamPageSitemapEntries(db: Database.Database, base: string): SitemapEntry[] {
+export async function teamPageSitemapEntries(db: Db, base: string): Promise<SitemapEntry[]> {
   const root = origin(base);
-  const rows = db
-    .prepare(
-      `SELECT t.id FROM teams t
+  const rows = await db
+      .prepare(
+        `SELECT t.id FROM teams t
        WHERE t.is_active = 1 OR EXISTS (SELECT 1 FROM fan_votes fv WHERE fv.team_id = t.id AND fv.status = 'active')
        ORDER BY t.id`,
-    )
-    .all() as { id: string }[];
+      )
+      .all() as { id: string }[];
   return rows.map((row) => ({ url: `${root}/takim/${row.id}`, changeFrequency: "daily" as const, priority: 0.8 }));
 }
 
 /** Only profiles their owners made public; members-only profiles never appear. */
-export function publicProfileSitemapEntries(db: Database.Database, base: string, limit: number): SitemapEntry[] {
+export async function publicProfileSitemapEntries(db: Db, base: string, limit: number): Promise<SitemapEntry[]> {
   if (limit <= 0) return [];
   const root = origin(base);
-  const rows = db
-    .prepare(
-      `SELECT username, updated_at FROM users
+  const rows = await db
+      .prepare(
+        `SELECT username, updated_at FROM users
        WHERE profile_visibility = 'public' AND deleted_at IS NULL AND status = 'active' AND banned_at IS NULL
        ORDER BY updated_at DESC LIMIT ?`,
-    )
-    .all(limit) as { username: string; updated_at: string }[];
+      )
+      .all(limit) as { username: string; updated_at: string }[];
   return rows.map((row) => {
     const lastModified = parseStamp(row.updated_at);
     return {
@@ -136,23 +137,23 @@ export function publicProfileSitemapEntries(db: Database.Database, base: string,
   });
 }
 
-export function buildPublicSitemap(
-  db: Database.Database,
+export async function buildPublicSitemap(
+  db: Db,
   base: string,
   now = new Date(),
   boards: BoardFlags = ALL_BOARDS,
-): SitemapEntry[] {
+): Promise<SitemapEntry[]> {
   const root = origin(base);
   const staticEntries = staticSitemapEntries(base, now);
   if (boards.generalBoardOpen) {
     staticEntries.push({ url: `${root}/forum/milli-takim`, lastModified: now, changeFrequency: "hourly", priority: 0.7 });
   }
-  const teamsPages = teamPageSitemapEntries(db, base);
+  const teamsPages = await teamPageSitemapEntries(db, base);
   // Team tribunes are members-only, so neither their boards nor their topics are listed.
   const fixed = staticEntries.length + teamsPages.length;
   // Profiles get at most a tenth of what is left; topics take the rest.
-  const profiles = publicProfileSitemapEntries(db, base, Math.floor((SITEMAP_MAX_URLS - fixed) / 10));
-  const topics = publicTopicSitemapEntries(db, base, SITEMAP_MAX_URLS - fixed - profiles.length, boards);
+  const profiles = await publicProfileSitemapEntries(db, base, Math.floor((SITEMAP_MAX_URLS - fixed) / 10));
+  const topics = await publicTopicSitemapEntries(db, base, SITEMAP_MAX_URLS - fixed - profiles.length, boards);
 
   const entries = [...staticEntries, ...teamsPages, ...topics, ...profiles];
   const seen = new Set<string>();

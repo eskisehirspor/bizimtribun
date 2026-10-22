@@ -27,14 +27,14 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   if (!reason) return noStoreJson({ error: "Gerekçe en az 3 karakter olmalı." }, 400);
 
   const db = getDb();
-  const result = db.transaction(() =>
-    voidFanVote(db, {
-      userId: id,
-      reason,
-      actorUserId: gate.user.id,
-      action: "admin_fan_vote_void",
-    }),
-  )();
+  const result = await db.transaction(() =>
+      voidFanVote(db, {
+        userId: id,
+        reason,
+        actorUserId: gate.user.id,
+        action: "admin_fan_vote_void",
+      }),
+    )();
   if (!result.ok) return noStoreJson({ error: result.error }, 409);
   return noStoreJson({ ok: true });
 }
@@ -56,7 +56,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!reason) return noStoreJson({ error: "Gerekçe en az 3 karakter olmalı." }, 400);
 
   const db = getDb();
-  const result = db.transaction(() => restoreFanVote(db, { userId: id, reason, actorUserId: gate.user.id }))();
+  const result = await db.transaction(() => restoreFanVote(db, { userId: id, reason, actorUserId: gate.user.id }))();
   if (!result.ok) return noStoreJson({ error: result.error }, 409);
   return noStoreJson({ ok: true });
 }
