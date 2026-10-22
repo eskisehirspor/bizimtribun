@@ -16,8 +16,10 @@
     // this Worker. Remove this line when the domain moves.
     "MAIL_LINK_URL": "https://bizimtribun.bizimtribun.workers.dev"
   },
-  // Custom domains (bizimtribun.com, www) go here once the domain's nameservers
-  // point at Cloudflare; until then a deploy with them would fail.
+  "routes": [
+    { "pattern": "bizimtribun.com", "custom_domain": true },
+    { "pattern": "www.bizimtribun.com", "custom_domain": true }
+  ],
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
