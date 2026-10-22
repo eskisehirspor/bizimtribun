@@ -506,7 +506,7 @@ CREATE TABLE IF NOT EXISTS site_settings (
 
 -- Guards the database keeps on its own, whatever the app does.
 
-CREATE OR REPLACE FUNCTION bt_abort() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION bt_abort() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
   RAISE EXCEPTION '%', TG_ARGV[0];
 END $$;
@@ -527,7 +527,7 @@ DROP TRIGGER IF EXISTS fan_votes_immutable ON fan_votes;
 CREATE TRIGGER fan_votes_immutable BEFORE UPDATE OF user_id, team_id, city, cast_at ON fan_votes
   FOR EACH ROW EXECUTE FUNCTION bt_abort('VOTE_IMMUTABLE');
 
-CREATE OR REPLACE FUNCTION bt_fan_votes_insert_guard() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION bt_fan_votes_insert_guard() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
   IF NEW.status <> 'active' THEN
     RAISE EXCEPTION 'VOTE_NOT_ACTIVE';
@@ -548,7 +548,7 @@ DROP TRIGGER IF EXISTS fan_votes_insert_guard ON fan_votes;
 CREATE TRIGGER fan_votes_insert_guard BEFORE INSERT ON fan_votes
   FOR EACH ROW EXECUTE FUNCTION bt_fan_votes_insert_guard();
 
-CREATE OR REPLACE FUNCTION bt_fan_votes_void_once() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION bt_fan_votes_void_once() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
   IF OLD.status = 'void' AND NOT (
     NEW.status = 'active'
@@ -568,7 +568,7 @@ DROP TRIGGER IF EXISTS fan_votes_void_once ON fan_votes;
 CREATE TRIGGER fan_votes_void_once BEFORE UPDATE ON fan_votes
   FOR EACH ROW EXECUTE FUNCTION bt_fan_votes_void_once();
 
-CREATE OR REPLACE FUNCTION bt_teams_keep_history() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION bt_teams_keep_history() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
   IF EXISTS (SELECT 1 FROM fan_votes WHERE team_id = OLD.id)
      OR EXISTS (SELECT 1 FROM forum_topics WHERE team_id = OLD.id) THEN
@@ -580,7 +580,7 @@ DROP TRIGGER IF EXISTS teams_keep_history ON teams;
 CREATE TRIGGER teams_keep_history BEFORE DELETE ON teams
   FOR EACH ROW EXECUTE FUNCTION bt_teams_keep_history();
 
-CREATE OR REPLACE FUNCTION bt_users_team_locked() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE OR REPLACE FUNCTION bt_users_team_locked() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
 BEGIN
   IF EXISTS (SELECT 1 FROM fan_votes WHERE user_id = OLD.id)
      AND NEW.team_id IS DISTINCT FROM (SELECT team_id FROM fan_votes WHERE user_id = OLD.id) THEN
