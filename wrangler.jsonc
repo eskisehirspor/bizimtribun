@@ -12,6 +12,13 @@
     "APP_URL": "https://bizimtribun.com",
     "TRUST_PROXY": "cloudflare",
     "VERIFY_CHANNEL": "email"
-  }
-  // "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "<from wrangler hyperdrive create>" }]
+  },
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "b52aecddb119402cbe903779272ed73f",
+      // Only used by `wrangler dev`; the deployed Worker uses Supabase.
+      "localConnectionString": "postgres://postgres@localhost:5432/postgres"
+    }
+  ]
 }

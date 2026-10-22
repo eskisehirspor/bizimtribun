@@ -20,7 +20,7 @@ ALTER ROLE bizimtribun_app WITH PASSWORD '<random>';
 Connection string for Hyperdrive (session pooler, port 5432):
 
 ```
-postgresql://bizimtribun_app.cqxkjbrvfqpizbpmtrns:<password>@aws-<n>-eu-west-1.pooler.supabase.com:5432/postgres
+postgresql://bizimtribun_app.cqxkjbrvfqpizbpmtrns:<password>@aws-1-eu-west-1.pooler.supabase.com:5432/postgres
 ```
 
 ## First deploy
