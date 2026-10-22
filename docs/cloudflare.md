@@ -36,6 +36,15 @@ printf %s "<value>" | npx wrangler secret put APP_SECRET   # 48 random bytes
 
 Public settings live in `wrangler.jsonc` (`vars`) and `.env.production`.
 
+## Deploy from GitHub
+
+`.github/workflows/deploy.yml` deploys production on every push to the
+deploy branch, after tests, typecheck and lint pass. "Run workflow" on the
+Actions tab deploys staging (or production) by hand. It needs repository
+secrets `CLOUDFLARE_API_TOKEN` ("Edit Cloudflare Workers" template) and
+`CLOUDFLARE_ACCOUNT_ID`, and the repository variable
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY`. Worker secrets are not touched.
+
 ## Custom domain
 
 Add `bizimtribun.com` and `www.bizimtribun.com` as Worker custom domains

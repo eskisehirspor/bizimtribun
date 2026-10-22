@@ -1,0 +1,71 @@
+name: Deploy
+
+# Builds the site with OpenNext and uploads it to the Cloudflare Worker.
+# Runtime secrets (APP_SECRET, RESEND_API_KEY, ...) stay in the Worker
+# settings; this job only needs the two repository secrets below.
+#   CLOUDFLARE_API_TOKEN   token from the "Edit Cloudflare Workers" template
+#   CLOUDFLARE_ACCOUNT_ID  shown on the Cloudflare Workers overview page
+# Public build values come from .env.production, plus the repository
+# variable NEXT_PUBLIC_TURNSTILE_SITE_KEY (Turnstile widget's site key).
+
+on:
+  push:
+    branches: [claude/project-thread-85djfg]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Where to deploy
+        type: choice
+        options: [production, staging]
+        default: staging
+
+concurrency:
+  group: deploy-${{ inputs.target || 'production' }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Nothing is deployed unless tests, types and lint pass.
+      - name: Test
+        run: npm test
+
+      - name: Typecheck
+        run: |
+          npx next typegen
+          npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.NEXT_PUBLIC_TURNSTILE_SITE_KEY }}
+        run: |
+          if [ -z "$NEXT_PUBLIC_TURNSTILE_SITE_KEY" ]; then
+            echo "::error::Repository variable NEXT_PUBLIC_TURNSTILE_SITE_KEY is not set"
+            exit 1
+          fi
+          npx opennextjs-cloudflare build
+
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ "${{ inputs.target || 'production' }}" = staging ]; then
+            npx opennextjs-cloudflare deploy --env staging
+          else
+            npx opennextjs-cloudflare deploy
+          fi
