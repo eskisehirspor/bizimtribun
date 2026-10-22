@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ teamSlug:
   const { teamSlug } = await params;
   const team = await getCatalogTeam(teamSlug);
   if (!team) return { robots: { index: false, follow: false } };
-  return teamPageMetadata(team, (await leagueLabels())[team.league] ?? team.league);
+  return teamPageMetadata(team, (await leagueLabels())[team.league] ?? team.league, await teamSummary(team.id));
 }
 
 const n = (v: number) => v.toLocaleString("tr-TR");
@@ -78,6 +78,14 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
           </div>
         </div>
         <div className="bg-[#FFFEFA] p-5">
+          <h2 className="font-anton text-[22px] mb-2">{team.name.toLocaleUpperCase("tr")} KAÇ TARAFTARI VAR?</h2>
+          {summary && summary.votes > 0 && (
+            <p className="font-mono text-[13px] mb-3 max-w-[70ch]">
+              Bizim Tribün sayımına göre {team.name} için {n(summary.votes)} doğrulanmış taraftar var
+              {summary.rank ? `: Türkiye'deki takımlar arasında ${summary.rank}. sıra` : ""}, toplam sayımdaki payı %
+              {share.toLocaleString("tr-TR")}. Her taraftar doğrulanmış hesabıyla tek ve kalıcı oy verir.
+            </p>
+          )}
           {!summary || summary.votes === 0 ? (
             <p className="font-mono text-[13px]">
               Henüz doğrulanmış taraftar yok. İlk taraftar sen olabilirsin.
@@ -103,7 +111,9 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
                 {summary.provincesLed} ilde tek başına lider
                 {summary.provincesCoLed ? `, ${summary.provincesCoLed} ilde liderliği paylaşıyor` : ""}.
               </p>
-              <h2 className="font-anton text-[22px] mt-5">EN ÇOK TARAFTARI OLAN İLLER</h2>
+              <h2 className="font-anton text-[22px] mt-5">
+                {team.name.toLocaleUpperCase("tr")} TARAFTARLARI EN ÇOK HANGİ İLLERDE?
+              </h2>
               {summary.topProvinces.length === 0 ? (
                 <p className="font-mono text-[12px] opacity-70">İl bilgisi veren taraftar yok.</p>
               ) : (

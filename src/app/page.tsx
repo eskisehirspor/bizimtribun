@@ -1,4 +1,5 @@
 import HomeClient from "@/components/HomeClient";
+import HomeTeamCounts from "@/components/HomeTeamCounts";
 import JsonLd from "@/components/JsonLd";
 import { getDb } from "@/lib/db";
 import type { Metadata } from "next";
@@ -36,12 +37,14 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function Home() {
   const standings = await cityStandings();
   const settings = await getSettings();
+  const teams = await teamCounts();
+  const total = await totalVerified();
   return (
     <>
       <JsonLd data={graph(organizationJsonLd(), websiteJsonLd())} />
       <HomeClient
-        initialTeams={await teamCounts()}
-        initialTotal={await totalVerified()}
+        initialTeams={teams}
+        initialTotal={total}
         initialCities={await cityLeaders(standings)}
         initialStandings={standings}
         leagues={await listLeagues()}
@@ -51,6 +54,7 @@ export default async function Home() {
         homeLeagueIds={settings.homeLeagues.ids}
         generatedAt={new Date().toISOString()}
       />
+      <HomeTeamCounts teams={teams} total={total} />
     </>
   );
 }

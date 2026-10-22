@@ -66,9 +66,9 @@ export const DEFAULT_SETTINGS: Settings = {
   featuredTopics: { ids: [] },
   socialLinks: { x: "", instagram: "", youtube: "", tiktok: "" },
   seo: {
-    siteTitle: "Bizim Tribün — Türkiye'nin Taraftar Haritası",
+    siteTitle: "Taraftar Sayısı: Hangi Takımın Kaç Taraftarı Var? | Bizim Tribün",
     siteDescription:
-      "Türkiye'nin en büyük takımı hangisi? Doğrulanmış hesap başına tek oyla gerçek taraftar sayımı, 81 il haritası, takım tribünleri ve Milli Takım Tribünü.",
+      "Türkiye'nin en büyük takımı hangisi, hangi takımın kaç taraftarı var? Doğrulanmış hesap başına tek oyla gerçek taraftar sayımı ve il il tribün haritası.",
   },
   homeLeagues: { ids: [...LEAGUE_ORDER] },
   maintenance: { enabled: false, message: "" },

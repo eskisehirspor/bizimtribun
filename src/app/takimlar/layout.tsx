@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import { publicPageMetadata } from "@/lib/seo";
 
 export const metadata = publicPageMetadata({
-  title: "Takımlar ve Taraftar Sayıları | Bizim Tribün",
+  title: "Taraftar Sayıları: En Çok Taraftarı Olan Takımlar | Bizim Tribün",
   description:
-    "Süper Lig'den Bölgesel Amatör Lig'e bütün takımlar: doğrulanmış taraftar sayıları, sıralama ve her takımın kendi tribünü.",
+    "Hangi takımın kaç taraftarı var? Süper Lig'den Bölgesel Amatör Lig'e bütün takımların doğrulanmış taraftar sayıları, Türkiye sıralaması ve tribünleri.",
   path: "/takimlar",
 });
 

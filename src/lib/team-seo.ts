@@ -6,9 +6,18 @@ export function teamCanonical(id: string) {
   return `${appUrl().replace(/\/$/, "")}/takim/${id}`;
 }
 
-export function teamPageMetadata(team: CatalogTeam, leagueName: string): Metadata {
-  const title = `${team.name} Taraftar Sayısı ve İl Dağılımı | Bizim Tribün`;
-  const description = `${team.name} (${leagueName}, ${team.city}) için doğrulanmış taraftar sayısı, sıralama ve illere göre dağılım.`;
+/** Matches searches like "Eskişehirspor kaç taraftarı var" and quotes the live count. */
+export function teamPageMetadata(
+  team: CatalogTeam,
+  leagueName: string,
+  counts?: { votes: number; rank: number | null } | null,
+): Metadata {
+  const title = `${team.name} Kaç Taraftarı Var? Taraftar Sayısı | Bizim Tribün`;
+  const now =
+    counts && counts.votes > 0
+      ? `Şu an ${counts.votes.toLocaleString("tr-TR")} doğrulanmış taraftar${counts.rank ? `, Türkiye ${counts.rank}.` : ""}`
+      : "Sayım yeni başladı";
+  const description = `${team.name} kaç taraftarı var? ${now}. ${leagueName} taraftar sıralaması ve ${team.name} taraftarlarının illere göre dağılımı.`;
   const url = teamCanonical(team.id);
   return {
     title,
