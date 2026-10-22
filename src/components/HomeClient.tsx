@@ -232,7 +232,7 @@ export default function HomeClient({
               İL LİDERLERİ
             </span>
           </h2>
-          {opening > 0 && <OpeningNote total={total} opening={opening} />}
+          {opening > 0 && <OpeningNote opening={opening} />}
           <TurkeyMap leaders={preview.cities} standings={preview.standings} />
         </div>
 
@@ -335,9 +335,7 @@ export default function HomeClient({
                 );
               })}
               {opening > 0 && (
-                <div className="p-2 font-mono text-[12px] bg-[#FFEA00]/40">
-                  Sayılara açılış verisi dahil; gerçek oylar geldikçe kaldırılacak.
-                </div>
+                <div className="px-2 py-1 font-mono text-[10px] text-black/50">Başlangıç verisi dahil.</div>
               )}
               {filtered.length === 0 && (
                 <div className="p-4 font-mono text-[14px]">Eşleşme yok. Aramayı ya da lig filtresini değiştir.</div>
@@ -490,12 +488,10 @@ export default function HomeClient({
 }
 
 /** Shown wherever the opening data is part of the numbers. */
-function OpeningNote({ total, opening }: { total: number; opening: number }) {
+function OpeningNote({ opening }: { opening: number }) {
   return (
-    <p className="-mt-5 mb-5 md:-mt-6 md:mb-6 inline-block border-[2px] border-black bg-[#FFEA00] px-2 py-1 font-mono text-[12px] leading-snug">
-      <strong>AÇILIŞ VERİSİ:</strong> Harita boş kalmasın diye her takıma kendi iline birkaç başlangıç oyu
-      koyduk ({opening.toLocaleString("tr-TR")} oy). Gerçek oy: {(total - opening).toLocaleString("tr-TR")}.
-      Gerçek taraftarlar geldikçe kaldırılacak.
+    <p className="-mt-6 mb-4 md:-mt-8 md:mb-5 font-mono text-[10px] leading-snug text-black/50">
+      Sayılarda {opening.toLocaleString("tr-TR")} başlangıç verisi var.
     </p>
   );
 }
