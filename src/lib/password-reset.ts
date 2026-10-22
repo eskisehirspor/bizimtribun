@@ -12,9 +12,10 @@ import {
   PASSWORD_RESET_TTL_MS,
 } from "./policy";
 
-/** Same answer whether or not the address has an account. */
 export const PASSWORD_RESET_SENT =
-  "Bu e-postayla bir hesap varsa şifre belirleme linki gönderildi. Gelmediyse spam klasörüne bak.";
+  "Şifre belirleme linki e-postana gönderildi. Gelmediyse spam klasörüne bak.";
+// The sign-up page already says which addresses are members, so this does too.
+export const PASSWORD_RESET_UNKNOWN = "Bu e-postayla kayıtlı bir hesap yok. Adresi kontrol et ya da üye ol.";
 export const PASSWORD_RESET_LIMITED = "Çok fazla istek geldi. Biraz sonra tekrar dene.";
 
 function tokenHash(raw: string) {
@@ -30,8 +31,8 @@ async function noteAttempt(key: string, now: string) {
 
 /**
  * "Forgot my password": mails a one-time link (30 minutes) to the account on
- * this address. The caller always answers PASSWORD_RESET_SENT so the form
- * does not tell who is a member. Only the IP limit is reported back.
+ * this address, or says there is no such account. Repeats inside the
+ * cooldown and per-account limit answer "sent" without a new mail.
  */
 export async function requestPasswordReset(emailNorm: string, ip: string, now = Date.now()) {
   if ((await registerAttemptCount(ipKey(ip))) >= PASSWORD_RESET_PER_IP_HOUR) {
@@ -41,7 +42,10 @@ export async function requestPasswordReset(emailNorm: string, ip: string, now = 
   await noteAttempt(ipKey(ip), nowIso);
 
   const user = await findUserByEmailNorm(emailNorm);
-  if (!user || user.deleted_at || !user.email || isUserBanned(user)) return { ok: true as const };
+  if (!user || user.deleted_at || !user.email) {
+    return { ok: false as const, status: 404, error: PASSWORD_RESET_UNKNOWN };
+  }
+  if (isUserBanned(user)) return { ok: false as const, status: 403, error: "Hesap askıya alınmış." };
 
   const db = getDb();
   if ((await registerAttemptCount(userKey(user.id))) >= PASSWORD_RESET_PER_USER_HOUR) return { ok: true as const };

@@ -8,7 +8,7 @@ const Body = z.object({
   captchaToken: z.string().max(4096).optional(),
 });
 
-/** "Şifremi unuttum": mails a one-time link. Same answer for every address. */
+/** "Şifremi unuttum": mails a one-time link, or says the address has no account. */
 export async function POST(req: Request) {
   const body = await readJsonBody(req);
   if ("error" in body) return noStoreJson({ error: body.error }, 400);

@@ -137,7 +137,7 @@ test("changing the password needs the old one", async () => {
   assert.equal(loginNew.status, 200);
 });
 
-test("forgot password: one-time link, same answer for unknown addresses, signs out everywhere", async () => {
+test("forgot password: one-time link, unknown addresses told so, signs out everywhere", async () => {
   const email = `${uniq("unut")}@example.com`;
   const device = testDevice();
   const cookie = await ticket(email, device);
@@ -145,12 +145,12 @@ test("forgot password: one-time link, same answer for unknown addresses, signs o
   const session = sessionCookie(made.res);
 
   const unknown = await invoke(resetRequest, { method: "POST", path: "/api/auth/password-reset", body: { email: `${uniq("yok")}@example.com` }, ip: ip() });
-  assert.equal(unknown.status, 200);
+  assert.equal(unknown.status, 404);
+  assert.match((unknown.json as { error: string }).error, /kayıtlı bir hesap yok/);
   assert.equal(fs.existsSync(RESET_FILE), false);
 
   const asked = await invoke(resetRequest, { method: "POST", path: "/api/auth/password-reset", body: { email: email.toUpperCase() }, ip: ip() });
   assert.equal(asked.status, 200);
-  assert.equal((asked.json as { message: string }).message, (unknown.json as { message: string }).message);
   const token = /token=([a-f0-9]{64})/.exec(fs.readFileSync(RESET_FILE, "utf8"))![1];
 
   const weak = await invoke(resetConfirm, { method: "POST", path: "/api/auth/password-reset/confirm", body: { token, password: "zayif" } });

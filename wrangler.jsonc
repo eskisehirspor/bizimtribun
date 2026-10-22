@@ -11,7 +11,10 @@
   "vars": {
     "APP_URL": "https://bizimtribun.com",
     "TRUST_PROXY": "cloudflare",
-    "VERIFY_CHANNEL": "email"
+    "VERIFY_CHANNEL": "email",
+    // Links in mails go to the test address until bizimtribun.com points at
+    // this Worker. Remove this line when the domain moves.
+    "MAIL_LINK_URL": "https://bizimtribun.bizimtribun.workers.dev"
   },
   "hyperdrive": [
     {

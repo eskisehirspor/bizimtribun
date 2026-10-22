@@ -19,6 +19,19 @@ function esc(value: string) {
  * yellow logo, a card with a thick black border. Tables and inline styles
  * only, so it renders the same in Gmail, Outlook and Apple Mail.
  */
+/**
+ * Mail apps ignore lang="tr" for CSS uppercase and turn "i" into "I", so
+ * headings are upper-cased here with Turkish rules ("Şifreni" → "ŞİFRENİ").
+ */
+function upperTr(text: string) {
+  return text.replace(/i/g, "İ").replace(/ı/g, "I").toUpperCase();
+}
+
+/** Links in mails. MAIL_LINK_URL points them at the test address until the domain moves. */
+function linkBase() {
+  return process.env.MAIL_LINK_URL?.trim() || appUrl();
+}
+
 export function mailLayout(opts: { preheader: string; title: string; body: string; footer?: string }) {
   const footer = opts.footer ?? "Bu maili sen istemediysen yok say, hesabında bir şey değişmez.";
   return `<!doctype html>
@@ -30,17 +43,17 @@ export function mailLayout(opts: { preheader: string; title: string; body: strin
 <tr><td align="center" style="padding:28px 12px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
 <tr><td style="background:${INK};padding:18px 24px;border:4px solid ${INK};">
-<span style="font-family:${HEAD};font-size:30px;line-height:1;letter-spacing:1px;font-weight:bold;color:${YELLOW};text-transform:uppercase;">BİZİM TRİBÜN</span><br>
-<span style="font-family:${BODY};font-size:12px;letter-spacing:3px;color:${PAPER};text-transform:uppercase;">Taraftarın sesi</span>
+<span style="font-family:${HEAD};font-size:30px;line-height:1;letter-spacing:1px;font-weight:bold;color:${YELLOW};">BİZİM TRİBÜN</span><br>
+<span style="font-family:${BODY};font-size:12px;letter-spacing:3px;color:${PAPER};">TARAFTARIN SESİ</span>
 </td></tr>
 <tr><td style="background:${RED};height:6px;line-height:6px;font-size:0;border-left:4px solid ${INK};border-right:4px solid ${INK};">&nbsp;</td></tr>
 <tr><td style="background:${CARD};border:4px solid ${INK};border-top:0;padding:28px 24px;">
-<h1 style="margin:0 0 16px;font-family:${HEAD};font-size:28px;line-height:1.1;font-weight:bold;color:${INK};text-transform:uppercase;">${esc(opts.title)}</h1>
+<h1 style="margin:0 0 16px;font-family:${HEAD};font-size:28px;line-height:1.1;font-weight:bold;color:${INK};">${esc(upperTr(opts.title))}</h1>
 ${opts.body}
 </td></tr>
 <tr><td style="padding:16px 4px;font-family:${BODY};font-size:12px;line-height:1.5;color:#555;">
 ${esc(footer)}<br>
-<a href="${esc(appUrl())}" style="color:${INK};font-weight:bold;">bizimtribun.com</a>
+<a href="${esc(linkBase())}" style="color:${INK};font-weight:bold;">bizimtribun.com</a>
 </td></tr>
 </table>
 </td></tr>
@@ -61,7 +74,7 @@ function codeBox(code: string) {
 function button(link: string, label: string) {
   return `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 18px;">
 <tr><td style="background:${RED};border:4px solid ${INK};">
-<a href="${esc(link)}" style="display:inline-block;padding:14px 26px;font-family:${HEAD};font-size:20px;letter-spacing:1px;color:#FFFFFF;text-decoration:none;text-transform:uppercase;">${esc(label)}</a>
+<a href="${esc(link)}" style="display:inline-block;padding:14px 26px;font-family:${HEAD};font-size:20px;letter-spacing:1px;color:#FFFFFF;text-decoration:none;">${esc(upperTr(label))}</a>
 </td></tr>
 </table>
 <p style="margin:0 0 14px;font-family:${BODY};font-size:12px;line-height:1.5;color:#555;word-break:break-all;">Düğme çalışmazsa bu adresi tarayıcına yapıştır:<br><a href="${esc(link)}" style="color:${INK};">${esc(link)}</a></p>`;
@@ -129,7 +142,7 @@ export async function sendOtpEmail(to: string, code: string) {
 }
 
 export async function sendVerifyEmail(to: string, token: string) {
-  const link = `${appUrl()}/dogrula?token=${token}`;
+  const link = `${linkBase()}/dogrula?token=${token}`;
   const html = mailLayout({
     preheader: "Mührünü doğrula, tribüne bas.",
     title: "Mührünü doğrula",
@@ -145,7 +158,7 @@ export async function sendVerifyEmail(to: string, token: string) {
 }
 
 export async function sendUserVerifyEmail(to: string, token: string) {
-  const link = `${appUrl()}/uye-dogrula?token=${token}`;
+  const link = `${linkBase()}/uye-dogrula?token=${token}`;
   const html = mailLayout({
     preheader: "E-postanı doğrula, forumda yazmaya başla.",
     title: "E-postanı doğrula",
@@ -162,7 +175,7 @@ export async function sendUserVerifyEmail(to: string, token: string) {
 }
 
 export async function sendDeleteEmail(to: string, token: string) {
-  const link = `${appUrl()}/sil-verilerim?token=${token}`;
+  const link = `${linkBase()}/sil-verilerim?token=${token}`;
   const html = mailLayout({
     preheader: "Verilerini silme talebin.",
     title: "Verilerini sil",
@@ -181,7 +194,7 @@ export async function sendDeleteEmail(to: string, token: string) {
 }
 
 export async function sendPasswordResetEmail(to: string, token: string) {
-  const link = `${appUrl()}/sifre-sifirla?token=${token}`;
+  const link = `${linkBase()}/sifre-sifirla?token=${token}`;
   const html = mailLayout({
     preheader: "Yeni şifreni belirle.",
     title: "Şifreni belirle",
