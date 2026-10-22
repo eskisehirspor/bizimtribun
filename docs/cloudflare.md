@@ -38,7 +38,9 @@ Public settings live in `wrangler.jsonc` (`vars`) and `.env.production`.
 
 ## Custom domain
 
-`bizimtribun.com` and `www.bizimtribun.com` are Worker custom domains
+First point the domain's nameservers (at Squarespace) to Cloudflare
+(harvey/tiffany.ns.cloudflare.com) and copy the old hosting's mail records.
+Then add `bizimtribun.com` and `www.bizimtribun.com` as Worker custom domains
 (`routes` with `"custom_domain": true` in `wrangler.jsonc`). Cloudflare replaces the old A record
 for the apex; the Resend, SPF and DMARC records stay as they are. Then
 remove `MAIL_LINK_URL` from `wrangler.jsonc` so mail links use `APP_URL`.
