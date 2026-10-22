@@ -11,11 +11,10 @@
   "vars": {
     "APP_URL": "https://bizimtribun.com",
     "TRUST_PROXY": "cloudflare",
-    "VERIFY_CHANNEL": "email",
-    // Links in mails go to the test address until bizimtribun.com points at
-    // this Worker. Remove this line when the domain moves.
-    "MAIL_LINK_URL": "https://bizimtribun.bizimtribun.workers.dev"
+    "VERIFY_CHANNEL": "email"
   },
+  // Keep the workers.dev address next to the custom domains.
+  "workers_dev": true,
   "routes": [
     { "pattern": "bizimtribun.com", "custom_domain": true },
     { "pattern": "www.bizimtribun.com", "custom_domain": true }

@@ -45,8 +45,7 @@ First point the domain's nameservers (at Squarespace) to Cloudflare
 (harvey/tiffany.ns.cloudflare.com) and copy the old hosting's mail records.
 Then add `bizimtribun.com` and `www.bizimtribun.com` as Worker custom domains
 (`routes` with `"custom_domain": true` in `wrangler.jsonc`). Cloudflare replaces the old A record
-for the apex; the Resend, SPF and DMARC records stay as they are. Then
-remove `MAIL_LINK_URL` from `wrangler.jsonc` so mail links use `APP_URL`.
+for the apex; the Resend, SPF and DMARC records stay as they are.
 
 The free Workers plan allows 10 ms CPU per request. If requests start failing
 with CPU limit errors, the $5/month Workers Paid plan lifts it to 30 s.
