@@ -23,6 +23,9 @@ Connection string for Hyperdrive (session pooler, port 5432):
 postgresql://bizimtribun_app.cqxkjbrvfqpizbpmtrns:<password>@aws-1-eu-west-1.pooler.supabase.com:5432/postgres
 ```
 
+Hyperdrive query caching is off (`--caching-disabled`): with it on, counts and
+new posts showed up to a minute late after a write.
+
 ## First deploy
 
 ```sh
