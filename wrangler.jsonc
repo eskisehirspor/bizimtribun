@@ -11,11 +11,15 @@
   "vars": {
     "APP_URL": "https://bizimtribun.com",
     "TRUST_PROXY": "cloudflare",
-    "VERIFY_CHANNEL": "email",
-    // Links in mails go to the test address until bizimtribun.com points at
-    // this Worker. Remove this line when the domain moves.
-    "MAIL_LINK_URL": "https://bizimtribun.bizimtribun.workers.dev"
+    "VERIFY_CHANNEL": "email"
   },
+  // Keep the workers.dev address next to the custom domains.
+  "workers_dev": true,
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "bizimtribun.com", "custom_domain": true },
+    { "pattern": "www.bizimtribun.com", "custom_domain": true }
+  ],
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
@@ -30,6 +34,9 @@
   "env": {
     "staging": {
       "name": "bizimtribun-staging",
+      // Only the workers.dev address, never the production domains.
+      "routes": [],
+      "workers_dev": true,
       "vars": {
         "APP_URL": "https://bizimtribun-staging.bizimtribun.workers.dev",
         "TRUST_PROXY": "cloudflare",

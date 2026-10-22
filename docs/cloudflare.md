@@ -23,6 +23,9 @@ Connection string for Hyperdrive (session pooler, port 5432):
 postgresql://bizimtribun_app.cqxkjbrvfqpizbpmtrns:<password>@aws-1-eu-west-1.pooler.supabase.com:5432/postgres
 ```
 
+Hyperdrive query caching is off (`--caching-disabled`): with it on, counts and
+new posts showed up to a minute late after a write.
+
 ## First deploy
 
 ```sh
@@ -47,10 +50,11 @@ secrets `CLOUDFLARE_API_TOKEN` ("Edit Cloudflare Workers" template) and
 
 ## Custom domain
 
-Add `bizimtribun.com` and `www.bizimtribun.com` as Worker custom domains
-(`routes` with `"custom_domain": true`). Cloudflare replaces the old A record
-for the apex; the Resend, SPF and DMARC records stay as they are. Then
-remove `MAIL_LINK_URL` from `wrangler.jsonc` so mail links use `APP_URL`.
+First point the domain's nameservers (at Squarespace) to Cloudflare
+(harvey/tiffany.ns.cloudflare.com) and copy the old hosting's mail records.
+Then add `bizimtribun.com` and `www.bizimtribun.com` as Worker custom domains
+(`routes` with `"custom_domain": true` in `wrangler.jsonc`). Cloudflare replaces the old A record
+for the apex; the Resend, SPF and DMARC records stay as they are.
 
 The free Workers plan allows 10 ms CPU per request. If requests start failing
 with CPU limit errors, the $5/month Workers Paid plan lifts it to 30 s.
