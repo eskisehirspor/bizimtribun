@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CITIES } from "@/lib/cities";
+import { fanForm } from "@/lib/team-seo";
 
 type Team = { id: string; name: string; votes: number };
 
@@ -22,6 +23,12 @@ export default function HomeTeamCounts({ teams, total }: { teams: Team[]; total:
           <strong>{n(total)}</strong> doğrulanmış taraftar sayıldı.
         </p>
         <h3 className="font-anton text-[20px] md:text-[24px] mt-5">EN ÇOK TARAFTARI OLAN TAKIMLAR</h3>
+        {top[0] && top[0].votes > 0 && (
+          <p className="font-mono text-[13px] mt-1">
+            Türkiye&apos;de en çok taraftarı olan takım şu an {top[0].name}: {n(top[0].votes)} doğrulanmış{" "}
+            {fanForm(top[0].name)}. Kaç kişinin hangi takımı tuttuğunu görmek için takımına dokun.
+          </p>
+        )}
         <ol className="mt-2 grid sm:grid-cols-2 gap-x-6 border-t-[2px] border-black">
           {top.map((team, i) => (
             <li key={team.id} className="border-b-[2px] border-black">

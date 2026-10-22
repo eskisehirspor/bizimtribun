@@ -5,9 +5,9 @@ import ForumShell from "@/components/ForumShell";
 import JsonLd from "@/components/JsonLd";
 import TeamMark from "@/components/TeamMark";
 import { citySlug } from "@/lib/cities";
-import { teamSummary } from "@/lib/stats";
+import { teamCounts, teamSummary } from "@/lib/stats";
 import { getCatalogTeam, leagueLabels } from "@/lib/team-catalog";
-import { teamPageMetadata } from "@/lib/team-seo";
+import { fanForm, teamPageMetadata } from "@/lib/team-seo";
 import { HOME_CRUMB, absoluteUrl, breadcrumbJsonLd, graph } from "@/lib/seo";
 import BackLink from "@/components/BackLink";
 import { btnPrimary, btnSecondary } from "@/components/ui";
@@ -38,6 +38,34 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
   const isFan = Boolean(viewer && await memberTeamId(viewer.id) === team.id);
   const canReadTribune = isFan || Boolean(viewer && isStaffRole(viewer.role));
   const share = summary && summary.total > 0 ? Math.round((summary.votes / summary.total) * 1000) / 10 : 0;
+  // Questions people actually search, answered from the same live numbers shown above.
+  const fan = fanForm(team.name);
+  const leader = (await teamCounts()).reduce<{ name: string; votes: number } | null>(
+    (best, t) => (t.votes > (best?.votes ?? 0) ? t : best),
+    null,
+  );
+  const topProvince = summary?.topProvinces[0];
+  const faq: { q: string; a: string }[] = [
+    {
+      q: `Türkiye'de kaç ${fan} var?`,
+      a:
+        summary && summary.votes > 0
+          ? `Bizim Tribün sayımında şu an ${n(summary.votes)} doğrulanmış ${fan} var${summary.rank ? `; ${team.name} Türkiye'de ${summary.rank}. sırada` : ""}. Her kişi doğrulanmış hesabıyla yalnızca bir takıma, bir kez oy verebilir.`
+          : `${team.name} için sayım yeni başladı; henüz doğrulanmış ${fan} yok. ${fan} isen ilk oyu sen ver.`,
+    },
+    {
+      q: `${team.name} taraftarları en çok hangi ilde?`,
+      a: topProvince
+        ? `En çok ${fan} ${topProvince.province} ilinde: ${n(topProvince.votes)} doğrulanmış taraftar. Bütün iller yukarıdaki listede.`
+        : `İl bilgisi veren ${fan} henüz yok. Oy verirken ilini seçen taraftarlar il il sayılır.`,
+    },
+    {
+      q: "Türkiye'de en çok taraftarı olan takım hangisi?",
+      a: leader
+        ? `Bizim Tribün sayımında şu an en çok taraftarı olan takım ${leader.name}: ${n(leader.votes)} doğrulanmış taraftar. Bütün takımların taraftar sayıları Takımlar sayfasında.`
+        : "Sayım yeni başladı; henüz oy veren yok. Bütün takımlar Takımlar sayfasında.",
+    },
+  ];
 
   return (
     <ForumShell>
@@ -53,6 +81,14 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
               name: team.city,
               address: { "@type": "PostalAddress", addressLocality: team.city, addressCountry: "TR" },
             },
+          },
+          {
+            "@type": "FAQPage",
+            mainEntity: faq.map((item) => ({
+              "@type": "Question",
+              name: item.q,
+              acceptedAnswer: { "@type": "Answer", text: item.a },
+            })),
           },
           breadcrumbJsonLd([
             HOME_CRUMB,
@@ -132,6 +168,15 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
               )}
             </>
           )}
+          <h2 className="font-anton text-[22px] mt-6">SIK SORULANLAR</h2>
+          <dl className="mt-2 border-[3px] border-black bg-white divide-y-[2px] divide-black">
+            {faq.map((item) => (
+              <div key={item.q} className="p-3">
+                <dt className="font-mono text-[14px] font-bold">{item.q}</dt>
+                <dd className="font-mono text-[13px] mt-1">{item.a}</dd>
+              </div>
+            ))}
+          </dl>
           <p className="font-mono text-[12px] opacity-70 mt-4">
             Veri zamanı:{" "}
             {generatedAt.toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", dateStyle: "short", timeStyle: "short" })}.
