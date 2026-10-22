@@ -21,7 +21,7 @@ function Form() {
   const [need2fa, setNeed2fa] = useState(params.get("adim") === "2fa");
   const channel = useVerifyChannel();
   const [method, setMethod] = useState<"code" | "password">(
-    params.get("yontem") === "sifre" ? "password" : "code",
+    params.get("yontem") === "kod" ? "code" : "password",
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +105,7 @@ function Form() {
                 ŞİFREYLE GİRİŞ YAP
               </button>
               <p className="font-mono text-[12px] mt-1 opacity-70">
-                Şifreyle açılmış eski hesaplar ve yöneticiler için.
+                Kodla girdikten sonra Hesabım sayfasından yeni şifre belirleyebilirsin.
               </p>
             </div>
           </div>
@@ -115,7 +115,7 @@ function Form() {
           {!need2fa && (
             <>
           <label className="block">
-            <span className={labelClass}>KULLANICI ADI VEYA E-POSTA</span>
+            <span className={labelClass}>E-POSTA VEYA KULLANICI ADI</span>
             <input
               required
               value={login}
@@ -125,7 +125,7 @@ function Form() {
             />
           </label>
           <label className="block">
-            <span className={labelClass}>PAROLA</span>
+            <span className={labelClass}>ŞİFRE</span>
             <input
               required
               type="password"
@@ -160,7 +160,7 @@ function Form() {
           </button>
           {!need2fa && (
             <button type="button" onClick={() => setMethod("code")} className={secondaryButton}>
-              {channel === "sms" ? "SMS KODUYLA GİRİŞ YAP" : "E-POSTA KODUYLA GİRİŞ YAP"}
+              {channel === "sms" ? "ŞİFREMİ UNUTTUM: SMS KODUYLA GİR" : "ŞİFREMİ UNUTTUM: E-POSTA KODUYLA GİR"}
             </button>
           )}
         </form>
@@ -170,10 +170,6 @@ function Form() {
           <Link className={`mt-2 ${secondaryButton}`} href={`/uye-ol?next=${encodeURIComponent(next)}`}>
             ÜYE OL
           </Link>
-          <p className="font-mono text-[12px] mt-3 opacity-70">
-            Şifreyle açılmış eski hesaplar oy vermek ve tribünde yazmak için hesabını bir kez
-            doğrulamalı.
-          </p>
         </div>
       </div>
     </ForumShell>

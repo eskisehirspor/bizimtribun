@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   }
   await noteLoginAttempts(ipHash, loginKey);
 
-  const generic = { error: "Kullanıcı adı/e-posta veya parola hatalı." };
+  const generic = { error: "E-posta/kullanıcı adı veya şifre hatalı." };
   const user = await findUserByLogin(loginKey);
   if (!user) {
     // Run the same scrypt cost as a real check so response timing does not

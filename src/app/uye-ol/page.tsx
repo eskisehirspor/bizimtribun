@@ -7,6 +7,7 @@ import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
 import CodeSignInStep, { useVerifyChannel } from "@/components/auth/CodeSignInStep";
 import LegalReadModal from "@/components/auth/LegalReadModal";
+import PasswordFields, { passwordReady } from "@/components/auth/PasswordFields";
 import TeamPicker from "@/components/auth/TeamPicker";
 import KvkkText from "@/components/legal/KvkkText";
 import TermsText from "@/components/legal/TermsText";
@@ -46,6 +47,8 @@ function Flow() {
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
   const [birthDate, setBirthDate] = useState("");
+  const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
   const [marketing, setMarketing] = useState(false);
   const [terms, setTerms] = useState(false);
   const [privacy, setPrivacy] = useState(false);
@@ -109,6 +112,7 @@ function Flow() {
       birthDate,
       phone: ticketChannel === "sms" ? null : phone,
       marketingConsent: marketing,
+      password,
       city,
       teamId,
       confirmTeamLocked: true,
@@ -122,7 +126,7 @@ function Flow() {
     if (!r.ok) {
       setError(errorText(r));
       if (r.status === 401) setStep("phone");
-      if (/kullanıcı adı|telefon|doğum|ad soyad|adını|yaşından/i.test(errorText(r))) setStep("profile");
+      if (/kullanıcı adı|telefon|doğum|ad soyad|adını|yaşından|şifre/i.test(errorText(r))) setStep("profile");
       return;
     }
     await refresh();
@@ -151,7 +155,11 @@ function Flow() {
             {channel === "sms"
               ? "Bizim Tribün'de her hesap SMS ile doğrulanmış bir cep telefonuna bağlıdır ve bir telefonla yalnızca bir hesap açılır."
               : "Bizim Tribün'de her hesap doğrulanmış bir e-posta adresine bağlıdır; bir adresle ve bir cihazdan sınırlı sayıda hesap açılır."}{" "}
-            Kayıtlıysan aynı adımla giriş yaparsın.
+            Zaten üyeysen{" "}
+            <Link href="/giris" className="underline">
+              giriş sayfasından
+            </Link>{" "}
+            gir.
           </p>
           <CodeSignInStep
             channel={channel}
@@ -169,6 +177,10 @@ function Flow() {
             e.preventDefault();
             if (!/^[a-z0-9_]{3,20}$/.test(username)) {
               setError("Takma ad 3–20 karakter olmalı; küçük harf, rakam ve alt çizgi.");
+              return;
+            }
+            if (!passwordReady(password, password2)) {
+              setError("Şifre kurallara uymuyor ya da iki şifre aynı değil.");
               return;
             }
             if (firstName.trim().length < 2 || lastName.trim().length < 2) {
@@ -295,6 +307,16 @@ function Flow() {
               Yaş sınırı için. 13 yaşından küçükler üye olamaz. Herkese açık görünmez.
             </span>
           </label>
+          <PasswordFields
+            password={password}
+            repeat={password2}
+            onPassword={setPassword}
+            onRepeat={setPassword2}
+          />
+          <p className={hintClass}>
+            Sonraki girişlerinde e-postan ve bu şifreyle girersin. Şifreni unutursan e-postana gelen
+            kodla girip yenisini belirleyebilirsin.
+          </p>
           <fieldset className="space-y-2 border-[3px] border-black p-3">
             <legend className={`${labelClass} px-1`}>ONAYLAR (HEPSİ ZORUNLU)</legend>
             <label className="flex min-h-11 items-start gap-3 font-mono text-[13px]">
