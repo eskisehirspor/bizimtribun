@@ -167,6 +167,8 @@ export default function HomeClient({
               year: "numeric",
               hour: "2-digit",
               minute: "2-digit",
+              // Same zone on the server (UTC) and in the browser, so the HTML matches.
+              timeZone: "Europe/Istanbul",
             })}
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[auto_minmax(0,1fr)_auto] items-start md:items-end gap-x-3 gap-y-2 md:gap-x-6">
