@@ -36,9 +36,9 @@ export const PHONE_HOLD_VOTED_MS = 365 * 24 * 60 * 60 * 1000;
 /** Accounts deleted while banned: the number stays closed (no automatic release). */
 export const PHONE_HOLD_PERMANENT_UNTIL = "9999-12-31T00:00:00.000Z";
 /** Bump when the text changes; signed-in members are asked to accept the new version. */
-export const TERMS_VERSION = "2026-10-21";
+export const TERMS_VERSION = "2026-10-22";
 /** KVKK aydınlatma metni; members acknowledge each version once. */
-export const PRIVACY_NOTICE_VERSION = "2026-10-21";
+export const PRIVACY_NOTICE_VERSION = "2026-10-22";
 export const COOKIE_POLICY_VERSION = "2026-10-21";
 /** Acceptance records of deleted accounts are kept this long as proof (general limitation period). */
 export const LEGAL_RECORD_AFTER_DELETE_MS = 10 * 365 * 24 * 60 * 60 * 1000;

@@ -236,7 +236,10 @@ export async function signupWithTicket(db: Db, input: SignupInput): Promise<Sign
     return { ok: false, status: 400, error: "Bu görünen ad kullanılamaz." };
   }
   const city = input.city?.trim() || null;
-  if (city && !isProvince(city)) {
+  if (!city) {
+    return { ok: false, status: 400, error: "Yaşadığın ili seç." };
+  }
+  if (!isProvince(city)) {
     return { ok: false, status: 400, error: "İl geçersiz." };
   }
   const firstName = cleanRealName(input.firstName);

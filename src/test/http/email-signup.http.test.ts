@@ -70,7 +70,7 @@ async function emailSignup(email: string, device: string, teamId = "galatasaray"
     path: "/api/auth/signup",
     cookie: cookies(signupCookie(verified.res), device),
     ip: ip(),
-    body: { username: name(), teamId, city: null, confirmTeamLocked: true, ...LEGAL_OK, phone: nextPhone() },
+    body: { username: name(), teamId, city: "İstanbul", confirmTeamLocked: true, ...LEGAL_OK, phone: nextPhone() },
   });
 }
 
@@ -176,7 +176,7 @@ test(`one device opens at most ${DEVICE_SIGNUP_MAX} accounts, whatever the e-mai
     path: "/api/auth/signup",
     cookie: cookies(signupCookie(verified.res), device),
     ip: ip(),
-    body: { username: name(), teamId: "galatasaray", city: null, confirmTeamLocked: true, ...LEGAL_OK, phone: nextPhone() },
+    body: { username: name(), teamId: "galatasaray", city: "İstanbul", confirmTeamLocked: true, ...LEGAL_OK, phone: nextPhone() },
   });
   assert.equal(late.status, 429);
   assert.equal(await total(), DEVICE_SIGNUP_MAX);
@@ -228,7 +228,7 @@ function signupWith(cookie: string, over: Record<string, unknown>) {
     path: "/api/auth/signup",
     cookie,
     ip: ip(),
-    body: { username: name(), teamId: "galatasaray", city: null, confirmTeamLocked: true, ...LEGAL_OK, phone: nextPhone(), ...over },
+    body: { username: name(), teamId: "galatasaray", city: "İstanbul", confirmTeamLocked: true, ...LEGAL_OK, phone: nextPhone(), ...over },
   });
 }
 
@@ -243,6 +243,9 @@ test("sign-up asks for real name, phone and birth date; they stay private", asyn
     [{ birthDate: "2099-01-01" }, 400],
     [{ birthDate: "1990-02-30" }, 400],
     [{ birthDate: new Date(Date.now() - 10 * 365 * 86400000).toISOString().slice(0, 10) }, 400],
+    [{ city: null }, 400],
+    [{ city: "" }, 400],
+    [{ city: "Atlantis" }, 400],
   ] as const) {
     const res = await signupWith(cookie, over);
     assert.equal(res.status, status, JSON.stringify(over));

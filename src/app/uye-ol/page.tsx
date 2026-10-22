@@ -6,7 +6,10 @@ import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
 import CodeSignInStep, { useVerifyChannel } from "@/components/auth/CodeSignInStep";
+import LegalReadModal from "@/components/auth/LegalReadModal";
 import TeamPicker from "@/components/auth/TeamPicker";
+import KvkkText from "@/components/legal/KvkkText";
+import TermsText from "@/components/legal/TermsText";
 import { errorText, inputClass, Notice, postJson, primaryButton } from "@/components/auth/ui";
 import { safeNextPath } from "@/lib/forum-ui";
 import { hintClass, labelClass } from "@/components/ui";
@@ -47,6 +50,7 @@ function Flow() {
   const [terms, setTerms] = useState(false);
   const [privacy, setPrivacy] = useState(false);
   const [age, setAge] = useState(false);
+  const [reading, setReading] = useState<"terms" | "privacy" | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -296,13 +300,13 @@ function Flow() {
               <input
                 type="checkbox"
                 checked={terms}
-                onChange={(e) => setTerms(e.target.checked)}
+                onChange={(e) => (e.target.checked ? setReading("terms") : setTerms(false))}
                 className="mt-0.5 h-5 w-5 shrink-0"
               />
               <span>
-                <Link href={LEGAL_DOCS.terms.path} className="underline" target="_blank">
+                <button type="button" onClick={() => setReading("terms")} className="underline">
                   Kullanım Koşulları
-                </Link>
+                </button>
                 &apos;nı okudum ve kabul ediyorum.
               </span>
             </label>
@@ -310,13 +314,13 @@ function Flow() {
               <input
                 type="checkbox"
                 checked={privacy}
-                onChange={(e) => setPrivacy(e.target.checked)}
+                onChange={(e) => (e.target.checked ? setReading("privacy") : setPrivacy(false))}
                 className="mt-0.5 h-5 w-5 shrink-0"
               />
               <span>
-                <Link href={LEGAL_DOCS.privacy.path} className="underline" target="_blank">
+                <button type="button" onClick={() => setReading("privacy")} className="underline">
                   KVKK Aydınlatma Metni
-                </Link>
+                </button>
                 &apos;ni okudum; kişisel verilerimin nasıl işlendiği konusunda bilgilendirildim.
               </span>
             </label>
@@ -330,9 +334,23 @@ function Flow() {
               <span>18 yaşından büyüğüm ya da 13–17 yaşındayım ve velimin izni var.</span>
             </label>
             <p className={hintClass}>
-              Aydınlatma Metni bir rıza metni değildir; üyelik için açık rızan istenmez.
+              Metinlere tıklayıp sonuna kadar okuduktan sonra işaretleyebilirsin. Aydınlatma Metni bir
+              rıza metni değildir; üyelik için açık rızan istenmez.
             </p>
           </fieldset>
+          {reading && (
+            <LegalReadModal
+              title={reading === "terms" ? "KULLANIM KOŞULLARI" : "KVKK AYDINLATMA METNİ"}
+              onClose={() => setReading(null)}
+              onConfirm={() => {
+                if (reading === "terms") setTerms(true);
+                else setPrivacy(true);
+                setReading(null);
+              }}
+            >
+              {reading === "terms" ? <TermsText /> : <KvkkText />}
+            </LegalReadModal>
+          )}
           {error && <Notice tone="error">{error}</Notice>}
           <button disabled={!terms || !privacy || !age} className={primaryButton}>
             TAKIM SEÇİMİNE GEÇ

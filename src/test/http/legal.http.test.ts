@@ -22,7 +22,7 @@ test("sign-up needs each box ticked and stores both versions", async () => {
   const device = testDevice();
   const verified = await invoke(otpVerify, { method: "POST", path: "/api/auth/otp/verify", body: { phone, code }, cookie: device });
   assert.equal(verified.status, 200, verified.text);
-  const base = { username: uniq("lg").slice(0, 20), teamId: "galatasaray", city: null, confirmTeamLocked: true };
+  const base = { username: uniq("lg").slice(0, 20), teamId: "galatasaray", city: "İstanbul", confirmTeamLocked: true };
   for (const missing of ["acceptTerms", "acknowledgePrivacy", "confirmAge"] as const) {
     const body: Record<string, unknown> = { ...base, ...LEGAL_OK };
     delete body[missing];

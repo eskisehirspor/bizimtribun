@@ -82,7 +82,7 @@ export default function TeamPicker({
           <p className="font-anton text-[30px] leading-none mt-1">{chosen.name}</p>
           <p className="font-mono text-[13px] mt-1">
             {labels[chosen.league]}
-            {city ? ` • ${city}` : " • il belirtilmedi"}
+            {city ? ` • ${city}` : ""}
           </p>
         </div>
         <div className="border-[3px] border-black bg-white p-3 font-mono text-[13px] leading-[1.45]">
@@ -92,10 +92,8 @@ export default function TeamPicker({
             sonra takım değiştiremez, oyunu silip yeniden veremez veya başka takıma
             taşıyamazsın.
           </p>
-          {city ? (
+          {city && (
             <p className="mt-1">İl bilgin ({city}) il sıralamasında kullanılır, sonradan değiştirilemez.</p>
-          ) : (
-            <p className="mt-1">İl seçmediğin için oyun yalnızca Türkiye genelinde sayılır.</p>
           )}
         </div>
         <label className="flex min-h-11 items-center gap-3 font-mono text-[13px] border-[3px] border-black bg-[#FFFEFA] p-3">
@@ -186,22 +184,25 @@ export default function TeamPicker({
         {shown.length === 0 && <p className="p-3 font-mono text-[13px]">Eşleşen takım yok.</p>}
       </div>
       <label className="block">
-        <span className={labelClass}>YAŞADIĞIN İL (İSTEĞE BAĞLI)</span>
-        <select value={city} onChange={(e) => setCity(e.target.value)} className={inputClass}>
-          <option value="">Belirtmek istemiyorum</option>
+        <span className={labelClass}>YAŞADIĞIN İL (ZORUNLU)</span>
+        <select value={city} onChange={(e) => setCity(e.target.value)} className={inputClass} required>
+          <option value="" disabled>
+            İlini seç
+          </option>
           {PROVINCES.map((p) => (
             <option key={p}>{p}</option>
           ))}
         </select>
         <span className={`block mt-1 ${hintClass}`}>
-          İlini konumundan tahmin etmeyiz; sen seçersen il haritasında sayılırsın.
+          İlini konumundan tahmin etmeyiz; seçtiğin ilin haritasında sayılırsın.
         </span>
       </label>
       {error && <Notice tone="error">{error}</Notice>}
       {!chosen && <p className={hintClass}>Devam etmek için listeden takımını seç.</p>}
+      {chosen && !city && <p className={hintClass}>Devam etmek için yaşadığın ili seç.</p>}
       <button
         type="button"
-        disabled={!chosen}
+        disabled={!chosen || !city}
         onClick={() => setReviewing(true)}
         className={primaryButton}
       >

@@ -1,9 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
+import LegalReadModal from "@/components/auth/LegalReadModal";
+import KvkkText from "@/components/legal/KvkkText";
+import TermsText from "@/components/legal/TermsText";
 import { btnPrimary, btnSecondary } from "@/components/ui";
 
 /**
@@ -17,6 +19,7 @@ export default function LegalGate() {
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(null);
 
   if (!user || legalPending.length === 0 || pathname.startsWith("/admin")) return null;
   const reading = legalPending.some((d) => pathname === d.path) || pathname === "/cerez-politikasi";
@@ -63,18 +66,32 @@ export default function LegalGate() {
             <input
               type="checkbox"
               checked={Boolean(ticked[d.doc])}
-              onChange={(e) => setTicked((t) => ({ ...t, [d.doc]: e.target.checked }))}
+              onChange={(e) =>
+                e.target.checked ? setOpen(d.doc) : setTicked((t) => ({ ...t, [d.doc]: false }))
+              }
               className="mt-0.5 h-5 w-5 shrink-0"
             />
             <span>
               {d.label}{" "}
-              <Link href={d.path} className="underline" target="_blank">
-                Metni aç ({d.version})
-              </Link>
+              <button type="button" onClick={() => setOpen(d.doc)} className="underline">
+                Metni oku ({d.version})
+              </button>
             </span>
           </label>
         ))}
       </div>
+      {open && (
+        <LegalReadModal
+          title={open === "terms" ? "KULLANIM KOŞULLARI" : "KVKK AYDINLATMA METNİ"}
+          onClose={() => setOpen(null)}
+          onConfirm={() => {
+            setTicked((t) => ({ ...t, [open]: true }));
+            setOpen(null);
+          }}
+        >
+          {open === "terms" ? <TermsText /> : <KvkkText />}
+        </LegalReadModal>
+      )}
       {error && <p className="mt-2 font-mono text-[13px] text-[#C8102E]">{error}</p>}
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" disabled={!all || busy} onClick={() => void accept()} className={btnPrimary}>
