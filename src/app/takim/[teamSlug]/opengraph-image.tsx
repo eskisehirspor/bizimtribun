@@ -1,4 +1,4 @@
-import { renderShareCard, OG_SIZE } from "@/lib/og-card";
+import { OG_SIZE, renderShareCard, shareCardOrFallback } from "@/lib/og-card";
 import { teamSummary } from "@/lib/stats";
 import { getCatalogTeam, leagueLabels } from "@/lib/team-catalog";
 
@@ -7,7 +7,11 @@ export const size = OG_SIZE;
 export const contentType = "image/png";
 export const alt = "Bizim Tribün takım sayımı";
 
-export default async function Image({ params }: { params: Promise<{ teamSlug: string }> }) {
+export default function Image({ params }: { params: Promise<{ teamSlug: string }> }) {
+  return shareCardOrFallback(() => draw(params));
+}
+
+async function draw(params: Promise<{ teamSlug: string }>) {
   const { teamSlug } = await params;
   const team = await getCatalogTeam(teamSlug);
   if (!team) return renderShareCard({ eyebrow: "Bizim Tribün", title: "Takım bulunamadı" });

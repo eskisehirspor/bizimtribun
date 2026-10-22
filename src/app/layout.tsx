@@ -5,7 +5,7 @@ import SiteBanner from "@/components/SiteBanner";
 import SiteFooter from "@/components/SiteFooter";
 import LegalGate from "@/components/LegalGate";
 import SiteNav from "@/components/SiteNav";
-import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from "@/lib/seo";
+import { DEFAULT_SHARE_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from "@/lib/seo";
 import "./globals.css";
 
 const anton = Anton({
@@ -50,8 +50,8 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
   },
-  openGraph: { siteName: SITE_NAME, locale: "tr_TR", type: "website" },
-  twitter: { card: "summary_large_image" },
+  openGraph: { siteName: SITE_NAME, locale: "tr_TR", type: "website", images: [DEFAULT_SHARE_IMAGE] },
+  twitter: { card: "summary_large_image", images: [DEFAULT_SHARE_IMAGE.url] },
   formatDetection: { telephone: false, email: false, address: false },
   // Optional: Search Console's HTML-tag check. The DNS check through Cloudflare needs nothing here.
   ...(process.env.GOOGLE_SITE_VERIFICATION

@@ -155,11 +155,12 @@ export function graph(...nodes: JsonLd[]) {
 }
 
 /**
- * The site-wide share card (app/opengraph-image.tsx). A page that sets its own
- * openGraph replaces the parent's, image included, so it has to name one.
+ * The site-wide share card, a fixed file (public/og.png, drawn by
+ * scripts/share-card.tsx) so it can never fail to render. A page that sets its
+ * own openGraph replaces the parent's, image included, so it has to name one.
  */
 export const DEFAULT_SHARE_IMAGE = {
-  url: "/opengraph-image",
+  url: "/og.png",
   width: 1200,
   height: 630,
   alt: "Bizim Tribün taraftar sayımı",

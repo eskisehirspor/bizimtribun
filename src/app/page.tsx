@@ -8,7 +8,7 @@ import { getSettings } from "@/lib/site-settings";
 import { cityLeaders, cityStandings, teamCounts, totalVerified } from "@/lib/stats";
 import { currentSeason } from "@/lib/team-admin";
 import { listLeagues } from "@/lib/team-catalog";
-import { graph, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
+import { DEFAULT_SHARE_IMAGE, graph, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +29,14 @@ export async function generateMetadata(): Promise<Metadata> {
       locale: "tr_TR",
       type: "website",
       siteName: "Bizim Tribün",
+      images: [DEFAULT_SHARE_IMAGE],
     },
-    twitter: { card: "summary_large_image", title: seo.siteTitle, description: seo.siteDescription },
+    twitter: {
+      card: "summary_large_image",
+      title: seo.siteTitle,
+      description: seo.siteDescription,
+      images: [DEFAULT_SHARE_IMAGE.url],
+    },
   };
 }
 

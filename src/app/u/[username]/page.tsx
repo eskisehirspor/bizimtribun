@@ -12,7 +12,7 @@ import { AVATAR_EMOJI, getPublicProfile, listProfileActivity, XP_PER_LIKE } from
 import { getCatalogTeam } from "@/lib/team-catalog";
 import { initials, teamBadge } from "@/lib/teams";
 import { btnAccent, btnSm, labelClass } from "@/components/ui";
-import { absoluteUrl, graph } from "@/lib/seo";
+import { DEFAULT_SHARE_IMAGE, absoluteUrl, graph } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -42,7 +42,7 @@ export async function generateMetadata({
     description,
     alternates: { canonical: url },
     robots: { index: true, follow: true },
-    openGraph: { title, description, url, locale: "tr_TR", type: "profile", siteName: "Bizim Tribün" },
+    openGraph: { title, description, url, locale: "tr_TR", type: "profile", siteName: "Bizim Tribün", images: [DEFAULT_SHARE_IMAGE] },
   };
 }
 
