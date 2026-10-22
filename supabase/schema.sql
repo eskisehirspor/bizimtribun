@@ -511,20 +511,16 @@ BEGIN
   RAISE EXCEPTION '%', TG_ARGV[0];
 END $$;
 
-DROP TRIGGER IF EXISTS audit_log_append_only ON audit_log;
-CREATE TRIGGER audit_log_append_only BEFORE UPDATE OR DELETE ON audit_log
+CREATE OR REPLACE TRIGGER audit_log_append_only BEFORE UPDATE OR DELETE ON audit_log
   FOR EACH ROW EXECUTE FUNCTION bt_abort('AUDIT_APPEND_ONLY');
 
-DROP TRIGGER IF EXISTS legal_acceptances_append_only ON legal_acceptances;
-CREATE TRIGGER legal_acceptances_append_only BEFORE UPDATE ON legal_acceptances
+CREATE OR REPLACE TRIGGER legal_acceptances_append_only BEFORE UPDATE ON legal_acceptances
   FOR EACH ROW EXECUTE FUNCTION bt_abort('LEGAL_RECORD_IMMUTABLE');
 
-DROP TRIGGER IF EXISTS fan_votes_no_delete ON fan_votes;
-CREATE TRIGGER fan_votes_no_delete BEFORE DELETE ON fan_votes
+CREATE OR REPLACE TRIGGER fan_votes_no_delete BEFORE DELETE ON fan_votes
   FOR EACH ROW EXECUTE FUNCTION bt_abort('VOTE_IMMUTABLE');
 
-DROP TRIGGER IF EXISTS fan_votes_immutable ON fan_votes;
-CREATE TRIGGER fan_votes_immutable BEFORE UPDATE OF user_id, team_id, city, cast_at ON fan_votes
+CREATE OR REPLACE TRIGGER fan_votes_immutable BEFORE UPDATE OF user_id, team_id, city, cast_at ON fan_votes
   FOR EACH ROW EXECUTE FUNCTION bt_abort('VOTE_IMMUTABLE');
 
 CREATE OR REPLACE FUNCTION bt_fan_votes_insert_guard() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
@@ -544,8 +540,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
-DROP TRIGGER IF EXISTS fan_votes_insert_guard ON fan_votes;
-CREATE TRIGGER fan_votes_insert_guard BEFORE INSERT ON fan_votes
+CREATE OR REPLACE TRIGGER fan_votes_insert_guard BEFORE INSERT ON fan_votes
   FOR EACH ROW EXECUTE FUNCTION bt_fan_votes_insert_guard();
 
 CREATE OR REPLACE FUNCTION bt_fan_votes_void_once() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
@@ -564,8 +559,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
-DROP TRIGGER IF EXISTS fan_votes_void_once ON fan_votes;
-CREATE TRIGGER fan_votes_void_once BEFORE UPDATE ON fan_votes
+CREATE OR REPLACE TRIGGER fan_votes_void_once BEFORE UPDATE ON fan_votes
   FOR EACH ROW EXECUTE FUNCTION bt_fan_votes_void_once();
 
 CREATE OR REPLACE FUNCTION bt_teams_keep_history() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
@@ -576,8 +570,7 @@ BEGIN
   END IF;
   RETURN OLD;
 END $$;
-DROP TRIGGER IF EXISTS teams_keep_history ON teams;
-CREATE TRIGGER teams_keep_history BEFORE DELETE ON teams
+CREATE OR REPLACE TRIGGER teams_keep_history BEFORE DELETE ON teams
   FOR EACH ROW EXECUTE FUNCTION bt_teams_keep_history();
 
 CREATE OR REPLACE FUNCTION bt_users_team_locked() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
@@ -588,8 +581,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
-DROP TRIGGER IF EXISTS users_team_locked ON users;
-CREATE TRIGGER users_team_locked BEFORE UPDATE OF team_id ON users
+CREATE OR REPLACE TRIGGER users_team_locked BEFORE UPDATE OF team_id ON users
   FOR EACH ROW EXECUTE FUNCTION bt_users_team_locked();
 
 -- Only the site's server reads and writes these tables. Row level security
