@@ -25,8 +25,8 @@ const ALLOW = {
   content: "Rakip kaleci büyük hata yaptı, defans da çok açıktı.",
 };
 
-beforeEach(() => {
-  freshDb();
+beforeEach(async () => {
+  await freshDb();
 });
 
 let n = 0;
@@ -41,8 +41,8 @@ async function verifiedUser(ip: string) {
     }), ip });
   assert.equal(res.status, 200, JSON.stringify(res.json));
   const id = (res.json as { user: { id: number } }).user.id;
-  markPhoneVerified(id);
-  castTestVote(id);
+  await markPhoneVerified(id);
+  await castTestVote(id);
   return {
     id,
     username,
@@ -59,24 +59,24 @@ async function adminCookie(ip: string) {
     ip,
   });
   // Promoted after sign-in; the panel needs 2FA switched on.
-  getDb()
-    .prepare(`UPDATE users SET role = 'admin', totp_enabled = 1 WHERE id = ?`)
-    .run(u.id);
+  await getDb()
+        .prepare(`UPDATE users SET role = 'admin', totp_enabled = 1 WHERE id = ?`)
+        .run(u.id);
   return { cookie: sessionCookie(logged.res), id: u.id };
 }
 
-function expireBan(userId: number) {
-  getDb()
-    .prepare(
-      `UPDATE users SET ban_expires_at = ? WHERE id = ?`,
-    )
-    .run("2000-01-01T00:00:00.000Z", userId);
+async function expireBan(userId: number) {
+  await getDb()
+        .prepare(
+          `UPDATE users SET ban_expires_at = ? WHERE id = ?`,
+        )
+        .run("2000-01-01T00:00:00.000Z", userId);
 }
 
 test("HTTP ban expiry: active ban blocks login and forum", async () => {
   const ip = "203.0.113.160";
   const u = await verifiedUser(ip);
-  banUser(u.id, "Test ban", "2099-01-01T00:00:00.000Z");
+  await banUser(u.id, "Test ban", "2099-01-01T00:00:00.000Z");
 
   const mine = await invoke(me, { path: "/api/auth/me", cookie: u.cookie });
   assert.equal(mine.status, 200);
@@ -104,8 +104,8 @@ test("HTTP ban expiry: active ban blocks login and forum", async () => {
 test("HTTP ban expiry: expired ban → /api/auth/me active after login", async () => {
   const ip = "203.0.113.161";
   const u = await verifiedUser(ip);
-  banUser(u.id, "Geçici ban", "2099-01-01T00:00:00.000Z");
-  expireBan(u.id);
+  await banUser(u.id, "Geçici ban", "2099-01-01T00:00:00.000Z");
+  await expireBan(u.id);
 
   const stale = await invoke(me, { path: "/api/auth/me", cookie: u.cookie });
   assert.equal((stale.json as { user: unknown }).user, null);
@@ -126,9 +126,9 @@ test("HTTP ban expiry: expired ban → /api/auth/me active after login", async (
   assert.equal(mine.status, 200);
   assert.equal((mine.json as { user: { status: string } }).user.status, "active");
 
-  const stored = getDb()
-    .prepare(`SELECT status, banned_at, ban_expires_at FROM users WHERE id = ?`)
-    .get(u.id) as {
+  const stored = await getDb()
+      .prepare(`SELECT status, banned_at, ban_expires_at FROM users WHERE id = ?`)
+      .get(u.id) as {
     status: string;
     banned_at: string | null;
     ban_expires_at: string | null;
@@ -141,8 +141,8 @@ test("HTTP ban expiry: expired ban → /api/auth/me active after login", async (
 test("HTTP ban expiry: expired ban ile forum mutation mümkün", async () => {
   const ip = "203.0.113.162";
   const u = await verifiedUser(ip);
-  banUser(u.id, "Geçici ban", "2099-01-01T00:00:00.000Z");
-  expireBan(u.id);
+  await banUser(u.id, "Geçici ban", "2099-01-01T00:00:00.000Z");
+  await expireBan(u.id);
 
   const logged = await invoke(login, {
     method: "POST",
@@ -166,17 +166,17 @@ test("HTTP ban expiry: expired ban ile forum mutation mümkün", async () => {
 test("HTTP ban expiry: revoked session ban sonrası otomatik restore edilmez", async () => {
   const ip = "203.0.113.163";
   const u = await verifiedUser(ip);
-  banUser(u.id, "Geçici ban", "2099-01-01T00:00:00.000Z");
-  expireBan(u.id);
+  await banUser(u.id, "Geçici ban", "2099-01-01T00:00:00.000Z");
+  await expireBan(u.id);
 
   const stale = await invoke(me, { path: "/api/auth/me", cookie: u.cookie });
   assert.equal((stale.json as { user: unknown }).user, null);
 
-  const revoked = getDb()
-    .prepare(
-      `SELECT revoked_at FROM sessions WHERE user_id = ? ORDER BY id DESC LIMIT 1`,
-    )
-    .get(u.id) as { revoked_at: string | null };
+  const revoked = await getDb()
+      .prepare(
+        `SELECT revoked_at FROM sessions WHERE user_id = ? ORDER BY id DESC LIMIT 1`,
+      )
+      .get(u.id) as { revoked_at: string | null };
   assert.ok(revoked.revoked_at);
 });
 

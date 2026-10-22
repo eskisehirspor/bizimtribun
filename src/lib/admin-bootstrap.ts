@@ -8,15 +8,15 @@ import { bootstrapSuperAdminByEmail } from "./admin-bootstrap-cli";
  * signs in. Runs before the new session is written, so the CLI's session revoke
  * never logs anyone out mid-request. 2FA is still forced by the admin panel.
  */
-export function applySuperAdminEmailBootstrap(userId: number) {
+export async function applySuperAdminEmailBootstrap(userId: number) {
   const emailRaw = process.env.SUPER_ADMIN_EMAIL?.trim();
   if (!emailRaw) return;
   const db = getDb();
-  const row = db.prepare(`SELECT email_norm FROM users WHERE id = ?`).get(userId) as
+  const row = await db.prepare(`SELECT email_norm FROM users WHERE id = ?`).get(userId) as
     | { email_norm: string }
     | undefined;
   if (!row || row.email_norm !== normalizeEmail(emailRaw)) return;
-  bootstrapSuperAdminByEmail(db, row.email_norm);
+  await bootstrapSuperAdminByEmail(db, row.email_norm);
 }
 
 function isProduction() {
@@ -27,7 +27,7 @@ function isProduction() {
  * Development-only: promote a matching existing user to admin.
  * Ignored in production even if env vars are set. No public endpoint.
  */
-export function applyDevAdminBootstrap() {
+export async function applyDevAdminBootstrap() {
   if (isProduction()) return;
 
   const usernameRaw = process.env.BOOTSTRAP_ADMIN_USERNAME?.trim();
@@ -39,19 +39,19 @@ export function applyDevAdminBootstrap() {
 
   if (usernameRaw) {
     const usernameNorm = usernameRaw.toLowerCase();
-    db.prepare(
-      `UPDATE users
+    await db.prepare(
+            `UPDATE users
        SET role = 'admin', updated_at = ?
        WHERE username_norm = ? AND role NOT IN ('admin', 'super_admin')`,
-    ).run(now, usernameNorm);
+          ).run(now, usernameNorm);
   }
 
   if (emailRaw) {
     const emailNorm = normalizeEmail(emailRaw);
-    db.prepare(
-      `UPDATE users
+    await db.prepare(
+            `UPDATE users
        SET role = 'admin', updated_at = ?
        WHERE email_norm = ? AND role NOT IN ('admin', 'super_admin')`,
-    ).run(now, emailNorm);
+          ).run(now, emailNorm);
   }
 }

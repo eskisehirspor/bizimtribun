@@ -24,22 +24,22 @@ export async function GET(
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
   }
 
-  const topic = findLiveTopic(topicId);
-  if (!topic || !topicBoardOpen(topic)) {
+  const topic = await findLiveTopic(topicId);
+  if (!topic || !await topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
   }
   const viewer = await getSessionUser(req);
-  const access = topicAccess(topic, viewer);
+  const access = await topicAccess(topic, viewer);
   if (!access.ok) {
     return noStoreJson({ error: access.error, code: access.code }, access.status);
   }
 
   const { page, limit, offset } = parsePageLimit(new URL(req.url));
   const viewerId = viewer?.id ?? null;
-  const { total, posts } = listPosts(topic.id, offset, limit, viewerId);
+  const { total, posts } = await listPosts(topic.id, offset, limit, viewerId);
   return noStoreJson({
     ok: true,
-    topic: serializeTopic(topic, viewerId),
+    topic: await serializeTopic(topic, viewerId),
     page,
     limit,
     total,
@@ -61,16 +61,16 @@ export async function DELETE(
     return noStoreJson({ error: "Geçersiz kaynak." }, 400);
   }
 
-  const active = requireForumWriter(await getSessionUser(req));
+  const active = await requireForumWriter(await getSessionUser(req));
   if (!active.ok) {
     return noStoreJson({ error: active.error }, active.status);
   }
 
-  const topic = findLiveTopic(topicId);
-  if (!topic || !topicBoardOpen(topic)) {
+  const topic = await findLiveTopic(topicId);
+  if (!topic || !await topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
   }
-  const access = topicAccess(topic, active.user, "write");
+  const access = await topicAccess(topic, active.user, "write");
   if (!access.ok) {
     return noStoreJson({ error: access.error, code: access.code }, access.status);
   }
@@ -78,7 +78,7 @@ export async function DELETE(
     return noStoreJson({ error: "Bu konuyu silemezsin." }, 403);
   }
 
-  if (!softDeleteTopic(topic.id, active.user.id)) {
+  if (!await softDeleteTopic(topic.id, active.user.id)) {
     return noStoreJson({ error: "Konu silinemedi." }, 409);
   }
   return noStoreJson({ ok: true });

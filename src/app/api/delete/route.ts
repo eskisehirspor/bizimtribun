@@ -18,12 +18,12 @@ export async function POST(req: Request) {
   }
 
   const ipHash = hashedIp(`delete:${await clientIp()}`);
-  if (registerAttemptCount(ipHash) >= DELETE_PER_HOUR) {
+  if (await registerAttemptCount(ipHash) >= DELETE_PER_HOUR) {
     return noStoreJson({ error: "Çok fazla deneme. Biraz sonra dene." }, 429);
   }
-  getDb()
-    .prepare(`INSERT INTO register_attempts (ip_hash, created_at) VALUES (?, ?)`)
-    .run(ipHash, new Date().toISOString());
+  await getDb()
+        .prepare(`INSERT INTO register_attempts (ip_hash, created_at) VALUES (?, ?)`)
+        .run(ipHash, new Date().toISOString());
 
   const parsed = Body.safeParse(body.data);
   const generic = {
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
     return noStoreJson({ error: "Geçerli e-posta yaz." }, 400);
   }
 
-  const existing = findByEmailNorm(normalizeEmail(parsed.data.email));
+  const existing = await findByEmailNorm(normalizeEmail(parsed.data.email));
   if (!existing || existing.deleted_at) {
     return noStoreJson(generic);
   }
@@ -42,11 +42,11 @@ export async function POST(req: Request) {
   const token = newToken();
   const tokenHash = sha256(`del:${token}`);
   const expires = new Date(Date.now() + TOKEN_TTL_MS).toISOString();
-  getDb()
-    .prepare(
-      `INSERT INTO verify_tokens (participant_id, token_hash, expires_at) VALUES (?, ?, ?)`,
-    )
-    .run(existing.id, tokenHash, expires);
+  await getDb()
+        .prepare(
+          `INSERT INTO verify_tokens (participant_id, token_hash, expires_at) VALUES (?, ?, ?)`,
+        )
+        .run(existing.id, tokenHash, expires);
 
   const sent = await sendDeleteEmail(existing.email, token);
   return noStoreJson({
@@ -67,12 +67,12 @@ export async function PUT(req: Request) {
     return noStoreJson({ error: "Token yok." }, 400);
   }
   const tokenHash = sha256(`del:${token}`);
-  const row = getDb()
-    .prepare(
-      `SELECT t.id as token_id, t.expires_at, t.used_at, t.participant_id
+  const row = await getDb()
+      .prepare(
+        `SELECT t.id as token_id, t.expires_at, t.used_at, t.participant_id
        FROM verify_tokens t WHERE t.token_hash = ?`,
-    )
-    .get(tokenHash) as
+      )
+      .get(tokenHash) as
     | {
         token_id: number;
         expires_at: string;
@@ -86,36 +86,36 @@ export async function PUT(req: Request) {
   }
 
   const now = new Date().toISOString();
-  const tx = getDb().transaction(() => {
-    getDb()
-      .prepare(`UPDATE verify_tokens SET used_at = ? WHERE id = ?`)
-      .run(now, row.token_id);
-    getDb()
-      .prepare(
-        `UPDATE verify_tokens SET used_at = ? WHERE participant_id = ? AND used_at IS NULL`,
-      )
-      .run(now, row.participant_id);
-    getDb()
-      .prepare(
-        `UPDATE participants
+  const tx = getDb().transaction(async () => {
+    await getDb()
+            .prepare(`UPDATE verify_tokens SET used_at = ? WHERE id = ?`)
+            .run(now, row.token_id);
+    await getDb()
+            .prepare(
+              `UPDATE verify_tokens SET used_at = ? WHERE participant_id = ? AND used_at IS NULL`,
+            )
+            .run(now, row.participant_id);
+    await getDb()
+            .prepare(
+              `UPDATE participants
          SET deleted_at = ?, email = '', email_norm = ?, first_name = '', last_name = '',
              phone = '', phone_norm = '', verified_at = NULL, phone_verified_at = NULL,
              email_hash = NULL, phone_hash = NULL, ip_hash = '', fingerprint_hash = ''
          WHERE id = ?`,
-      )
-      .run(now, `deleted:${row.participant_id}`, row.participant_id);
-    getDb()
-      .prepare(
-        `UPDATE votes SET revoked_at = ? WHERE participant_id = ? AND revoked_at IS NULL`,
-      )
-      .run(now, row.participant_id);
-    getDb()
-      .prepare(
-        `UPDATE phone_otps SET voided_at = ?
+            )
+            .run(now, `deleted:${row.participant_id}`, row.participant_id);
+    await getDb()
+            .prepare(
+              `UPDATE votes SET revoked_at = ? WHERE participant_id = ? AND revoked_at IS NULL`,
+            )
+            .run(now, row.participant_id);
+    await getDb()
+            .prepare(
+              `UPDATE phone_otps SET voided_at = ?
          WHERE participant_id = ? AND consumed_at IS NULL AND voided_at IS NULL`,
-      )
-      .run(now, row.participant_id);
+            )
+            .run(now, row.participant_id);
   });
-  tx();
+  await tx();
   return noStoreJson({ ok: true });
 }

@@ -9,7 +9,7 @@ const Body = z.object({ userId: z.number().int().positive(), blocked: z.boolean(
 export async function GET(req: Request) {
   const active = requireActiveUser(await getSessionUser(req));
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
-  return noStoreJson({ ok: true, blocks: listBlocks(getDb(), active.user.id) });
+  return noStoreJson({ ok: true, blocks: await listBlocks(getDb(), active.user.id) });
 }
 
 export async function POST(req: Request) {
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) return noStoreJson({ error: "Geçersiz istek." }, 400);
-  const result = blockUser(getDb(), active.user.id, parsed.data.userId, parsed.data.blocked);
+  const result = await blockUser(getDb(), active.user.id, parsed.data.userId, parsed.data.blocked);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true, blocked: parsed.data.blocked });
 }

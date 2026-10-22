@@ -7,8 +7,8 @@ export const contentType = "image/png";
 export const alt = "Bizim Tribün taraftar sayımı";
 
 export default async function Image() {
-  const total = totalVerified();
-  const teams = teamCounts()
+  const total = await totalVerified();
+  const teams = (await teamCounts())
     .filter((t) => t.votes > 0)
     .sort((a, b) => b.votes - a.votes || a.name.localeCompare(b.name, "tr"));
   const lines = teams.length

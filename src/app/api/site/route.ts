@@ -2,7 +2,7 @@ import { getSettings } from "@/lib/site-settings";
 
 /** Public site state for the banner and footer. Contains no per-user data. */
 export async function GET() {
-  const s = getSettings();
+  const s = await getSettings();
   return Response.json(
     {
       announcement: s.announcement.active && s.announcement.text ? s.announcement : null,

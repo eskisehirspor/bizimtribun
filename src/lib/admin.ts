@@ -25,7 +25,7 @@ export async function requireAdmin(
   const gate = evaluateAdminGate(user, permission);
   if (!gate.ok && user && gate.status === 403 && gate.error !== ADMIN_2FA_REQUIRED_ERROR) {
     // Signed-in member reaching for a staff action: kept for the security page.
-    recordSecurityEvent(getDb(), { userId: user.id, action: `admin_denied:${permission}`, success: false });
+    await recordSecurityEvent(getDb(), { userId: user.id, action: `admin_denied:${permission}`, success: false });
   }
   return gate;
 }

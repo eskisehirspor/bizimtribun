@@ -18,8 +18,8 @@ export async function GET(req: Request) {
   const db = getDb();
   return noStoreJson({
     ok: true,
-    settings: getSettings(db),
-    meta: settingsMeta(db),
+    settings: await getSettings(db),
+    meta: await settingsMeta(db),
     canManageSystem: can(gate.user.role, "settings.manage"),
   });
 }
@@ -37,7 +37,7 @@ export async function PUT(req: Request) {
   );
   if (!gate.ok) return gate.res;
   if (!parsed.success || !key) return noStoreJson({ error: "Geçersiz ayar." }, 400);
-  const result = updateSetting(getDb(), gate.user.id, key, parsed.data.value);
+  const result = await updateSetting(getDb(), gate.user.id, key, parsed.data.value);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true, key, value: result.value });
 }

@@ -3,5 +3,5 @@ import { listLeagues } from "@/lib/team-catalog";
 import { listMembershipTeams } from "@/lib/team-db";
 
 export async function GET() {
-  return noStoreJson({ ok: true, teams: listMembershipTeams(), leagues: listLeagues() });
+  return noStoreJson({ ok: true, teams: await listMembershipTeams(), leagues: await listLeagues() });
 }

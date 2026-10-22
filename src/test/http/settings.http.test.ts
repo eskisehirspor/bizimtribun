@@ -10,8 +10,8 @@ import { getDb } from "@/lib/db";
 import { invalidateSettingsCache } from "@/lib/site-settings";
 import { freshDb, invoke, smsSignup, trPhone, uniq } from "./harness";
 
-beforeEach(() => {
-  freshDb();
+beforeEach(async () => {
+  await freshDb();
   invalidateSettingsCache();
 });
 
@@ -19,7 +19,7 @@ let n = 0;
 async function member(role: "user" | "moderator" | "admin" | "super_admin" = "user") {
   n += 1;
   const u = await smsSignup({ phone: trPhone(9100 + n), username: uniq("st").slice(0, 20), ip: `203.0.113.${n % 250}` });
-  if (role !== "user") getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
+  if (role !== "user") await getDb().prepare(`UPDATE users SET role = ?, totp_enabled = 1 WHERE id = ?`).run(role, u.id);
   return u;
 }
 
@@ -41,9 +41,9 @@ test("content settings need admin; maintenance and flags need super admin", asyn
   assert.equal((await put(admin.cookie, "maintenance", { enabled: true, message: "x" })).status, 403);
   assert.equal((await put(sup.cookie, "maintenance", { enabled: false, message: "" })).status, 200);
 
-  const audit = getDb()
-    .prepare(`SELECT action FROM audit_log WHERE action LIKE 'setting_%' ORDER BY id`)
-    .all() as { action: string }[];
+  const audit = await getDb()
+      .prepare(`SELECT action FROM audit_log WHERE action LIKE 'setting_%' ORDER BY id`)
+      .all() as { action: string }[];
   assert.deepEqual(audit.map((a) => a.action), ["setting_announcement", "setting_maintenance"]);
 
   const pub = await invoke(site, { path: "/api/site" });
@@ -83,8 +83,7 @@ test("maintenance makes the site read-only for members but not staff", async () 
   assert.equal((await invoke(listGeneral, { path: "/api/forum/genel/topics" })).status, 200);
   const staff = await invoke(createGeneral, { method: "POST", path: "/api/forum/genel/topics", cookie: sup.cookie, body: TOPIC });
   assert.equal(staff.status, 201, staff.text);
-  await assert.rejects(
-    member(),
+  await assert.rejects(member(),
     /signup 503/,
   );
 });

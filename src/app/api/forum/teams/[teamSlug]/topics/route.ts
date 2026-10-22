@@ -2,10 +2,10 @@ import { boardTopicsGet, boardTopicsPost, resolveTeamBoard } from "@/lib/forum-b
 
 export async function GET(req: Request, ctx: { params: Promise<{ teamSlug: string }> }) {
   const { teamSlug } = await ctx.params;
-  return boardTopicsGet(req, resolveTeamBoard(teamSlug));
+  return boardTopicsGet(req, await resolveTeamBoard(teamSlug));
 }
 
 export async function POST(req: Request, ctx: { params: Promise<{ teamSlug: string }> }) {
   const { teamSlug } = await ctx.params;
-  return boardTopicsPost(req, resolveTeamBoard(teamSlug));
+  return boardTopicsPost(req, await resolveTeamBoard(teamSlug));
 }

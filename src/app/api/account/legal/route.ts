@@ -14,7 +14,7 @@ const Body = z.object({
 export async function GET(req: Request) {
   const active = requireActiveUser(await getSessionUser(req));
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
-  return noStoreJson({ ok: true, pending: pendingLegalDocs(getDb(), active.user.id) });
+  return noStoreJson({ ok: true, pending: await pendingLegalDocs(getDb(), active.user.id) });
 }
 
 /** Records that the member accepted the current terms / acknowledged the current notice. */
@@ -26,9 +26,9 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) return noStoreJson({ error: "Geçersiz istek." }, 400);
   const db = getDb();
-  const result = db.transaction(() =>
-    recordLegalAcceptance(db, { userId: active.user.id, accepted: parsed.data.accepted, source: "reaccept" }),
-  )();
+  const result = await db.transaction(() =>
+      recordLegalAcceptance(db, { userId: active.user.id, accepted: parsed.data.accepted, source: "reaccept" }),
+    )();
   if (!result.ok) return noStoreJson({ error: result.error }, 409);
-  return noStoreJson({ ok: true, pending: pendingLegalDocs(db, active.user.id) });
+  return noStoreJson({ ok: true, pending: await pendingLegalDocs(db, active.user.id) });
 }

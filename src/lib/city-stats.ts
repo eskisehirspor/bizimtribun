@@ -4,18 +4,18 @@ import { listTeamCatalog } from "./team-catalog";
 
 export type { CityTeamRow };
 
-export function cityVoteTotals(cityName: string) {
-  const rows = getDb()
-    .prepare(
-      `SELECT fv.team_id as teamId, COUNT(*) as votes
+export async function cityVoteTotals(cityName: string) {
+  const rows = await getDb()
+      .prepare(
+        `SELECT fv.team_id as teamId, COUNT(*) as votes
        FROM fan_votes fv
        WHERE fv.status = 'active' AND fv.city = ?
        GROUP BY fv.team_id
        ORDER BY votes DESC, fv.team_id`,
-    )
-    .all(cityName) as { teamId: string; votes: number }[];
+      )
+      .all(cityName) as { teamId: string; votes: number }[];
   const total = rows.reduce((sum, row) => sum + row.votes, 0);
-  const catalog = new Map(listTeamCatalog().map((t) => [t.id, t]));
+  const catalog = new Map((await listTeamCatalog()).map((t) => [t.id, t]));
   return { total, rows: rankCityTeams(rows, (id) => catalog.get(id)) };
 }
 
@@ -35,10 +35,10 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
  * no separate snapshot table that could drift from the real data. A vote
  * voided later counts for the weeks before it was voided.
  */
-export function cityHistory(cityName: string, weeks = 8, now = Date.now()): CityHistoryPoint[] {
-  const votes = getDb()
-    .prepare(`SELECT team_id, cast_at, voided_at FROM fan_votes WHERE city = ?`)
-    .all(cityName) as { team_id: string; cast_at: string; voided_at: string | null }[];
+export async function cityHistory(cityName: string, weeks = 8, now = Date.now()): Promise<CityHistoryPoint[]> {
+  const votes = await getDb()
+      .prepare(`SELECT team_id, cast_at, voided_at FROM fan_votes WHERE city = ?`)
+      .all(cityName) as { team_id: string; cast_at: string; voided_at: string | null }[];
   const parsed = votes.map((v) => ({
     team: v.team_id,
     cast: Date.parse(v.cast_at),
@@ -64,9 +64,9 @@ export function cityHistory(cityName: string, weeks = 8, now = Date.now()): City
   return out;
 }
 
-export function cityLastVoteAt(cityName: string) {
-  const row = getDb()
-    .prepare(`SELECT MAX(cast_at) as at FROM fan_votes WHERE city = ? AND status = 'active'`)
-    .get(cityName) as { at: string | null };
+export async function cityLastVoteAt(cityName: string) {
+  const row = await getDb()
+      .prepare(`SELECT MAX(cast_at) as at FROM fan_votes WHERE city = ? AND status = 'active'`)
+      .get(cityName) as { at: string | null };
   return row.at;
 }

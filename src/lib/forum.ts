@@ -88,10 +88,10 @@ export type ForumAuthor = {
   isFanOfWeek: boolean;
 };
 
-function authorOf(userId: number, leaderUserId: number | null): ForumAuthor | undefined {
-  const row = getDb()
-    .prepare(`SELECT id, username FROM users WHERE id = ?`)
-    .get(userId) as { id: number; username: string } | undefined;
+async function authorOf(userId: number, leaderUserId: number | null): Promise<ForumAuthor | undefined> {
+  const row = await getDb()
+      .prepare(`SELECT id, username FROM users WHERE id = ?`)
+      .get(userId) as { id: number; username: string } | undefined;
   if (!row) return undefined;
   return {
     id: row.id,
@@ -128,24 +128,24 @@ export function parseIdParam(raw: string) {
   return id;
 }
 
-export function findForumTeam(slug: string) {
-  return getDb()
-    .prepare(`SELECT id, name, league, is_forum_active FROM teams WHERE id = ?`)
-    .get(slug) as ForumTeam | undefined;
+export async function findForumTeam(slug: string) {
+  return await getDb()
+      .prepare(`SELECT id, name, league, is_forum_active FROM teams WHERE id = ?`)
+      .get(slug) as ForumTeam | undefined;
 }
 
 /** Is the board this topic lives on open? (Team boards can be closed by admins.) */
-export function topicBoardOpen(topic: Pick<ForumTopic, "board" | "team_id" | "city">) {
+export async function topicBoardOpen(topic: Pick<ForumTopic, "board" | "team_id" | "city">) {
   const board = boardOfTopic(topic);
-  if (board.kind === "team") return Boolean(requireForumBoard(board.teamId));
-  const { features } = getSettings();
+  if (board.kind === "team") return Boolean(await requireForumBoard(board.teamId));
+  const { features } = await getSettings();
   // Province boards were removed; their old topics stay stored but hidden.
   if (board.kind === "city") return false;
   return features.generalBoardOpen;
 }
 
-export function requireForumBoard(slug: string) {
-  const team = findForumTeam(slug);
+export async function requireForumBoard(slug: string) {
+  const team = await findForumTeam(slug);
   if (!team || !team.is_forum_active) return undefined;
   return team;
 }
@@ -159,10 +159,10 @@ export const TEAM_BOARD_LOGIN_ERROR = "Takım tribünleri yalnızca o takımın 
 export const TEAM_BOARD_OTHER_TEAM_ERROR = "Bu tribün yalnızca bu takıma oy veren taraftarlara açık.";
 
 /** The team the member counts for: their active vote. No vote, no team tribune. */
-export function memberTeamId(userId: number) {
-  const row = getDb()
-    .prepare(`SELECT team_id FROM fan_votes WHERE user_id = ? AND status = 'active'`)
-    .get(userId) as { team_id: string } | undefined;
+export async function memberTeamId(userId: number) {
+  const row = await getDb()
+      .prepare(`SELECT team_id FROM fan_votes WHERE user_id = ? AND status = 'active'`)
+      .get(userId) as { team_id: string } | undefined;
   return row?.team_id ?? null;
 }
 
@@ -172,15 +172,15 @@ export function memberTeamId(userId: number) {
  * but write only in their own team's tribune like any fan.
  * The Milli Takım Tribünü (board 'general') is open to everyone.
  */
-export function boardAccess(
+export async function boardAccess(
   board: ForumBoardRef,
   viewer: BoardViewer,
   mode: "read" | "write" = "read",
-): BoardAccess {
+): Promise<BoardAccess> {
   if (board.kind !== "team") return { ok: true };
   if (!viewer) return { ok: false, status: 401, error: TEAM_BOARD_LOGIN_ERROR, code: "TEAM_BOARD_LOGIN" };
   if (mode === "read" && isStaffRole(viewer.role)) return { ok: true };
-  if (memberTeamId(viewer.id) === board.teamId) return { ok: true };
+  if (await memberTeamId(viewer.id) === board.teamId) return { ok: true };
   return { ok: false, status: 403, error: TEAM_BOARD_OTHER_TEAM_ERROR, code: "TEAM_BOARD_OTHER_TEAM" };
 }
 
@@ -221,8 +221,8 @@ export function boardOfTopic(topic: Pick<ForumTopic, "board" | "team_id" | "city
 }
 
 /** "Haftanın Taraftarı" exists only on team boards: last week's winner wears the torch. */
-function leaderForBoard(board: ForumBoardRef) {
-  return board.kind === "team" ? getCurrentFanOfWeekUserId(board.teamId, getDb()) : null;
+async function leaderForBoard(board: ForumBoardRef) {
+  return board.kind === "team" ? await getCurrentFanOfWeekUserId(board.teamId, getDb()) : null;
 }
 
 /** Hides members the viewer blocked. `col` is the author column. */
@@ -253,33 +253,33 @@ function normalizeTopic(row: ForumTopic | undefined) {
   };
 }
 
-export function findTopic(id: number) {
+export async function findTopic(id: number) {
   return normalizeTopic(
-    getDb()
-      .prepare(`SELECT * FROM forum_topics WHERE id = ?`)
-      .get(id) as ForumTopic | undefined,
+    await getDb()
+            .prepare(`SELECT * FROM forum_topics WHERE id = ?`)
+            .get(id) as ForumTopic | undefined,
   );
 }
 
-export function findLiveTopic(id: number) {
-  const topic = findTopic(id);
+export async function findLiveTopic(id: number) {
+  const topic = await findTopic(id);
   if (!topic || !isPublicForumRow(topic)) return undefined;
   return topic;
 }
 
-export function findPost(id: number) {
-  return getDb()
-    .prepare(`SELECT * FROM forum_posts WHERE id = ?`)
-    .get(id) as ForumPost | undefined;
+export async function findPost(id: number) {
+  return await getDb()
+      .prepare(`SELECT * FROM forum_posts WHERE id = ?`)
+      .get(id) as ForumPost | undefined;
 }
 
-export function findLivePost(id: number) {
-  const post = findPost(id);
+export async function findLivePost(id: number) {
+  const post = await findPost(id);
   if (!post || !isPublicForumRow(post)) return undefined;
   return post;
 }
 
-export function listTopics(
+export async function listTopics(
   boardInput: ForumBoardRef | string,
   offset: number,
   limit: number,
@@ -294,17 +294,17 @@ export function listTopics(
   const blocked = blockedSql("t.user_id", opts?.viewerId);
   const likes = likeCols("topic", "t", opts?.viewerId);
   const total = (
-    getDb()
-      .prepare(
-        `SELECT COUNT(*) as c FROM forum_topics t
+    await getDb()
+            .prepare(
+              `SELECT COUNT(*) as c FROM forum_topics t
          WHERE ${where.sql} AND t.deleted_at IS NULL AND t.held_at IS NULL ${catSql} ${blocked.sql}`,
-      )
-      .get(...where.params, ...catParams, ...blocked.params) as { c: number }
+            )
+            .get(...where.params, ...catParams, ...blocked.params) as { c: number }
   ).c;
 
-  const rows = getDb()
-    .prepare(
-      `SELECT t.*, u.username,
+  const rows = await getDb()
+      .prepare(
+        `SELECT t.*, u.username,
               (SELECT COUNT(*) FROM forum_posts p
                WHERE p.topic_id = t.id AND p.deleted_at IS NULL AND p.held_at IS NULL) as post_count,
               ${likes.sql}
@@ -313,15 +313,15 @@ export function listTopics(
        WHERE ${where.sql} AND t.deleted_at IS NULL AND t.held_at IS NULL ${catSql} ${blocked.sql}
        ORDER BY ${topicOrderSql(sort)}
        LIMIT ? OFFSET ?`,
-    )
-    .all(...likes.params, ...where.params, ...catParams, ...blocked.params, limit, offset) as (ForumTopic & {
+      )
+      .all(...likes.params, ...where.params, ...catParams, ...blocked.params, limit, offset) as (ForumTopic & {
     username: string;
     post_count: number;
     like_count: number;
     liked_by_me: number;
   })[];
 
-  const leaderUserId = leaderForBoard(board);
+  const leaderUserId = await leaderForBoard(board);
 
   return {
     total,
@@ -348,35 +348,35 @@ export function listTopics(
   };
 }
 
-export function listPosts(
+export async function listPosts(
   topicId: number,
   offset: number,
   limit: number,
   viewerId?: number | null,
 ) {
-  const topic = findTopic(topicId);
-  const leaderUserId = topic ? leaderForBoard(boardOfTopic(topic)) : null;
+  const topic = await findTopic(topicId);
+  const leaderUserId = topic ? await leaderForBoard(boardOfTopic(topic)) : null;
   const blocked = blockedSql("p.user_id", viewerId);
   const likes = likeCols("post", "p", viewerId);
   const total = (
-    getDb()
-      .prepare(
-        `SELECT COUNT(*) as c FROM forum_posts p
+    await getDb()
+            .prepare(
+              `SELECT COUNT(*) as c FROM forum_posts p
          WHERE p.topic_id = ? AND p.deleted_at IS NULL AND p.held_at IS NULL ${blocked.sql}`,
-      )
-      .get(topicId, ...blocked.params) as { c: number }
+            )
+            .get(topicId, ...blocked.params) as { c: number }
   ).c;
 
-  const rows = getDb()
-    .prepare(
-      `SELECT p.*, u.username, ${likes.sql}
+  const rows = await getDb()
+      .prepare(
+        `SELECT p.*, u.username, ${likes.sql}
        FROM forum_posts p
        JOIN users u ON u.id = p.user_id
        WHERE p.topic_id = ? AND p.deleted_at IS NULL AND p.held_at IS NULL ${blocked.sql}
        ORDER BY p.created_at ASC
        LIMIT ? OFFSET ?`,
-    )
-    .all(...likes.params, topicId, ...blocked.params, limit, offset) as (ForumPost & {
+      )
+      .all(...likes.params, topicId, ...blocked.params, limit, offset) as (ForumPost & {
     username: string;
     like_count: number;
     liked_by_me: number;
@@ -402,33 +402,33 @@ export function listPosts(
   };
 }
 
-function likeState(type: "topic" | "post", id: number, viewerId?: number | null) {
+async function likeState(type: "topic" | "post", id: number, viewerId?: number | null) {
   const count = (
-    getDb()
-      .prepare(`SELECT COUNT(*) as c FROM forum_likes WHERE target_type = ? AND target_id = ?`)
-      .get(type, id) as { c: number }
+    await getDb()
+            .prepare(`SELECT COUNT(*) as c FROM forum_likes WHERE target_type = ? AND target_id = ?`)
+            .get(type, id) as { c: number }
   ).c;
   const mine = viewerId
     ? Boolean(
-        getDb()
-          .prepare(
-            `SELECT 1 FROM forum_likes WHERE target_type = ? AND target_id = ? AND user_id = ?`,
-          )
-          .get(type, id, viewerId),
+        await getDb()
+                  .prepare(
+                    `SELECT 1 FROM forum_likes WHERE target_type = ? AND target_id = ? AND user_id = ?`,
+                  )
+                  .get(type, id, viewerId),
       )
     : false;
   return { likeCount: count, likedByMe: mine };
 }
 
-export function serializeTopic(topic: ForumTopic, viewerId?: number | null) {
-  const leaderUserId = leaderForBoard(boardOfTopic(topic));
+export async function serializeTopic(topic: ForumTopic, viewerId?: number | null) {
+  const leaderUserId = await leaderForBoard(boardOfTopic(topic));
   return {
     id: topic.id,
     board: topic.board,
     teamId: topic.team_id,
     province: topic.city,
     editedAt: topic.edited_at ?? null,
-    ...likeState("topic", topic.id, viewerId),
+    ...await likeState("topic", topic.id, viewerId),
     title: topic.title,
     content: topic.content,
     createdAt: topic.created_at,
@@ -436,11 +436,11 @@ export function serializeTopic(topic: ForumTopic, viewerId?: number | null) {
     lockedAt: topic.locked_at,
     category: topicCategory(topic.category),
     isPinned: Boolean(topicPinned(topic.is_pinned)),
-    author: authorOf(topic.user_id, leaderUserId),
+    author: await authorOf(topic.user_id, leaderUserId),
   };
 }
 
-export function createTopic(input: {
+export async function createTopic(input: {
   teamId?: string;
   board?: ForumBoardRef;
   userId: number;
@@ -453,40 +453,40 @@ export function createTopic(input: {
   const heldAt = input.holdForReview ? now : null;
   const category = topicCategory(input.category ?? FORUM_CATEGORY_DEFAULT);
   const board: ForumBoardRef = input.board ?? { kind: "team", teamId: input.teamId ?? "" };
-  const info = getDb()
-    .prepare(
-      `INSERT INTO forum_topics
+  const info = await getDb()
+      .prepare(
+        `INSERT INTO forum_topics
        (board, team_id, city, user_id, title, content, created_at, updated_at, held_at, category, is_pinned)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-    )
-    .run(
-      board.kind,
-      board.kind === "team" ? board.teamId : null,
-      board.kind === "city" ? board.city : null,
-      input.userId,
-      input.title,
-      input.content,
-      now,
-      now,
-      heldAt,
-      category,
-    );
-  return findTopic(Number(info.lastInsertRowid))!;
+      )
+      .run(
+        board.kind,
+        board.kind === "team" ? board.teamId : null,
+        board.kind === "city" ? board.city : null,
+        input.userId,
+        input.title,
+        input.content,
+        now,
+        now,
+        heldAt,
+        category,
+      );
+  return (await findTopic(Number(info.lastInsertRowid)))!;
 }
 
-export function softDeleteTopic(id: number, userId: number) {
+export async function softDeleteTopic(id: number, userId: number) {
   const now = new Date().toISOString();
-  const result = getDb()
-    .prepare(
-      `UPDATE forum_topics
+  const result = await getDb()
+      .prepare(
+        `UPDATE forum_topics
        SET deleted_at = ?, updated_at = ?
        WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
-    )
-    .run(now, now, id, userId);
+      )
+      .run(now, now, id, userId);
   return result.changes === 1;
 }
 
-export function createPost(input: {
+export async function createPost(input: {
   topicId: number;
   userId: number;
   content: string;
@@ -494,116 +494,116 @@ export function createPost(input: {
 }) {
   const now = new Date().toISOString();
   const heldAt = input.holdForReview ? now : null;
-  const info = getDb()
-    .prepare(
-      `INSERT INTO forum_posts (topic_id, user_id, content, created_at, updated_at, held_at)
+  const info = await getDb()
+      .prepare(
+        `INSERT INTO forum_posts (topic_id, user_id, content, created_at, updated_at, held_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
-    )
-    .run(input.topicId, input.userId, input.content, now, now, heldAt);
-  getDb()
-    .prepare(`UPDATE forum_topics SET updated_at = ? WHERE id = ?`)
-    .run(now, input.topicId);
-  return findPost(Number(info.lastInsertRowid))!;
+      )
+      .run(input.topicId, input.userId, input.content, now, now, heldAt);
+  await getDb()
+        .prepare(`UPDATE forum_topics SET updated_at = ? WHERE id = ?`)
+        .run(now, input.topicId);
+  return (await findPost(Number(info.lastInsertRowid)))!;
 }
 
-export function softDeletePost(id: number, userId: number) {
+export async function softDeletePost(id: number, userId: number) {
   const now = new Date().toISOString();
-  const result = getDb()
-    .prepare(
-      `UPDATE forum_posts
+  const result = await getDb()
+      .prepare(
+        `UPDATE forum_posts
        SET deleted_at = ?, updated_at = ?
        WHERE id = ? AND user_id = ? AND deleted_at IS NULL`,
-    )
-    .run(now, now, id, userId);
+      )
+      .run(now, now, id, userId);
   return result.changes === 1;
 }
 
-export function serializePost(post: ForumPost, viewerId?: number | null) {
-  const topic = findTopic(post.topic_id);
-  const leaderUserId = topic ? leaderForBoard(boardOfTopic(topic)) : null;
+export async function serializePost(post: ForumPost, viewerId?: number | null) {
+  const topic = await findTopic(post.topic_id);
+  const leaderUserId = topic ? await leaderForBoard(boardOfTopic(topic)) : null;
   return {
     id: post.id,
     editedAt: post.edited_at ?? null,
-    ...likeState("post", post.id, viewerId),
+    ...await likeState("post", post.id, viewerId),
     topicId: post.topic_id,
     content: post.content,
     createdAt: post.created_at,
     updatedAt: post.updated_at,
-    author: authorOf(post.user_id, leaderUserId),
+    author: await authorOf(post.user_id, leaderUserId),
   };
 }
 
-export function setTopicLocked(id: number, locked: boolean) {
-  const topic = findTopic(id);
+export async function setTopicLocked(id: number, locked: boolean) {
+  const topic = await findTopic(id);
   if (!topic || topic.deleted_at) return false;
   const now = new Date().toISOString();
   if (locked) {
     if (topic.locked_at) return true;
-    const result = getDb()
-      .prepare(
-        `UPDATE forum_topics SET locked_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-      )
-      .run(now, now, id);
+    const result = await getDb()
+          .prepare(
+            `UPDATE forum_topics SET locked_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+          )
+          .run(now, now, id);
     return result.changes === 1;
   }
-  const result = getDb()
-    .prepare(
-      `UPDATE forum_topics SET locked_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-    )
-    .run(now, id);
+  const result = await getDb()
+      .prepare(
+        `UPDATE forum_topics SET locked_at = NULL, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+      )
+      .run(now, id);
   return result.changes === 1;
 }
 
-export function adminSoftDeleteTopic(id: number) {
-  const topic = findTopic(id);
+export async function adminSoftDeleteTopic(id: number) {
+  const topic = await findTopic(id);
   if (!topic || topic.deleted_at) return false;
   const now = new Date().toISOString();
-  const result = getDb()
-    .prepare(
-      `UPDATE forum_topics SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-    )
-    .run(now, now, id);
+  const result = await getDb()
+      .prepare(
+        `UPDATE forum_topics SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+      )
+      .run(now, now, id);
   return result.changes === 1;
 }
 
-export function adminSoftDeletePost(id: number) {
-  const post = findPost(id);
+export async function adminSoftDeletePost(id: number) {
+  const post = await findPost(id);
   if (!post || post.deleted_at) return false;
   const now = new Date().toISOString();
-  const result = getDb()
-    .prepare(
-      `UPDATE forum_posts SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-    )
-    .run(now, now, id);
+  const result = await getDb()
+      .prepare(
+        `UPDATE forum_posts SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+      )
+      .run(now, now, id);
   return result.changes === 1;
 }
 
-export function forumTopicLimited(ip: string, userId: number) {
+export async function forumTopicLimited(ip: string, userId: number) {
   const ipHash = hashedIp(`forum-topic:${ip}`);
   const userHash = hmac(`forum-topic-user:${userId}`);
   return (
-    registerAttemptCount(ipHash) >= FORUM_TOPICS_PER_IP_HOUR ||
-    registerAttemptCount(userHash) >= FORUM_TOPICS_PER_USER_HOUR
+    await registerAttemptCount(ipHash) >= FORUM_TOPICS_PER_IP_HOUR ||
+    await registerAttemptCount(userHash) >= FORUM_TOPICS_PER_USER_HOUR
   );
 }
 
-export function forumPostLimited(ip: string, userId: number) {
+export async function forumPostLimited(ip: string, userId: number) {
   const ipHash = hashedIp(`forum-post:${ip}`);
   const userHash = hmac(`forum-post-user:${userId}`);
   return (
-    registerAttemptCount(ipHash) >= FORUM_POSTS_PER_IP_HOUR ||
-    registerAttemptCount(userHash) >= FORUM_POSTS_PER_USER_HOUR
+    await registerAttemptCount(ipHash) >= FORUM_POSTS_PER_IP_HOUR ||
+    await registerAttemptCount(userHash) >= FORUM_POSTS_PER_USER_HOUR
   );
 }
 
-export function noteForumTopicAttempt(ip: string, userId: number) {
-  noteAuthAttempt(hashedIp(`forum-topic:${ip}`));
-  noteAuthAttempt(hmac(`forum-topic-user:${userId}`));
+export async function noteForumTopicAttempt(ip: string, userId: number) {
+  await noteAuthAttempt(hashedIp(`forum-topic:${ip}`));
+  await noteAuthAttempt(hmac(`forum-topic-user:${userId}`));
 }
 
-export function noteForumPostAttempt(ip: string, userId: number) {
-  noteAuthAttempt(hashedIp(`forum-post:${ip}`));
-  noteAuthAttempt(hmac(`forum-post-user:${userId}`));
+export async function noteForumPostAttempt(ip: string, userId: number) {
+  await noteAuthAttempt(hashedIp(`forum-post:${ip}`));
+  await noteAuthAttempt(hmac(`forum-post-user:${userId}`));
 }
 
 export { FORUM_BODY_MAX, FORUM_POST_MAX, FORUM_TITLE_MAX, FORUM_TITLE_MIN };

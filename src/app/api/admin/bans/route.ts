@@ -10,6 +10,6 @@ export async function GET(req: Request) {
   const { page, limit, offset } = parseAdminPage(url);
   const state = url.searchParams.get("state") === "all" ? "all" : "active";
 
-  const { total, items } = listBans({ state, offset, limit });
+  const { total, items } = await listBans({ state, offset, limit });
   return noStoreJson({ ok: true, page, limit, total, items, state });
 }

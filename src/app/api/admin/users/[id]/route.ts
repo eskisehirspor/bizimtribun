@@ -14,7 +14,7 @@ export async function GET(
   const id = parseIdParam(raw);
   if (id == null) return noStoreJson({ error: "Kullanıcı bulunamadı." }, 404);
 
-  const user = getAdminUserDetail(id, gate.user.role);
+  const user = await getAdminUserDetail(id, gate.user.role);
   if (!user) return noStoreJson({ error: "Kullanıcı bulunamadı." }, 404);
   return noStoreJson({ ok: true, user });
 }

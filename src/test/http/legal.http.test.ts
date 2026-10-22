@@ -11,8 +11,8 @@ import { getDb } from "@/lib/db";
 import { LEGAL_DOCS, LEGAL_PENDING_ERROR } from "@/lib/legal";
 import { cookies, freshDb, invoke, LEGAL_OK, signupCookie, smsSignup, testDevice, trPhone, uniq } from "./harness";
 
-beforeEach(() => {
-  freshDb();
+beforeEach(async () => {
+  await freshDb();
 });
 
 test("sign-up needs each box ticked and stores both versions", async () => {
@@ -38,9 +38,9 @@ test("sign-up needs each box ticked and stores both versions", async () => {
   assert.equal(stale.status, 409, stale.text);
 
   const u = await smsSignup({ phone: trPhone(7302), username: uniq("lg").slice(0, 20) });
-  const rows = getDb()
-    .prepare(`SELECT doc, version, source FROM legal_acceptances WHERE user_id = ? ORDER BY doc`)
-    .all(u.id) as { doc: string; version: string; source: string }[];
+  const rows = await getDb()
+      .prepare(`SELECT doc, version, source FROM legal_acceptances WHERE user_id = ? ORDER BY doc`)
+      .all(u.id) as { doc: string; version: string; source: string }[];
   assert.deepEqual(rows, [
     { doc: "privacy", version: LEGAL_DOCS.privacy.version, source: "signup" },
     { doc: "terms", version: LEGAL_DOCS.terms.version, source: "signup" },
@@ -52,10 +52,10 @@ test("sign-up needs each box ticked and stores both versions", async () => {
 test("a new text version blocks writing until the member accepts it", async () => {
   const u = await smsSignup({ phone: trPhone(7303), username: uniq("lg").slice(0, 20) });
   // As if the member had only accepted older versions.
-  getDb().prepare(`DELETE FROM legal_acceptances WHERE user_id = ?`).run(u.id);
-  getDb()
-    .prepare(`INSERT INTO legal_acceptances (user_id, doc, version, accepted_at, source) VALUES (?, 'terms', '2026-10-19', ?, 'legacy')`)
-    .run(u.id, new Date().toISOString());
+  await getDb().prepare(`DELETE FROM legal_acceptances WHERE user_id = ?`).run(u.id);
+  await getDb()
+        .prepare(`INSERT INTO legal_acceptances (user_id, doc, version, accepted_at, source) VALUES (?, 'terms', '2026-10-19', ?, 'legacy')`)
+        .run(u.id, new Date().toISOString());
 
   const who = await invoke(me, { path: "/api/auth/me", cookie: u.cookie });
   const pending = (who.json as { legalPending: { doc: string }[] }).legalPending.map((d) => d.doc).sort();
@@ -90,5 +90,5 @@ test("a new text version blocks writing until the member accepts it", async () =
   const created = await invoke(createGeneral, { method: "POST", path: "/api/forum/genel/topics", cookie: u.cookie, body: topic });
   assert.equal(created.status, 201, created.text);
   // The old record is kept; acceptance rows can't be rewritten.
-  assert.throws(() => getDb().prepare(`UPDATE legal_acceptances SET version = 'x' WHERE user_id = ?`).run(u.id), /LEGAL_RECORD_IMMUTABLE/);
+  await assert.rejects(() => getDb().prepare(`UPDATE legal_acceptances SET version = 'x' WHERE user_id = ?`).run(u.id), /LEGAL_RECORD_IMMUTABLE/);
 });

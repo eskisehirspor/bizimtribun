@@ -28,15 +28,15 @@ export async function POST(req: Request) {
   }
   const db = getDb();
   const key = hmac(`account-delete:${target.id}`);
-  if (rateCount(db, key, 60 * 60 * 1000) >= ACCOUNT_DELETE_PER_USER_HOUR) {
+  if (await rateCount(db, key, 60 * 60 * 1000) >= ACCOUNT_DELETE_PER_USER_HOUR) {
     return noStoreJson({ error: "Çok fazla deneme. Biraz sonra tekrar dene." }, 429);
   }
-  rateNote(db, key);
-  const result = deleteAccount(db, {
-    userId: target.id,
-    actorUserId: target.id,
-    reason: "self_service",
-  });
+  await rateNote(db, key);
+  const result = await deleteAccount(db, {
+      userId: target.id,
+      actorUserId: target.id,
+      reason: "self_service",
+    });
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return clearSessionCookie(noStoreJson({ ok: true, message: "Hesabın silindi." }));
 }

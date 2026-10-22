@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     return noStoreJson({ ok: true, user: null });
   }
   if (isUserBanned(user)) {
-    revokeSessionByToken(await readSessionToken(req));
+    await revokeSessionByToken(await readSessionToken(req));
     const res = noStoreJson(
       { ok: false, user: null, error: "Hesap askıya alınmış." },
       403,
@@ -29,10 +29,10 @@ export async function GET(req: Request) {
     return noStoreJson({ ok: false, user: null, error: active.error }, active.status);
   }
   const db = getDb();
-  const vote = findFanVote(db, active.user.id);
+  const vote = await findFanVote(db, active.user.id);
   return noStoreJson({
     ok: true,
     user: { ...active.publicUser, voteTeamId: vote?.team_id ?? null },
-    legalPending: pendingLegalDocs(db, active.user.id),
+    legalPending: await pendingLegalDocs(db, active.user.id),
   });
 }

@@ -30,7 +30,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
 
   const { reason: _reason, ...patch } = parsed.data;
   void _reason;
-  const result = updateTeam(getDb(), gate.user.id, id, patch, reason);
+  const result = await updateTeam(getDb(), gate.user.id, id, patch, reason);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true });
 }

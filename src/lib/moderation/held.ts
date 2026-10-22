@@ -1,6 +1,6 @@
 import { notifyModeration, notifyReply } from "../notifications";
 import { can, roleRank } from "../permissions";
-import type Database from "better-sqlite3";
+import type { Db } from "../db";
 
 export const HELD_KINDS = ["topic", "post"] as const;
 export type HeldKind = (typeof HELD_KINDS)[number];
@@ -46,8 +46,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function writeAudit(
-  db: Database.Database,
+async function writeAudit(
+  db: Db,
   input: {
     moderatorUserId: number;
     action: string;
@@ -57,42 +57,42 @@ function writeAudit(
     targetPostId?: number | null;
   },
 ) {
-  db.prepare(
-    `INSERT INTO moderation_actions
+  await db.prepare(
+        `INSERT INTO moderation_actions
      (moderator_user_id, target_user_id, target_topic_id, target_post_id, action, reason, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    input.moderatorUserId,
-    input.targetUserId ?? null,
-    input.targetTopicId ?? null,
-    input.targetPostId ?? null,
-    input.action,
-    input.reason?.trim().slice(0, 500) || null,
-    nowIso(),
-  );
+      ).run(
+        input.moderatorUserId,
+        input.targetUserId ?? null,
+        input.targetTopicId ?? null,
+        input.targetPostId ?? null,
+        input.action,
+        input.reason?.trim().slice(0, 500) || null,
+        nowIso(),
+      );
 }
 
-export function latestAutoReview(
-  db: Database.Database,
+export async function latestAutoReview(
+  db: Db,
   kind: HeldKind,
   id: number,
 ) {
   const row =
     kind === "topic"
-      ? (db
-          .prepare(
-            `SELECT id, reason FROM moderation_actions
+      ? (await db
+                    .prepare(
+                      `SELECT id, reason FROM moderation_actions
              WHERE action = 'auto_review' AND target_topic_id = ? AND target_post_id IS NULL
              ORDER BY id DESC LIMIT 1`,
-          )
-          .get(id) as { id: number; reason: string | null } | undefined)
-      : (db
-          .prepare(
-            `SELECT id, reason FROM moderation_actions
+                    )
+                    .get(id) as { id: number; reason: string | null } | undefined)
+      : (await db
+                    .prepare(
+                      `SELECT id, reason FROM moderation_actions
              WHERE action = 'auto_review' AND target_post_id = ?
              ORDER BY id DESC LIMIT 1`,
-          )
-          .get(id) as { id: number; reason: string | null } | undefined);
+                    )
+                    .get(id) as { id: number; reason: string | null } | undefined);
   return row ?? null;
 }
 
@@ -113,22 +113,22 @@ export type HeldTarget = {
   authorRole: string;
 };
 
-export function loadHeldTarget(
-  db: Database.Database,
+export async function loadHeldTarget(
+  db: Db,
   kind: HeldKind,
   id: number,
 ):
-  | { ok: true; target: HeldTarget }
-  | { ok: false; error: string; status: number } {
+  Promise<| { ok: true; target: HeldTarget }
+          | { ok: false; error: string; status: number }> {
   if (kind === "topic") {
-    const row = db
-      .prepare(
-        `SELECT t.id, t.user_id, t.held_at, t.deleted_at, u.role
+    const row = await db
+          .prepare(
+            `SELECT t.id, t.user_id, t.held_at, t.deleted_at, u.role
          FROM forum_topics t
          JOIN users u ON u.id = t.user_id
          WHERE t.id = ?`,
-      )
-      .get(id) as
+          )
+          .get(id) as
       | {
           id: number;
           user_id: number;
@@ -157,14 +157,14 @@ export function loadHeldTarget(
     };
   }
 
-  const row = db
-    .prepare(
-      `SELECT p.id, p.user_id, p.topic_id, p.held_at, p.deleted_at, u.role
+  const row = await db
+      .prepare(
+        `SELECT p.id, p.user_id, p.topic_id, p.held_at, p.deleted_at, u.role
        FROM forum_posts p
        JOIN users u ON u.id = p.user_id
        WHERE p.id = ?`,
-    )
-    .get(id) as
+      )
+      .get(id) as
     | {
         id: number;
         user_id: number;
@@ -194,30 +194,30 @@ export function loadHeldTarget(
   };
 }
 
-export function countHeldItems(db: Database.Database) {
+export async function countHeldItems(db: Db) {
   const topics = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM forum_topics
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM forum_topics
          WHERE held_at IS NOT NULL AND deleted_at IS NULL`,
-      )
-      .get() as { c: number }
+            )
+            .get() as { c: number }
   ).c;
   const posts = (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM forum_posts
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM forum_posts
          WHERE held_at IS NOT NULL AND deleted_at IS NULL`,
-      )
-      .get() as { c: number }
+            )
+            .get() as { c: number }
   ).c;
   return topics + posts;
 }
 
-export function listHeldItems(db: Database.Database, offset: number, limit: number) {
-  const rows = db
-    .prepare(
-      `SELECT * FROM (
+export async function listHeldItems(db: Db, offset: number, limit: number) {
+  const rows = await db
+      .prepare(
+        `SELECT * FROM (
          SELECT 'topic' as kind, t.id as id, t.team_id as teamId,
                 COALESCE(tm.name, CASE t.board WHEN 'city' THEN t.city || ' Tribünü' ELSE 'Milli Takım Tribünü' END) as teamName,
                 t.title as title, t.content as content, t.held_at as heldAt,
@@ -239,8 +239,8 @@ export function listHeldItems(db: Database.Database, offset: number, limit: numb
        )
        ORDER BY heldAt ASC, kind ASC, id ASC
        LIMIT ? OFFSET ?`,
-    )
-    .all(limit, offset) as Array<{
+      )
+      .all(limit, offset) as Array<{
     kind: HeldKind;
     id: number;
     teamId: string | null;
@@ -254,9 +254,9 @@ export function listHeldItems(db: Database.Database, offset: number, limit: numb
   }>;
 
   return {
-    total: countHeldItems(db),
-    items: rows.map((row) => {
-      const auto = latestAutoReview(db, row.kind, row.id);
+    total: await countHeldItems(db),
+    items: await Promise.all(rows.map(async (row) => {
+      const auto = await latestAutoReview(db, row.kind, row.id);
       const meta = parseAutoReviewMeta(auto?.reason ?? null);
       return {
         kind: row.kind,
@@ -275,25 +275,25 @@ export function listHeldItems(db: Database.Database, offset: number, limit: numb
         ruleId: meta.ruleId,
         autoReason: meta.autoReason,
       };
-    }),
+    })),
   };
 }
 
-export function approveHeldContent(
-  db: Database.Database,
+export async function approveHeldContent(
+  db: Db,
   kind: HeldKind,
   id: number,
   moderatorUserId: number,
   reason: string | null,
 ) {
-  const loaded = loadHeldTarget(db, kind, id);
+  const loaded = await loadHeldTarget(db, kind, id);
   if (!loaded.ok) return loaded;
   const { target } = loaded;
-  const auto = latestAutoReview(db, kind, id);
+  const auto = await latestAutoReview(db, kind, id);
   const tagged = withAutoReviewTag(reason, auto?.id ?? null);
   const now = nowIso();
 
-  const run = db.transaction(() => {
+  const run = db.transaction(async () => {
     const sql =
       kind === "topic"
         ? `UPDATE forum_topics
@@ -302,42 +302,42 @@ export function approveHeldContent(
         : `UPDATE forum_posts
            SET held_at = NULL, updated_at = ?
            WHERE id = ? AND held_at IS NOT NULL AND deleted_at IS NULL`;
-    const info = db.prepare(sql).run(now, id);
+    const info = await db.prepare(sql).run(now, id);
     if (info.changes !== 1) {
       return { ok: false as const, error: "Bu içerik beklemede değil.", status: 409 };
     }
-    writeAudit(db, {
-      moderatorUserId,
-      action: "approve_moderation",
-      reason: tagged,
-      targetUserId: target.userId,
-      targetTopicId: target.topicId,
-      targetPostId: target.postId,
-    });
+    await writeAudit(db, {
+            moderatorUserId,
+            action: "approve_moderation",
+            reason: tagged,
+            targetUserId: target.userId,
+            targetTopicId: target.topicId,
+            targetPostId: target.postId,
+          });
     if (kind === "post" && target.postId != null) {
-      const post = db.prepare(`SELECT content FROM forum_posts WHERE id = ?`).get(target.postId) as
+      const post = await db.prepare(`SELECT content FROM forum_posts WHERE id = ?`).get(target.postId) as
         | { content: string }
         | undefined;
-      notifyReply(db, {
-        actorId: target.userId,
-        topicId: target.topicId,
-        postId: target.postId,
-        content: post?.content ?? "",
-      });
+      await notifyReply(db, {
+                actorId: target.userId,
+                topicId: target.topicId,
+                postId: target.postId,
+                content: post?.content ?? "",
+              });
     }
-    notifyModeration(db, {
-      userId: target.userId,
-      topicId: target.topicId,
-      postId: target.postId,
-      body: `İncelemedeki ${kind === "topic" ? "konun" : "yorumun"} onaylandı ve yayında.`,
-    });
+    await notifyModeration(db, {
+            userId: target.userId,
+            topicId: target.topicId,
+            postId: target.postId,
+            body: `İncelemedeki ${kind === "topic" ? "konun" : "yorumun"} onaylandı ve yayında.`,
+          });
     return { ok: true as const };
   });
   return run();
 }
 
-function applyRejectHeld(
-  db: Database.Database,
+async function applyRejectHeld(
+  db: Db,
   target: HeldTarget,
   moderatorUserId: number,
   taggedReason: string,
@@ -351,29 +351,29 @@ function applyRejectHeld(
       : `UPDATE forum_posts
          SET deleted_at = ?, held_at = NULL, updated_at = ?
          WHERE id = ? AND held_at IS NOT NULL AND deleted_at IS NULL`;
-  const info = db.prepare(sql).run(now, now, target.id);
+  const info = await db.prepare(sql).run(now, now, target.id);
   if (info.changes !== 1) {
     return { ok: false as const, error: "Bu içerik beklemede değil.", status: 409 };
   }
-  writeAudit(db, {
-    moderatorUserId,
-    action: "reject_moderation",
-    reason: taggedReason,
-    targetUserId: target.userId,
-    targetTopicId: target.topicId,
-    targetPostId: target.postId,
-  });
-  notifyModeration(db, {
-    userId: target.userId,
-    topicId: target.topicId,
-    postId: target.postId,
-    body: `İncelemedeki ${target.kind === "topic" ? "konun" : "yorumun"} topluluk kurallarına uymadığı için yayımlanmadı.`,
-  });
+  await writeAudit(db, {
+        moderatorUserId,
+        action: "reject_moderation",
+        reason: taggedReason,
+        targetUserId: target.userId,
+        targetTopicId: target.topicId,
+        targetPostId: target.postId,
+      });
+  await notifyModeration(db, {
+        userId: target.userId,
+        topicId: target.topicId,
+        postId: target.postId,
+        body: `İncelemedeki ${target.kind === "topic" ? "konun" : "yorumun"} topluluk kurallarına uymadığı için yayımlanmadı.`,
+      });
   return { ok: true as const };
 }
 
-export function rejectHeldContent(
-  db: Database.Database,
+export async function rejectHeldContent(
+  db: Db,
   kind: HeldKind,
   id: number,
   moderatorUserId: number,
@@ -383,17 +383,17 @@ export function rejectHeldContent(
   if (trimmed.length < 3 || trimmed.length > 500) {
     return { ok: false as const, error: "Gerekçe zorunlu.", status: 400 };
   }
-  const loaded = loadHeldTarget(db, kind, id);
+  const loaded = await loadHeldTarget(db, kind, id);
   if (!loaded.ok) return loaded;
-  const auto = latestAutoReview(db, kind, id);
+  const auto = await latestAutoReview(db, kind, id);
   const tagged = withAutoReviewTag(trimmed, auto?.id ?? null) || trimmed;
   return db.transaction(() =>
     applyRejectHeld(db, loaded.target, moderatorUserId, tagged),
   )();
 }
 
-export function banHeldAuthor(
-  db: Database.Database,
+export async function banHeldAuthor(
+  db: Db,
   kind: HeldKind,
   id: number,
   moderatorUserId: number,
@@ -403,45 +403,45 @@ export function banHeldAuthor(
   if (trimmed.length < 3 || trimmed.length > 500) {
     return { ok: false as const, error: "Gerekçe zorunlu.", status: 400 };
   }
-  const loaded = loadHeldTarget(db, kind, id);
+  const loaded = await loadHeldTarget(db, kind, id);
   if (!loaded.ok) return loaded;
   if (roleRank(loaded.target.authorRole) >= 1) {
     return { ok: false, error: "Admin hesap banlanamaz.", status: 409 };
   }
 
-  const auto = latestAutoReview(db, kind, id);
+  const auto = await latestAutoReview(db, kind, id);
   const tagged = withAutoReviewTag(trimmed, auto?.id ?? null) || trimmed;
 
-  const run = db.transaction(() => {
-    const rejected = applyRejectHeld(db, loaded.target, moderatorUserId, tagged);
+  const run = db.transaction(async () => {
+    const rejected = await applyRejectHeld(db, loaded.target, moderatorUserId, tagged);
     if (!rejected.ok) return rejected;
 
     const now = nowIso();
-    const banned = db
-      .prepare(
-        `UPDATE users
+    const banned = await db
+          .prepare(
+            `UPDATE users
          SET status = 'banned', banned_at = ?, ban_reason = ?, ban_expires_at = NULL, updated_at = ?
          WHERE id = ? AND role NOT IN ('admin', 'super_admin')`,
-      )
-      .run(now, trimmed.slice(0, 200), now, loaded.target.userId);
+          )
+          .run(now, trimmed.slice(0, 200), now, loaded.target.userId);
     if (banned.changes !== 1) {
       throw new Error("Admin hesap banlanamaz.");
     }
-    db.prepare(
-      `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`,
-    ).run(now, loaded.target.userId);
-    writeAudit(db, {
-      moderatorUserId,
-      action: "ban_user",
-      reason: trimmed,
-      targetUserId: loaded.target.userId,
-      targetTopicId: loaded.target.topicId,
-      targetPostId: loaded.target.postId,
-    });
+    await db.prepare(
+            `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`,
+          ).run(now, loaded.target.userId);
+    await writeAudit(db, {
+            moderatorUserId,
+            action: "ban_user",
+            reason: trimmed,
+            targetUserId: loaded.target.userId,
+            targetTopicId: loaded.target.topicId,
+            targetPostId: loaded.target.postId,
+          });
     return { ok: true as const };
   });
   try {
-    return run();
+    return await run();
   } catch (err) {
     return {
       ok: false as const,

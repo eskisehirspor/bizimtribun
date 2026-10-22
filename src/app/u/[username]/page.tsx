@@ -28,12 +28,12 @@ export async function generateMetadata({
   const { username } = await params;
   // Metadata never depends on the viewer: only public profiles are described
   // and indexed; members-only profiles stay out of search engines.
-  const found = getPublicProfile(getDb(), username, { signedIn: false });
+  const found = await getPublicProfile(getDb(), username, { signedIn: false });
   if (!found.ok) {
     return { title: "Üye profili | Bizim Tribün", robots: { index: false, follow: false } };
   }
   const p = found.profile;
-  const team = p.teamId ? getCatalogTeam(p.teamId) : undefined;
+  const team = p.teamId ? await getCatalogTeam(p.teamId) : undefined;
   const title = `@${p.username}${team ? ` • ${team.name} taraftarı` : ""} | Bizim Tribün`;
   const description = `@${p.username} Bizim Tribün'de ${p.counts.topics} konu ve ${p.counts.posts} yorum yazdı.`;
   const url = `${origin()}/u/${p.username}`;
@@ -53,7 +53,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
   const { username } = await params;
   const viewer = await getSessionUser();
   const db = getDb();
-  const found = getPublicProfile(db, username, { signedIn: Boolean(viewer) });
+  const found = await getPublicProfile(db, username, { signedIn: Boolean(viewer) });
   if (!found.ok && found.status === 404) notFound();
   if (!found.ok) {
     return (
@@ -72,9 +72,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
     );
   }
   const p = found.profile;
-  const team = p.teamId ? getCatalogTeam(p.teamId) : undefined;
+  const team = p.teamId ? await getCatalogTeam(p.teamId) : undefined;
   const isSelf = viewer?.id === p.id;
-  const firstPage = listProfileActivity(db, p.id, 0, 21, viewer);
+  const firstPage = await listProfileActivity(db, p.id, 0, 21, viewer);
   // Only profiles open to everyone are described to search engines.
   const profileJsonLd =
     p.visibility === "public"

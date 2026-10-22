@@ -23,15 +23,15 @@ export async function POST(req: Request) {
   if (!phoneNorm) return noStoreJson({ error: PHONE_FORMAT_ERROR }, 400);
 
   const db = getDb();
-  const result = verifyOtp(db, {
-    phoneNorm,
-    code: parsed.data.code.trim(),
-    ipKey: await requestIpKey(),
-    purpose: "bind",
-    userId: active.user.id,
-  });
+  const result = await verifyOtp(db, {
+      phoneNorm,
+      code: parsed.data.code.trim(),
+      ipKey: await requestIpKey(),
+      purpose: "bind",
+      userId: active.user.id,
+    });
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
-  const bound = bindVerifiedPhone(db, active.user.id, phoneNorm);
+  const bound = await bindVerifiedPhone(db, active.user.id, phoneNorm);
   if (!bound.ok) return noStoreJson({ error: bound.error }, bound.status);
-  return noStoreJson({ ok: true, user: toPublicUser(findUserById(active.user.id)!) });
+  return noStoreJson({ ok: true, user: toPublicUser((await findUserById(active.user.id))!) });
 }

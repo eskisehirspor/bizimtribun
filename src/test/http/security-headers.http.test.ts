@@ -18,7 +18,7 @@ function assertCommonSecurity(headers: Headers) {
 }
 
 test("production-like API responses carry HSTS, CSP, nosniff, no-referrer", async () => {
-  freshDb();
+  await freshDb();
   const prev = process.env.NODE_ENV;
   setNodeEnv("production");
   try {
@@ -53,7 +53,7 @@ test("production-like API responses carry HSTS, CSP, nosniff, no-referrer", asyn
 });
 
 test("development does not force HSTS", async () => {
-  freshDb();
+  await freshDb();
   const prev = process.env.NODE_ENV;
   setNodeEnv("development");
   try {

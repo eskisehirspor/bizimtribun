@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     return noStoreJson({ error: "Geçersiz kaynak." }, 400);
   }
   const token = await readSessionToken(req);
-  revokeSessionByToken(token);
+  await revokeSessionByToken(token);
   const res = noStoreJson({ ok: true });
   clearSessionCookie(res);
   return clearAdmin2faCookie(res);

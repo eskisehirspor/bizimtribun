@@ -17,15 +17,15 @@ export async function GET(req: Request) {
   const role = USER_ROLES.find((r) => r === roleRaw) ?? null;
   const banned = bannedRaw === "1" ? true : bannedRaw === "0" ? false : null;
 
-  const { total, items } = listAdminUsers({
-    q: likeQuery(url.searchParams.get("q")),
-    role,
-    banned,
-    teamId,
-    pii: can(gate.user.role, "users.pii"),
-    offset,
-    limit,
-  });
+  const { total, items } = await listAdminUsers({
+      q: likeQuery(url.searchParams.get("q")),
+      role,
+      banned,
+      teamId,
+      pii: can(gate.user.role, "users.pii"),
+      offset,
+      limit,
+    });
 
   return noStoreJson({
     ok: true,
@@ -33,6 +33,6 @@ export async function GET(req: Request) {
     limit,
     total,
     items,
-    teams: listAdminTeamOptions(),
+    teams: await listAdminTeamOptions(),
   });
 }

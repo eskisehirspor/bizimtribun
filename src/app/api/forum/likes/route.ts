@@ -16,23 +16,23 @@ const Body = z.object({
 export async function POST(req: Request) {
   const body = await readJsonBody(req);
   if ("error" in body) return noStoreJson({ error: body.error }, 400);
-  const active = requireForumWriter(await getSessionUser(req));
+  const active = await requireForumWriter(await getSessionUser(req));
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) return noStoreJson({ error: "Geçersiz istek." }, 400);
-  if (!getSettings().features.likesEnabled) return noStoreJson({ error: "Beğeniler şu an kapalı." }, 403);
+  if (!(await getSettings()).features.likesEnabled) return noStoreJson({ error: "Beğeniler şu an kapalı." }, 403);
 
   const db = getDb();
-  const result = setLike(db, active.user.id, parsed.data.type, parsed.data.id, parsed.data.liked);
+  const result = await setLike(db, active.user.id, parsed.data.type, parsed.data.id, parsed.data.liked);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   if (result.created) {
-    notifyLike(db, {
-      actorId: active.user.id,
-      recipientId: result.authorId,
-      type: parsed.data.type,
-      id: parsed.data.id,
-    });
-    refreshBadges(db, result.authorId);
+    await notifyLike(db, {
+            actorId: active.user.id,
+            recipientId: result.authorId,
+            type: parsed.data.type,
+            id: parsed.data.id,
+          });
+    await refreshBadges(db, result.authorId);
   }
   return noStoreJson({ ok: true, likeCount: result.likeCount, likedByMe: result.likedByMe });
 }

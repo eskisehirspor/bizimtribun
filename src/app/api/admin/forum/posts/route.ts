@@ -15,14 +15,14 @@ export async function GET(req: Request) {
   const topicRaw = url.searchParams.get("topic");
   const topicId = topicRaw ? parseIdParam(topicRaw) : null;
 
-  const { total, items } = listAdminPosts({
-    q: likeQuery(url.searchParams.get("q")),
-    teamId: url.searchParams.get("team")?.trim() || null,
-    topicId,
-    deleted,
-    offset,
-    limit,
-  });
+  const { total, items } = await listAdminPosts({
+      q: likeQuery(url.searchParams.get("q")),
+      teamId: url.searchParams.get("team")?.trim() || null,
+      topicId,
+      deleted,
+      offset,
+      limit,
+    });
 
   return noStoreJson({ ok: true, page, limit, total, items });
 }

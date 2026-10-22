@@ -19,23 +19,23 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ teamSlug: string }> }): Promise<Metadata> {
   const { teamSlug } = await params;
-  const team = getCatalogTeam(teamSlug);
+  const team = await getCatalogTeam(teamSlug);
   if (!team) return { robots: { index: false, follow: false } };
-  return teamPageMetadata(team, leagueLabels()[team.league] ?? team.league);
+  return teamPageMetadata(team, (await leagueLabels())[team.league] ?? team.league);
 }
 
 const n = (v: number) => v.toLocaleString("tr-TR");
 
 export default async function TeamPage({ params }: { params: Promise<{ teamSlug: string }> }) {
   const { teamSlug } = await params;
-  const team = getCatalogTeam(teamSlug);
+  const team = await getCatalogTeam(teamSlug);
   if (!team) notFound();
   if (team.id !== teamSlug) permanentRedirect(`/takim/${team.id}`);
-  const summary = teamSummary(team.id);
-  const league = leagueLabels()[team.league] ?? team.league;
+  const summary = await teamSummary(team.id);
+  const league = (await leagueLabels())[team.league] ?? team.league;
   const generatedAt = new Date();
   const viewer = await getSessionUser();
-  const isFan = Boolean(viewer && memberTeamId(viewer.id) === team.id);
+  const isFan = Boolean(viewer && await memberTeamId(viewer.id) === team.id);
   const canReadTribune = isFan || Boolean(viewer && isStaffRole(viewer.role));
   const share = summary && summary.total > 0 ? Math.round((summary.votes / summary.total) * 1000) / 10 : 0;
 

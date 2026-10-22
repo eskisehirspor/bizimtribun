@@ -59,7 +59,7 @@ export function moderateForumPublication(
   );
 }
 
-export function recordAutoModeration(input: {
+export async function recordAutoModeration(input: {
   userId: number;
   result: ForumModerationResult;
   targetTopicId?: number | null;
@@ -67,7 +67,7 @@ export function recordAutoModeration(input: {
 }) {
   const row = buildAutoModerationRecord(input);
   if (!row) return;
-  recordModerationAction(row);
+  await recordModerationAction(row);
 }
 
 export function publicModerationError(decision: ModerationDecision) {

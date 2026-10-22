@@ -32,8 +32,8 @@ export async function POST(req: Request) {
   if (!active.ok) {
     return noStoreJson({ error: active.error }, active.status);
   }
-  if (maintenanceBlocks(active.user.role)) return noStoreJson({ error: MAINTENANCE_ERROR }, 503);
-  if (!getSettings().features.teamRequestsOpen) {
+  if (await maintenanceBlocks(active.user.role)) return noStoreJson({ error: MAINTENANCE_ERROR }, 503);
+  if (!(await getSettings()).features.teamRequestsOpen) {
     return noStoreJson({ error: "Takım talepleri şu an kapalı." }, 403);
   }
 
@@ -47,16 +47,16 @@ export async function POST(req: Request) {
   const userHash = hmac(`team-req-user:${active.user.id}`);
   if (
     isTeamRequestRateLimited(
-      registerAttemptCount(ipHash),
-      registerAttemptCount(userHash),
+      await registerAttemptCount(ipHash),
+      await registerAttemptCount(userHash),
     )
   ) {
     return noStoreJson({ error: "Çok fazla talep. Biraz sonra dene." }, 429);
   }
-  noteAuthAttempt(ipHash);
-  noteAuthAttempt(userHash);
+  await noteAuthAttempt(ipHash);
+  await noteAuthAttempt(userHash);
 
-  const result = createTeamRequest(getDb(), active.user.id, parsed.data);
+  const result = await createTeamRequest(getDb(), active.user.id, parsed.data);
   if (!result.ok) {
     return noStoreJson({ error: result.error }, result.status);
   }

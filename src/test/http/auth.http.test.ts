@@ -61,8 +61,8 @@ const ADMIN_GETS: Array<{
   { name: "totp", handler: adminTotp, path: "/api/admin/security/totp" },
 ];
 
-beforeEach(() => {
-  freshDb();
+beforeEach(async () => {
+  await freshDb();
 });
 
 async function registerUser(ip?: string) {
@@ -88,14 +88,14 @@ function seqPhone() {
 }
 
 /** Staff need 2FA for the panel; tests flip the flag after signing in. */
-function markTotpOn(userId: number) {
-  getDb().prepare(`UPDATE users SET totp_enabled = 1 WHERE id = ?`).run(userId);
+async function markTotpOn(userId: number) {
+  await getDb().prepare(`UPDATE users SET totp_enabled = 1 WHERE id = ?`).run(userId);
 }
 
 async function promoteAdmin(userId: number) {
-  getDb()
-    .prepare(`UPDATE users SET role = 'admin', updated_at = ? WHERE id = ?`)
-    .run(new Date().toISOString(), userId);
+  await getDb()
+        .prepare(`UPDATE users SET role = 'admin', updated_at = ? WHERE id = ?`)
+        .run(new Date().toISOString(), userId);
 }
 
 test("HTTP auth: register → login → /api/auth/me", async () => {
@@ -135,9 +135,9 @@ test("HTTP auth: logout session geçersiz", async () => {
 
 test("HTTP auth: expired session protected mutation 401", async () => {
   const u = await registerUser("203.0.113.22");
-  getDb()
-    .prepare(`UPDATE sessions SET expires_at = ?`)
-    .run("2000-01-01T00:00:00.000Z");
+  await getDb()
+        .prepare(`UPDATE sessions SET expires_at = ?`)
+        .run("2000-01-01T00:00:00.000Z");
   const topic = await invoke(forumTopic, {
     method: "POST",
     path: "/api/forum/teams/galatasaray/topics",
@@ -161,7 +161,7 @@ test("HTTP auth: banned user login 403 ve mevcut session mutation 403", async ()
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.24",
   });
-  markTotpOn(admin.json.user.id);
+  await markTotpOn(admin.json.user.id);
   const ban = await invoke(adminBan, {
     method: "POST",
     path: `/api/admin/users/${u.json.user.id}/ban`,
@@ -202,7 +202,7 @@ test("HTTP admin: unauthenticated 401, user 403, admin 200", async () => {
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.27",
   });
-  markTotpOn(admin.json.user.id);
+  await markTotpOn(admin.json.user.id);
   const adminCookie = sessionCookie(adminLogin.res);
 
   for (const route of ADMIN_GETS) {
@@ -230,7 +230,7 @@ test("HTTP admin IDOR: olmayan kullanıcı 404", async () => {
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.28",
   });
-  markTotpOn(admin.json.user.id);
+  await markTotpOn(admin.json.user.id);
   const cookie = sessionCookie(adminLogin.res);
   const missing = await invoke(adminUser, {
     path: "/api/admin/users/999999",
@@ -317,9 +317,9 @@ test("HTTP admin 2FA: kapalı login session, açık password-only session yok, T
     body: { login: admin.username, password: TEST_PASSWORD },
     ip: "203.0.113.31",
   });
-  getDb()
-    .prepare(`UPDATE admin_login_challenges SET expires_at = ?`)
-    .run("2000-01-01T00:00:00.000Z");
+  await getDb()
+        .prepare(`UPDATE admin_login_challenges SET expires_at = ?`)
+        .run("2000-01-01T00:00:00.000Z");
   const expired = await invoke(login2fa, {
     method: "POST",
     path: "/api/auth/login/2fa",

@@ -5,7 +5,7 @@ import { GET as health } from "../../app/api/health/route";
 import { freshDb, invoke } from "./harness";
 
 test("GET /api/health returns ok and db healthy without PII", async () => {
-  freshDb();
+  await freshDb();
   const res = await invoke(health, { path: "/api/health" });
   assert.equal(res.status, 200);
   assert.deepEqual(res.json, { ok: true, db: "healthy" });

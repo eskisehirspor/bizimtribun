@@ -16,7 +16,7 @@ function origin() {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { seo } = getSettings();
+  const { seo } = await getSettings();
   return {
     title: seo.siteTitle,
     description: seo.siteDescription,
@@ -33,21 +33,21 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function Home() {
-  const standings = cityStandings();
-  const settings = getSettings();
+export default async function Home() {
+  const standings = await cityStandings();
+  const settings = await getSettings();
   return (
     <>
       <JsonLd data={graph(organizationJsonLd(), websiteJsonLd())} />
       <HomeClient
-        initialTeams={teamCounts()}
-        initialTotal={totalVerified()}
-        initialCities={cityLeaders(standings)}
+        initialTeams={await teamCounts()}
+        initialTotal={await totalVerified()}
+        initialCities={await cityLeaders(standings)}
         initialStandings={standings}
-        leagues={listLeagues()}
-        season={currentSeason(getDb())?.label ?? null}
-        recentTopics={recentPublicTopics(8)}
-        featuredTopics={featuredPublicTopics(settings.featuredTopics.ids)}
+        leagues={await listLeagues()}
+        season={(await currentSeason(getDb()))?.label ?? null}
+        recentTopics={await recentPublicTopics(8)}
+        featuredTopics={await featuredPublicTopics(settings.featuredTopics.ids)}
         homeLeagueIds={settings.homeLeagues.ids}
         generatedAt={new Date().toISOString()}
       />

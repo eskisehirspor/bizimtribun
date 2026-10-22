@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import Database from "better-sqlite3";
+import { freshTestDb, reseedTestDb, scratchDb } from "./db-test";
 import { PINNED_STARTER_TOPICS } from "./forum-category";
-import { seedPinnedStarterTopics } from "./forum-seed";
 import { getWeeklyFanOfWeek } from "./forum-leaders";
 import {
   FORUM_ACTIVE_TEAM_IDS,
@@ -100,10 +99,10 @@ test("üyelikte 139 takım hala seçilebilir", () => {
   assert.equal(new Set(TEAM_IDS).size, 139);
 });
 
-test("Haftanın Taraftarı yeni aktif takımlarda çalışıyor", () => {
+test("Haftanın Taraftarı yeni aktif takımlarda çalışıyor", async () => {
   assert.ok(ADDED_FROM_NTA.length > 0);
-  const db = new Database(":memory:");
-  db.exec(`
+  const db = await scratchDb();
+  await db.exec(`
     CREATE TABLE teams (id TEXT PRIMARY KEY, name TEXT NOT NULL, league TEXT NOT NULL);
     CREATE TABLE users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,7 +143,7 @@ test("Haftanın Taraftarı yeni aktif takımlarda çalışıyor", () => {
     );
   `);
   const now = "2026-09-03T12:00:00.000Z";
-  db.prepare(`INSERT INTO users (username, status, password_hash) VALUES ('ali', 'active', 'hash')`).run();
+  await db.prepare(`INSERT INTO users (username, status, password_hash) VALUES ('ali', 'active', 'hash')`).run();
   const userId = 1;
   const insertTeam = db.prepare(`INSERT INTO teams (id, name, league) VALUES (?, ?, 'super')`);
   const insertTopic = db.prepare(
@@ -157,56 +156,22 @@ test("Haftanın Taraftarı yeni aktif takımlarda çalışıyor", () => {
   );
   const sample = ADDED_FROM_NTA.slice(0, 5);
   for (const teamId of sample) {
-    insertTeam.run(teamId, teamId);
-    const topicId = Number(insertTopic.run(teamId, userId, now, now).lastInsertRowid);
-    insertPost.run(topicId, userId, now, now);
-    const leader = getWeeklyFanOfWeek(teamId, "2026-08-31", db, now);
+    await insertTeam.run(teamId, teamId);
+    const topicId = Number((await insertTopic.run(teamId, userId, now, now)).lastInsertRowid);
+    await insertPost.run(topicId, userId, now, now);
+    const leader = await getWeeklyFanOfWeek(teamId, "2026-08-31", db, now);
     assert.equal(leader?.userId, userId, teamId);
     assert.equal(leader?.postCount, 1, teamId);
   }
-  db.close();
 });
 
-test("Anılar seed duplicate oluşturmuyor", () => {
-  const db = new Database(":memory:");
-  db.exec(`
-    CREATE TABLE teams (id TEXT PRIMARY KEY, name TEXT NOT NULL, league TEXT NOT NULL);
-    CREATE TABLE users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT,
-      username_norm TEXT UNIQUE,
-      display_name TEXT,
-      email TEXT,
-      email_norm TEXT UNIQUE,
-      password_hash TEXT,
-      team_id TEXT,
-      status TEXT,
-      role TEXT,
-      created_at TEXT,
-      updated_at TEXT
-    );
-    CREATE TABLE forum_topics (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      team_id TEXT NOT NULL REFERENCES teams(id),
-      user_id INTEGER NOT NULL REFERENCES users(id),
-      title TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      category TEXT,
-      is_pinned INTEGER,
-      deleted_at TEXT
-    );
-  `);
-  const insertTeam = db.prepare(`INSERT INTO teams (id, name, league) VALUES (?, ?, 'super')`);
-  for (const id of FORUM_ACTIVE_TEAM_IDS) insertTeam.run(id, id);
-  seedPinnedStarterTopics(db);
-  seedPinnedStarterTopics(db);
+test("Anılar seed duplicate oluşturmuyor", async () => {
+  const db = await freshTestDb();
+  await reseedTestDb();
   const count = (
-    db.prepare(`SELECT COUNT(*) as c FROM forum_topics WHERE is_pinned = 1`).get() as {
+    (await db.prepare(`SELECT COUNT(*) as c FROM forum_topics WHERE is_pinned = 1`).get()) as {
       c: number;
     }
   ).c;
   assert.equal(count, FORUM_ACTIVE_TEAM_IDS.length * PINNED_STARTER_TOPICS.length);
-  db.close();
 });

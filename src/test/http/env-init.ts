@@ -11,5 +11,4 @@ process.env.SMS_PROVIDER = "dev";
 process.env.VERIFY_CHANNEL = "sms";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "bt-http-"));
-process.env.BIZIM_TRIBUN_DB = path.join(dir, "boot.db");
 export const httpTestRoot = dir;

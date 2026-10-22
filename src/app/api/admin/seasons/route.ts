@@ -18,7 +18,7 @@ export async function POST(req: Request) {
   if ("error" in body) return noStoreJson({ error: body.error }, 400);
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) return noStoreJson({ error: "Geçersiz istek." }, 400);
-  const result = createSeason(getDb(), gate.user.id, parsed.data);
+  const result = await createSeason(getDb(), gate.user.id, parsed.data);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true, id: result.id });
 }

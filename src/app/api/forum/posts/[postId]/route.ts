@@ -26,20 +26,20 @@ export async function DELETE(
     return noStoreJson({ error: "Geçersiz kaynak." }, 400);
   }
 
-  const active = requireForumWriter(await getSessionUser(req));
+  const active = await requireForumWriter(await getSessionUser(req));
   if (!active.ok) {
     return noStoreJson({ error: active.error }, active.status);
   }
 
-  const post = findLivePost(postId);
+  const post = await findLivePost(postId);
   if (!post) {
     return noStoreJson({ error: "Yazı bulunamadı." }, 404);
   }
-  const topic = findLiveTopic(post.topic_id);
-  if (!topic || !topicBoardOpen(topic)) {
+  const topic = await findLiveTopic(post.topic_id);
+  if (!topic || !await topicBoardOpen(topic)) {
     return noStoreJson({ error: "Yazı bulunamadı." }, 404);
   }
-  const access = topicAccess(topic, active.user, "write");
+  const access = await topicAccess(topic, active.user, "write");
   if (!access.ok) {
     return noStoreJson({ error: access.error, code: access.code }, access.status);
   }
@@ -47,7 +47,7 @@ export async function DELETE(
     return noStoreJson({ error: "Bu yazıyı silemezsin." }, 403);
   }
 
-  if (!softDeletePost(post.id, active.user.id)) {
+  if (!await softDeletePost(post.id, active.user.id)) {
     return noStoreJson({ error: "Yazı silinemedi." }, 409);
   }
   return noStoreJson({ ok: true });

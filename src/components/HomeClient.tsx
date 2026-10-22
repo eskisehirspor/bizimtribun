@@ -17,6 +17,7 @@ import TurkeyMap from "@/components/TurkeyMap";
 import TeamColors from "@/components/TeamColors";
 import { MilliTag } from "@/components/AyYildiz";
 import { btnSm, chipClass, fieldClass } from "@/components/ui";
+import { useLiveVotes } from "@/components/useLiveVotes";
 
 /** Rows shown on phones before "Tümünü göster"; desktop scrolls inside the box. */
 const MOBILE_ROWS = 10;
@@ -127,6 +128,9 @@ export default function HomeClient({
       setRefreshing(false);
     }
   }
+
+  // Counts move on their own when someone votes.
+  useLiveVotes(() => void refresh());
 
   function teamAction(teamId: string) {
     if (myTeamId) return null;

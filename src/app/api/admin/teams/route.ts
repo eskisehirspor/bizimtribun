@@ -10,16 +10,16 @@ export async function GET(req: Request) {
   const db = getDb();
   const votes = new Map(
     (
-      db
-        .prepare(`SELECT team_id, COUNT(*) as c FROM fan_votes WHERE status = 'active' GROUP BY team_id`)
-        .all() as { team_id: string; c: number }[]
+      await db
+                  .prepare(`SELECT team_id, COUNT(*) as c FROM fan_votes WHERE status = 'active' GROUP BY team_id`)
+                  .all() as { team_id: string; c: number }[]
     ).map((r) => [r.team_id, r.c]),
   );
   return noStoreJson({
     ok: true,
-    teams: listTeamCatalog().map((t) => ({ ...t, votes: votes.get(t.id) ?? 0 })),
-    leagues: listLeagues(),
-    seasons: listSeasons(db).map((s) => ({
+    teams: (await listTeamCatalog()).map((t) => ({ ...t, votes: votes.get(t.id) ?? 0 })),
+    leagues: await listLeagues(),
+    seasons: (await listSeasons(db)).map((s) => ({
       id: s.id,
       label: s.label,
       startsOn: s.starts_on,
@@ -27,6 +27,6 @@ export async function GET(req: Request) {
       isCurrent: s.is_current === 1,
       teamCount: s.team_count,
     })),
-    currentSeason: currentSeason(db)?.label ?? null,
+    currentSeason: (await currentSeason(db))?.label ?? null,
   });
 }

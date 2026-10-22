@@ -9,6 +9,6 @@ export async function GET(req: Request) {
   return noStoreJson({
     ok: true,
     enabled: Number(gate.user.totp_enabled) === 1,
-    remainingRecoveryCodes: remainingRecoveryCount(getDb(), gate.user.id),
+    remainingRecoveryCodes: await remainingRecoveryCount(getDb(), gate.user.id),
   });
 }

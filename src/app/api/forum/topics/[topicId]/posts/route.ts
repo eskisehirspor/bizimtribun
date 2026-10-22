@@ -45,16 +45,16 @@ export async function POST(
     return noStoreJson({ error: body.error }, 400);
   }
 
-  const active = requireForumWriter(await getSessionUser(req));
+  const active = await requireForumWriter(await getSessionUser(req));
   if (!active.ok) {
     return noStoreJson({ error: active.error }, active.status);
   }
 
-  const topic = findLiveTopic(topicId);
-  if (!topic || !topicBoardOpen(topic)) {
+  const topic = await findLiveTopic(topicId);
+  if (!topic || !await topicBoardOpen(topic)) {
     return noStoreJson({ error: "Konu bulunamadı." }, 404);
   }
-  const access = topicAccess(topic, active.user, "write");
+  const access = await topicAccess(topic, active.user, "write");
   if (!access.ok) {
     return noStoreJson({ error: access.error, code: access.code }, access.status);
   }
@@ -62,9 +62,9 @@ export async function POST(
     return noStoreJson({ error: "Bu konu kilitli. Yorum eklenemez." }, 409);
   }
   if (
-    getDb()
-      .prepare(`SELECT 1 FROM user_blocks WHERE blocker_user_id = ? AND blocked_user_id = ?`)
-      .get(topic.user_id, active.user.id)
+    await getDb()
+            .prepare(`SELECT 1 FROM user_blocks WHERE blocker_user_id = ? AND blocked_user_id = ?`)
+            .get(topic.user_id, active.user.id)
   ) {
     return noStoreJson({ error: "Bu üyenin konusuna yazamazsın." }, 403);
   }
@@ -80,11 +80,11 @@ export async function POST(
 
   // Counted before moderation so blocked attempts can't probe the filter for free.
   const ip = await clientIp();
-  if (forumPostLimited(ip, active.user.id)) {
+  if (await forumPostLimited(ip, active.user.id)) {
     return noStoreJson({ error: "Çok fazla yorum. Biraz sonra dene." }, 429);
   }
-  noteForumPostAttempt(ip, active.user.id);
-  const flood = forumFloodCheck(getDb(), active.user.id, content);
+  await noteForumPostAttempt(ip, active.user.id);
+  const flood = await forumFloodCheck(getDb(), active.user.id, content);
   if (!flood.ok) return noStoreJson({ error: flood.error }, flood.status);
 
   const verdict = moderateForumPublication([content], {
@@ -92,34 +92,34 @@ export async function POST(
     userId: active.user.id,
     teamId: topic.team_id ?? undefined,
     topicId: topic.id,
-    newAccount: isNewAccount(getDb(), active.user.id),
+    newAccount: await isNewAccount(getDb(), active.user.id),
   });
   const mode = forumWriteMode(verdict.decision);
   if (mode === "none") {
-    recordAutoModeration({
-      userId: active.user.id,
-      result: verdict,
-      targetTopicId: topic.id,
-    });
+    await recordAutoModeration({
+            userId: active.user.id,
+            result: verdict,
+            targetTopicId: topic.id,
+          });
     return noStoreJson({ error: FORUM_CONTENT_BLOCKED_ERROR }, 422);
   }
 
-  const post = createPost({
-    topicId: topic.id,
-    userId: active.user.id,
-    content,
-    holdForReview: mode === "hold",
-  });
-  if (mode === "hold") {
-    recordAutoModeration({
+  const post = await createPost({
+      topicId: topic.id,
       userId: active.user.id,
-      result: verdict,
-      targetTopicId: topic.id,
-      targetPostId: post.id,
+      content,
+      holdForReview: mode === "hold",
     });
+  if (mode === "hold") {
+    await recordAutoModeration({
+            userId: active.user.id,
+            result: verdict,
+            targetTopicId: topic.id,
+            targetPostId: post.id,
+          });
     return noStoreJson({ error: FORUM_CONTENT_REVIEW_ERROR }, 422);
   }
-  notifyReply(getDb(), { actorId: active.user.id, topicId: topic.id, postId: post.id, content });
-  refreshBadges(getDb(), active.user.id);
-  return noStoreJson({ ok: true, post: serializePost(post, active.user.id) }, 201);
+  await notifyReply(getDb(), { actorId: active.user.id, topicId: topic.id, postId: post.id, content });
+  await refreshBadges(getDb(), active.user.id);
+  return noStoreJson({ ok: true, post: await serializePost(post, active.user.id) }, 201);
 }

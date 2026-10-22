@@ -35,9 +35,9 @@ export default async function CityPage({
   const { citySlug } = await params;
   const city = getCityBySlug(citySlug);
   if (!city) notFound();
-  const { total, rows } = cityVoteTotals(city.name);
+  const { total, rows } = await cityVoteTotals(city.name);
   const viewer = await getSessionUser();
-  const viewerTeamId = viewer ? memberTeamId(viewer.id) : null;
+  const viewerTeamId = viewer ? await memberTeamId(viewer.id) : null;
   return (
     <>
       <JsonLd
@@ -47,8 +47,8 @@ export default async function CityPage({
         city={city}
         total={total}
         rows={rows}
-        history={cityHistory(city.name)}
-        lastVoteAt={cityLastVoteAt(city.name)}
+        history={await cityHistory(city.name)}
+        lastVoteAt={await cityLastVoteAt(city.name)}
         generatedAt={new Date().toISOString()}
         viewerTeamId={viewerTeamId}
         viewerIsStaff={Boolean(viewer && isStaffRole(viewer.role))}

@@ -99,20 +99,20 @@ export function effectiveUserStatus(
 }
 
 /** Clear expired ban metadata once; no-op when already active or ban still valid. */
-export function reconcileExpiredBan(user: UserRow, nowMs = Date.now()): UserRow {
+export async function reconcileExpiredBan(user: UserRow, nowMs = Date.now()): Promise<UserRow> {
   if (!isBanExpired(user, nowMs)) return user;
   if (user.status !== "banned" && !user.banned_at) return user;
 
   const now = new Date(nowMs).toISOString();
-  const updated = getDb()
-    .prepare(
-      `UPDATE users
+  const updated = await getDb()
+      .prepare(
+        `UPDATE users
        SET status = 'active', banned_at = NULL, ban_reason = NULL, ban_expires_at = NULL, updated_at = ?
        WHERE id = ?
          AND ban_expires_at IS NOT NULL
          AND ban_expires_at <= ?`,
-    )
-    .run(now, user.id, now);
+      )
+      .run(now, user.id, now);
 
   if (updated.changes === 1) {
     return {
@@ -125,7 +125,7 @@ export function reconcileExpiredBan(user: UserRow, nowMs = Date.now()): UserRow 
     };
   }
 
-  return findUserById(user.id) ?? user;
+  return await findUserById(user.id) ?? user;
 }
 
 export function toPublicUser(row: UserRow): PublicUser {
@@ -154,29 +154,29 @@ export function isAdmin(user: Pick<UserRow, "role"> | null | undefined): boolean
   return user?.role === "admin" || user?.role === "super_admin";
 }
 
-export function findUserById(id: number) {
-  return getDb()
-    .prepare(`SELECT * FROM users WHERE id = ?`)
-    .get(id) as UserRow | undefined;
+export async function findUserById(id: number) {
+  return await getDb()
+      .prepare(`SELECT * FROM users WHERE id = ?`)
+      .get(id) as UserRow | undefined;
 }
 
-export function findUserByEmailNorm(emailNorm: string) {
-  return getDb()
-    .prepare(`SELECT * FROM users WHERE email_norm = ?`)
-    .get(emailNorm) as UserRow | undefined;
+export async function findUserByEmailNorm(emailNorm: string) {
+  return await getDb()
+      .prepare(`SELECT * FROM users WHERE email_norm = ?`)
+      .get(emailNorm) as UserRow | undefined;
 }
 
-export function findUserByPhoneNorm(phoneNorm: string) {
+export async function findUserByPhoneNorm(phoneNorm: string) {
   if (!phoneNorm) return undefined;
-  return getDb()
-    .prepare(`SELECT * FROM users WHERE phone_norm = ?`)
-    .get(phoneNorm) as UserRow | undefined;
+  return await getDb()
+      .prepare(`SELECT * FROM users WHERE phone_norm = ?`)
+      .get(phoneNorm) as UserRow | undefined;
 }
 
-export function findUserByUsernameNorm(usernameNorm: string) {
-  return getDb()
-    .prepare(`SELECT * FROM users WHERE username_norm = ?`)
-    .get(usernameNorm) as UserRow | undefined;
+export async function findUserByUsernameNorm(usernameNorm: string) {
+  return await getDb()
+      .prepare(`SELECT * FROM users WHERE username_norm = ?`)
+      .get(usernameNorm) as UserRow | undefined;
 }
 
 export function findUserByLogin(login: string) {
@@ -184,36 +184,36 @@ export function findUserByLogin(login: string) {
   return findUserByUsernameNorm(normalizeUsername(login));
 }
 
-export function noteAuthAttempt(ipHash: string) {
-  getDb()
-    .prepare(`INSERT INTO register_attempts (ip_hash, created_at) VALUES (?, ?)`)
-    .run(ipHash, new Date().toISOString());
+export async function noteAuthAttempt(ipHash: string) {
+  await getDb()
+        .prepare(`INSERT INTO register_attempts (ip_hash, created_at) VALUES (?, ?)`)
+        .run(ipHash, new Date().toISOString());
 }
 
-export function authRegisterLimited(ipHash: string) {
-  return registerAttemptCount(ipHash) >= AUTH_REGISTER_PER_HOUR;
+export async function authRegisterLimited(ipHash: string) {
+  return await registerAttemptCount(ipHash) >= AUTH_REGISTER_PER_HOUR;
 }
 
-export function authLoginLimited(ipHash: string, loginKey: string) {
+export async function authLoginLimited(ipHash: string, loginKey: string) {
   const idHash = hmac(`auth-id:${loginKey}`);
   return (
-    registerAttemptCount(ipHash) >= AUTH_LOGIN_PER_HOUR ||
-    registerAttemptCount(idHash) >= AUTH_LOGIN_PER_ID_HOUR
+    await registerAttemptCount(ipHash) >= AUTH_LOGIN_PER_HOUR ||
+    await registerAttemptCount(idHash) >= AUTH_LOGIN_PER_ID_HOUR
   );
 }
 
-export function noteLoginAttempts(ipHash: string, loginKey: string) {
-  noteAuthAttempt(ipHash);
-  noteAuthAttempt(hmac(`auth-id:${loginKey}`));
+export async function noteLoginAttempts(ipHash: string, loginKey: string) {
+  await noteAuthAttempt(ipHash);
+  await noteAuthAttempt(hmac(`auth-id:${loginKey}`));
 }
 
-export function banUser(
+export async function banUser(
   userId: number,
   reason: string,
   expiresAt: string | null = null,
   moderatorUserId?: number,
-): { ok: true } | { ok: false; error: string } {
-  const target = findUserById(userId);
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const target = await findUserById(userId);
   if (!target) return { ok: false, error: "Kullanıcı bulunamadı." };
   if (target.deleted_at) return { ok: false, error: "Silinmiş hesap banlanamaz." };
   if (isAdmin(target)) {
@@ -221,83 +221,83 @@ export function banUser(
   }
 
   const now = new Date().toISOString();
-  const updated = getDb()
-    .prepare(
-      `UPDATE users
+  const updated = await getDb()
+      .prepare(
+        `UPDATE users
        SET status = 'banned', banned_at = ?, ban_reason = ?, ban_expires_at = ?, updated_at = ?
        WHERE id = ? AND role NOT IN ('admin', 'super_admin')`,
-    )
-    .run(now, reason.slice(0, 200), expiresAt, now, userId);
+      )
+      .run(now, reason.slice(0, 200), expiresAt, now, userId);
 
   if (updated.changes !== 1) {
     return { ok: false, error: "Admin hesap banlanamaz." };
   }
 
-  getDb()
-    .prepare(
-      `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`,
-    )
-    .run(now, userId);
+  await getDb()
+        .prepare(
+          `UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL`,
+        )
+        .run(now, userId);
 
   if (moderatorUserId) {
-    recordModerationAction({
-      moderatorUserId,
-      targetUserId: userId,
-      action: "ban_user",
-      reason,
-    });
+    await recordModerationAction({
+            moderatorUserId,
+            targetUserId: userId,
+            action: "ban_user",
+            reason,
+          });
   }
 
   return { ok: true };
 }
 
-export function unbanUser(
+export async function unbanUser(
   userId: number,
   reason: string,
   moderatorUserId: number,
-): { ok: true } | { ok: false; error: string } {
-  const target = findUserById(userId);
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const target = await findUserById(userId);
   if (!target) return { ok: false, error: "Kullanıcı bulunamadı." };
   if (target.deleted_at) return { ok: false, error: "Silinmiş hesabın banı kaldırılamaz." };
   const flagged = target.status === "banned" || Boolean(target.banned_at);
   if (!flagged) return { ok: false, error: "Bu hesapta ban yok." };
 
   const now = new Date().toISOString();
-  getDb()
-    .prepare(
-      `UPDATE users
+  await getDb()
+        .prepare(
+          `UPDATE users
        SET status = 'active', banned_at = NULL, ban_reason = NULL, ban_expires_at = NULL, updated_at = ?
        WHERE id = ?`,
-    )
-    .run(now, userId);
+        )
+        .run(now, userId);
 
-  recordModerationAction({
-    moderatorUserId,
-    targetUserId: userId,
-    action: "unban_user",
-    reason,
-  });
+  await recordModerationAction({
+        moderatorUserId,
+        targetUserId: userId,
+        action: "unban_user",
+        reason,
+      });
   return { ok: true };
 }
 
-export function countAdmins() {
+export async function countAdmins() {
   return (
-    getDb()
-      .prepare(
-        `SELECT COUNT(*) as c FROM users WHERE role IN ('admin', 'super_admin') AND deleted_at IS NULL`,
-      )
-      .get() as { c: number }
+    await getDb()
+            .prepare(
+              `SELECT COUNT(*) as c FROM users WHERE role IN ('admin', 'super_admin') AND deleted_at IS NULL`,
+            )
+            .get() as { c: number }
   ).c;
 }
 
-export function countSuperAdmins() {
+export async function countSuperAdmins() {
   return (
-    getDb()
-      .prepare(
-        `SELECT COUNT(*) as c FROM users
+    await getDb()
+            .prepare(
+              `SELECT COUNT(*) as c FROM users
          WHERE role = 'super_admin' AND deleted_at IS NULL AND status = 'active'`,
-      )
-      .get() as { c: number }
+            )
+            .get() as { c: number }
   ).c;
 }
 
@@ -308,16 +308,16 @@ export function countSuperAdmins() {
  * account. The target's sessions are revoked so the new role applies at
  * the next login (including the admin second factor).
  */
-export function setUserRole(
+export async function setUserRole(
   targetId: number,
   role: UserRole,
   moderator: UserRow,
   reason: string,
-): { ok: true } | { ok: false; error: string } {
+): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!can(moderator.role, "roles.manage")) {
     return { ok: false, error: "Rolleri yalnızca süper admin değiştirebilir." };
   }
-  const target = findUserById(targetId);
+  const target = await findUserById(targetId);
   if (!target || target.deleted_at) return { ok: false, error: "Kullanıcı bulunamadı." };
   if (!USER_ROLES.includes(role)) return { ok: false, error: "Geçersiz rol." };
   if (target.role === role) return { ok: true };
@@ -332,24 +332,24 @@ export function setUserRole(
       return { ok: false, error: "Banlı hesaba yetki verilemez." };
     }
   }
-  if (target.role === "super_admin" && countSuperAdmins() <= 1) {
+  if (target.role === "super_admin" && await countSuperAdmins() <= 1) {
     return { ok: false, error: "Son süper admin hesabının rolü düşürülemez." };
   }
 
   const now = new Date().toISOString();
-  const updated = getDb()
-    .prepare(`UPDATE users SET role = ?, updated_at = ? WHERE id = ? AND role = ?`)
-    .run(role, now, targetId, target.role);
+  const updated = await getDb()
+      .prepare(`UPDATE users SET role = ?, updated_at = ? WHERE id = ? AND role = ?`)
+      .run(role, now, targetId, target.role);
   if (updated.changes !== 1) {
     return { ok: false, error: "Rol güncellenemedi." };
   }
 
-  recordModerationAction({
-    moderatorUserId: moderator.id,
-    targetUserId: targetId,
-    action: `role_${target.role}_to_${role}`,
-    reason,
-  });
-  revokeUserSessionsOn(getDb(), targetId);
+  await recordModerationAction({
+        moderatorUserId: moderator.id,
+        targetUserId: targetId,
+        action: `role_${target.role}_to_${role}`,
+        reason,
+      });
+  await revokeUserSessionsOn(getDb(), targetId);
   return { ok: true };
 }

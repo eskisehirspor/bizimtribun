@@ -25,8 +25,8 @@ import {
 } from "./harness";
 import { GET as marketingGet, POST as marketingPost } from "../../app/api/account/marketing/route";
 
-beforeEach(() => {
-  freshDb();
+beforeEach(async () => {
+  await freshDb();
   process.env.VERIFY_CHANNEL = "email";
 });
 afterEach(() => {
@@ -75,10 +75,10 @@ async function emailSignup(email: string, device: string, teamId = "galatasaray"
 }
 
 /** Moves past the resend cooldown. */
-function ageOtps() {
-  getDb()
-    .prepare(`UPDATE auth_otps SET created_at = ?`)
-    .run(new Date(Date.now() - 2 * 60 * 1000).toISOString());
+async function ageOtps() {
+  await getDb()
+        .prepare(`UPDATE auth_otps SET created_at = ?`)
+        .run(new Date(Date.now() - 2 * 60 * 1000).toISOString());
 }
 
 async function total() {
@@ -112,7 +112,7 @@ test("e-mail sign-up: code → account verified by e-mail with its permanent vot
   assert.equal(user.verified, true);
   assert.equal(user.phoneVerified, false);
   assert.equal(await total(), 1);
-  const row = getDb().prepare(`SELECT email, email_norm, email_verified_at, phone_norm FROM users WHERE id = ?`).get(user.id) as {
+  const row = await getDb().prepare(`SELECT email, email_norm, email_verified_at, phone_norm FROM users WHERE id = ?`).get(user.id) as {
     email: string;
     email_norm: string;
     email_verified_at: string | null;
@@ -122,12 +122,12 @@ test("e-mail sign-up: code → account verified by e-mail with its permanent vot
   assert.ok(row.email_verified_at);
   assert.ok(row.phone_norm); // typed on the form, not verified
   // The device row carries no account link.
-  const dev = getDb().prepare(`SELECT * FROM device_signups`).all() as Record<string, unknown>[];
+  const dev = await getDb().prepare(`SELECT * FROM device_signups`).all() as Record<string, unknown>[];
   assert.equal(dev.length, 1);
   assert.deepEqual(Object.keys(dev[0]).sort(), ["created_at", "device_hash", "id"]);
 
   // The same address signs in again, also written another way.
-  ageOtps();
+  await ageOtps();
   const again = await sendCode(email.toUpperCase(), device);
   const login = await checkCode(email.toUpperCase(), (again.json as { devCode: string }).devCode, device);
   assert.equal((login.json as { next: string }).next, "home");
@@ -138,7 +138,7 @@ test("gmail dots and +tags are one inbox: no second account, no second vote", as
   const device = testDevice();
   const first = await emailSignup("ali.veli@gmail.com", device);
   assert.equal(first.status, 200, first.text);
-  ageOtps();
+  await ageOtps();
   const sent = await sendCode("aliveli+ikinci@googlemail.com", testDevice());
   const again = await checkCode("aliveli+ikinci@googlemail.com", (sent.json as { devCode: string }).devCode, testDevice());
   assert.equal((again.json as { next: string }).next, "home");
@@ -153,7 +153,7 @@ test("throwaway inboxes and phone numbers are refused in e-mail mode", async () 
   }
   const phone = await invoke(otpRequest, { method: "POST", path: "/api/auth/otp/request", body: { phone: "5321234567" } });
   assert.equal(phone.status, 400);
-  assert.equal((getDb().prepare(`SELECT COUNT(*) as c FROM auth_otps`).get() as { c: number }).c, 0);
+  assert.equal((await getDb().prepare(`SELECT COUNT(*) as c FROM auth_otps`).get() as { c: number }).c, 0);
 });
 
 test(`one device opens at most ${DEVICE_SIGNUP_MAX} accounts, whatever the e-mail`, async () => {
@@ -209,7 +209,7 @@ test("a deleted e-mail account's address waits before it can sign up again", asy
   assert.equal(del.status, 200, del.text);
   assert.equal(await total(), 0);
 
-  ageOtps();
+  await ageOtps();
   const sent = await sendCode(email, testDevice());
   const again = await checkCode(email, (sent.json as { devCode: string }).devCode, testDevice());
   assert.equal(again.status, 409);
@@ -252,9 +252,9 @@ test("sign-up asks for real name, phone and birth date; they stay private", asyn
   assert.equal(ok.status, 200, ok.text);
   assert.ok(!/Çağrı|Öztürk|1994-03-12/.test(ok.text));
   const id = (ok.json as { user: { id: number } }).user.id;
-  const row = getDb()
-    .prepare(`SELECT first_name, last_name, birth_date, phone_norm, phone_verified_at, marketing_consent_at FROM users WHERE id = ?`)
-    .get(id) as Record<string, string | null>;
+  const row = await getDb()
+      .prepare(`SELECT first_name, last_name, birth_date, phone_norm, phone_verified_at, marketing_consent_at FROM users WHERE id = ?`)
+      .get(id) as Record<string, string | null>;
   assert.deepEqual(row, {
     first_name: "Çağrı",
     last_name: "Öztürk-Şahin",
@@ -276,11 +276,11 @@ test("campaign SMS consent is optional, separate and can be withdrawn", async ()
   assert.equal(ok.status, 200, ok.text);
   const session = setCookies(ok.res).map((l) => l.split(";")[0]).join("; ");
   const id = (ok.json as { user: { id: number } }).user.id;
-  const at = () =>
-    (getDb().prepare(`SELECT marketing_consent_at as m FROM users WHERE id = ?`).get(id) as { m: string | null }).m;
-  assert.ok(at());
+  const at = async () =>
+    (await getDb().prepare(`SELECT marketing_consent_at as m FROM users WHERE id = ?`).get(id) as { m: string | null }).m;
+  assert.ok(await at());
   assert.equal(((await invoke(marketingGet, { path: "/api/account/marketing", cookie: session })).json as { consent: boolean }).consent, true);
   const off = await invoke(marketingPost, { method: "POST", path: "/api/account/marketing", cookie: session, body: { consent: false } });
   assert.equal(off.status, 200, off.text);
-  assert.equal(at(), null);
+  assert.equal(await at(), null);
 });

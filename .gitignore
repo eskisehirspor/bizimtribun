@@ -39,6 +39,7 @@ yarn-error.log*
 /data/*.db-*
 /data/*.txt
 /data/backups/
+/data/pglite/
 !/data/.gitkeep
 
 # vercel
@@ -47,3 +48,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cloudflare
+/.open-next/
+/.wrangler/
+/.dev.vars*

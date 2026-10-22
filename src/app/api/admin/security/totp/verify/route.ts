@@ -22,10 +22,10 @@ export async function POST(req: Request) {
     return noStoreJson({ error: "Doğrulama kodu hatalı." }, 401);
   }
 
-  const result = confirmTotpSetup(getDb(), gate.user.id, parsed.data.code, {
-    ipHash: hashedIp(`auth-totp:${await clientIp()}`),
-    uaHash: hmac(`ua:${req.headers.get("user-agent") || ""}`),
-  });
+  const result = await confirmTotpSetup(getDb(), gate.user.id, parsed.data.code, {
+      ipHash: hashedIp(`auth-totp:${await clientIp()}`),
+      uaHash: hmac(`ua:${req.headers.get("user-agent") || ""}`),
+    });
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
 
   return noStoreJson({

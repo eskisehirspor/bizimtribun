@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   if (captcha) return noStoreJson({ error: captcha.error }, captcha.status);
 
   const db = getDb();
-  const holder = findVerifiedUserByPhone(db, phoneNorm);
+  const holder = await findVerifiedUserByPhone(db, phoneNorm);
   if (holder && holder.id !== active.user.id) {
     return noStoreJson({ error: "Bu telefon başka bir hesapta doğrulanmış." }, 409);
   }

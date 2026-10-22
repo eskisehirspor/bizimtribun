@@ -46,8 +46,8 @@ export type ResolvedBoard = {
   info: Record<string, string | null>;
 };
 
-export function resolveTeamBoard(teamSlug: string): ResolvedBoard | null {
-  const team = requireForumBoard(teamSlug);
+export async function resolveTeamBoard(teamSlug: string): Promise<ResolvedBoard | null> {
+  const team = await requireForumBoard(teamSlug);
   if (!team) return null;
   return {
     ref: { kind: "team", teamId: team.id },
@@ -55,8 +55,8 @@ export function resolveTeamBoard(teamSlug: string): ResolvedBoard | null {
   };
 }
 
-export function resolveGeneralBoard(): ResolvedBoard | null {
-  if (!getSettings().features.generalBoardOpen) return null;
+export async function resolveGeneralBoard(): Promise<ResolvedBoard | null> {
+  if (!(await getSettings()).features.generalBoardOpen) return null;
   return { ref: { kind: "general" }, info: { kind: "general", id: "genel", name: "Milli Takım Tribünü" } };
 }
 
@@ -74,13 +74,13 @@ export async function boardTopicsGet(req: Request, board: ResolvedBoard | null) 
   if (!parsedCat.ok) return noStoreJson({ error: "Geçersiz kategori." }, 400);
   const sort = parseTopicSort(url.searchParams.get("sort"));
   const viewer = await getSessionUser(req);
-  const access = boardAccess(board.ref, viewer);
+  const access = await boardAccess(board.ref, viewer);
   if (!access.ok) return noStoreJson({ error: access.error, code: access.code, board: board.info }, access.status);
-  const { total, topics } = listTopics(board.ref, offset, limit, {
-    category: parsedCat.category,
-    sort,
-    viewerId: viewer?.id ?? null,
-  });
+  const { total, topics } = await listTopics(board.ref, offset, limit, {
+      category: parsedCat.category,
+      sort,
+      viewerId: viewer?.id ?? null,
+    });
   return noStoreJson({
     ok: true,
     board: board.info,
@@ -98,9 +98,9 @@ export async function boardTopicsPost(req: Request, board: ResolvedBoard | null)
   const body = await readJsonBody(req);
   if ("error" in body) return noStoreJson({ error: body.error }, 400);
 
-  const active = requireForumWriter(await getSessionUser(req));
+  const active = await requireForumWriter(await getSessionUser(req));
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
-  const access = boardAccess(board.ref, active.user, "write");
+  const access = await boardAccess(board.ref, active.user, "write");
   if (!access.ok) return noStoreJson({ error: access.error, code: access.code }, access.status);
 
   const parsed = CreateBody.safeParse(body.data);
@@ -115,44 +115,44 @@ export async function boardTopicsPost(req: Request, board: ResolvedBoard | null)
 
   // Counted before moderation so blocked attempts can't probe the filter for free.
   const ip = await clientIp();
-  if (forumTopicLimited(ip, active.user.id)) {
+  if (await forumTopicLimited(ip, active.user.id)) {
     return noStoreJson({ error: "Çok fazla konu açtın. Biraz sonra dene." }, 429);
   }
-  noteForumTopicAttempt(ip, active.user.id);
-  const flood = forumFloodCheck(getDb(), active.user.id, content);
+  await noteForumTopicAttempt(ip, active.user.id);
+  const flood = await forumFloodCheck(getDb(), active.user.id, content);
   if (!flood.ok) return noStoreJson({ error: flood.error }, flood.status);
 
   const verdict = moderateForumPublication([title, content], {
     surface: "topic",
     userId: active.user.id,
     teamId: board.ref.kind === "team" ? board.ref.teamId : undefined,
-    newAccount: isNewAccount(getDb(), active.user.id),
+    newAccount: await isNewAccount(getDb(), active.user.id),
   });
   const mode = forumWriteMode(verdict.decision);
   if (mode === "none") {
-    recordAutoModeration({ userId: active.user.id, result: verdict });
+    await recordAutoModeration({ userId: active.user.id, result: verdict });
     return noStoreJson({ error: FORUM_CONTENT_BLOCKED_ERROR }, 422);
   }
 
-  const topic = createTopic({
-    board: board.ref,
-    userId: active.user.id,
-    title,
-    content,
-    category: cat.category ?? FORUM_CATEGORY_DEFAULT,
-    holdForReview: mode === "hold",
-  });
-  notifyStaffNewTopic(getDb(), {
-    actorId: active.user.id,
-    topicId: topic.id,
-    title,
-    boardName: String(board.info.name ?? "forum"),
-    held: mode === "hold",
-  });
+  const topic = await createTopic({
+      board: board.ref,
+      userId: active.user.id,
+      title,
+      content,
+      category: cat.category ?? FORUM_CATEGORY_DEFAULT,
+      holdForReview: mode === "hold",
+    });
+  await notifyStaffNewTopic(getDb(), {
+        actorId: active.user.id,
+        topicId: topic.id,
+        title,
+        boardName: String(board.info.name ?? "forum"),
+        held: mode === "hold",
+      });
   if (mode === "hold") {
-    recordAutoModeration({ userId: active.user.id, result: verdict, targetTopicId: topic.id });
+    await recordAutoModeration({ userId: active.user.id, result: verdict, targetTopicId: topic.id });
     return noStoreJson({ error: FORUM_CONTENT_REVIEW_ERROR }, 422);
   }
-  refreshBadges(getDb(), active.user.id);
-  return noStoreJson({ ok: true, topic: serializeTopic(topic, active.user.id) }, 201);
+  await refreshBadges(getDb(), active.user.id);
+  return noStoreJson({ ok: true, topic: await serializeTopic(topic, active.user.id) }, 201);
 }

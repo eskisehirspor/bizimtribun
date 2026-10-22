@@ -23,16 +23,16 @@ export async function POST(req: Request) {
   if (!parsed.success) return noStoreJson({ error: "Geçersiz istek." }, 400);
   const db = getDb();
   const now = new Date().toISOString();
-  db.prepare(`UPDATE users SET marketing_consent_at = ?, updated_at = ? WHERE id = ?`).run(
-    parsed.data.consent ? now : null,
-    now,
-    active.user.id,
-  );
-  writeAudit(db, {
-    actorUserId: active.user.id,
-    action: parsed.data.consent ? "marketing_consent_given" : "marketing_consent_withdrawn",
-    targetType: "user",
-    targetId: active.user.id,
-  });
+  await db.prepare(`UPDATE users SET marketing_consent_at = ?, updated_at = ? WHERE id = ?`).run(
+        parsed.data.consent ? now : null,
+        now,
+        active.user.id,
+      );
+  await writeAudit(db, {
+        actorUserId: active.user.id,
+        action: parsed.data.consent ? "marketing_consent_given" : "marketing_consent_withdrawn",
+        targetType: "user",
+        targetId: active.user.id,
+      });
   return noStoreJson({ ok: true, consent: parsed.data.consent });
 }

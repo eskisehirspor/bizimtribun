@@ -14,6 +14,6 @@ export async function POST(req: Request) {
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) return noStoreJson({ error: "Geçersiz istek." }, 400);
   const db = getDb();
-  markRead(db, active.user.id, parsed.data.ids);
-  return noStoreJson({ ok: true, unread: unreadCount(db, active.user.id) });
+  await markRead(db, active.user.id, parsed.data.ids);
+  return noStoreJson({ ok: true, unread: await unreadCount(db, active.user.id) });
 }

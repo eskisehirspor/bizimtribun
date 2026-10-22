@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 import type { MatchedRule } from "./moderation/types";
 
 /** Seconds a member waits between two topics or replies. */
@@ -27,22 +27,22 @@ function sameText(text: string) {
  * Flood and repeat guard, checked before a topic or reply is saved. Deleted
  * and held texts count too, so deleting and resending doesn't get around it.
  */
-export function forumFloodCheck(
-  db: Database.Database,
+export async function forumFloodCheck(
+  db: Db,
   userId: number,
   content: string,
   now = new Date(),
   opts: { cooldown?: boolean } = {},
-): { ok: true } | { ok: false; status: number; error: string } {
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
   const since = new Date(now.getTime() - FORUM_DUPLICATE_WINDOW_HOURS * 3600_000).toISOString();
-  const recent = db
-    .prepare(
-      `SELECT content, created_at FROM forum_posts WHERE user_id = ? AND created_at >= ?
+  const recent = await db
+      .prepare(
+        `SELECT content, created_at FROM forum_posts WHERE user_id = ? AND created_at >= ?
        UNION ALL
        SELECT content, created_at FROM forum_topics WHERE user_id = ? AND created_at >= ?
        ORDER BY created_at DESC LIMIT 200`,
-    )
-    .all(userId, since, userId, since) as { content: string; created_at: string }[];
+      )
+      .all(userId, since, userId, since) as { content: string; created_at: string }[];
 
   const last = recent[0];
   // HTTP tests post many texts in a row; the cooldown itself is covered by unit tests.
@@ -57,8 +57,8 @@ export function forumFloodCheck(
   return { ok: true };
 }
 
-export function isNewAccount(db: Database.Database, userId: number, now = new Date()) {
-  const row = db.prepare(`SELECT created_at FROM users WHERE id = ?`).get(userId) as
+export async function isNewAccount(db: Db, userId: number, now = new Date()) {
+  const row = await db.prepare(`SELECT created_at FROM users WHERE id = ?`).get(userId) as
     | { created_at: string }
     | undefined;
   if (!row) return false;

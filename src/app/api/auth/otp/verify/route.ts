@@ -82,59 +82,59 @@ export async function POST(req: Request) {
   const code = parsed.data.code.trim();
   const result =
     identity.channel === "email"
-      ? verifyEmailOtp(db, { emailNorm: identity.emailNorm, code, ipKey: ip, purpose: "login" })
-      : verifyOtp(db, { phoneNorm: identity.phoneNorm, code, ipKey: ip, purpose: "login" });
+      ? await verifyEmailOtp(db, { emailNorm: identity.emailNorm, code, ipKey: ip, purpose: "login" })
+      : await verifyOtp(db, { phoneNorm: identity.phoneNorm, code, ipKey: ip, purpose: "login" });
   if (!result.ok) {
-    recordSecurityEvent(db, { action: "otp_verify", success: false, ipHash: hashedIp(ip) });
+    await recordSecurityEvent(db, { action: "otp_verify", success: false, ipHash: hashedIp(ip) });
     return noStoreJson({ error: result.error }, result.status);
   }
 
   const existing =
     identity.channel === "email"
-      ? findVerifiedUserByEmail(db, identity.emailNorm)
-      : findVerifiedUserByPhone(db, identity.phoneNorm);
+      ? await findVerifiedUserByEmail(db, identity.emailNorm)
+      : await findVerifiedUserByPhone(db, identity.phoneNorm);
   if (existing) {
-    const user = reconcileExpiredBan(existing);
+    const user = await reconcileExpiredBan(existing);
     if (isUserBanned(user)) {
-      recordSecurityEvent(db, { userId: user.id, action: "otp_login_banned", success: false, ipHash: hashedIp(ip) });
+      await recordSecurityEvent(db, { userId: user.id, action: "otp_login_banned", success: false, ipHash: hashedIp(ip) });
       return noStoreJson({ error: "Hesap askıya alınmış." }, 403);
     }
-    recordSecurityEvent(db, { userId: user.id, action: "otp_login", success: true, ipHash: hashedIp(ip) });
+    await recordSecurityEvent(db, { userId: user.id, action: "otp_login", success: true, ipHash: hashedIp(ip) });
     if (passwordLoginNextStep(user) === "need2fa") {
-      const challenge = createLoginChallenge(db, user.id);
+      const challenge = await createLoginChallenge(db, user.id);
       return attachAdmin2faCookie(noStoreJson({ ok: true, next: "2fa" }), challenge);
     }
-    const raw = createSession(user.id);
+    const raw = await createSession(user.id);
     const res = noStoreJson({ ok: true, next: "home", user: toPublicUser(user) });
     return attachSessionCookie(res, raw, sessionTtlMsForUser(user));
   }
 
-  if (identity.channel === "sms" && phoneHoldActive(db, identity.phoneNorm)) {
+  if (identity.channel === "sms" && await phoneHoldActive(db, identity.phoneNorm)) {
     return noStoreJson({ error: PHONE_HOLD_ERROR }, 409);
   }
-  if (identity.channel === "email" && emailHoldActive(db, identity.emailNorm)) {
+  if (identity.channel === "email" && await emailHoldActive(db, identity.emailNorm)) {
     return noStoreJson({ error: EMAIL_HOLD_ERROR }, 409);
   }
   // Say so now rather than after the member has filled in the sign-up form.
-  if (!getSettings().features.signupsOpen) {
+  if (!(await getSettings()).features.signupsOpen) {
     return noStoreJson({ error: "Yeni üyelik şu an kapalı. Daha sonra tekrar dene." }, 403);
   }
 
   // Checked again, authoritatively, when the account is created.
   const device = await readCookie(req, DEVICE_COOKIE);
   if (!isDeviceId(device)) return noStoreJson({ error: DEVICE_COOKIE_ERROR }, 400);
-  if (deviceLimitReached(db, deviceHash(device))) {
+  if (await deviceLimitReached(db, deviceHash(device))) {
     return noStoreJson({ error: DEVICE_LIMIT_ERROR }, 429);
   }
 
-  const ticket = issueSignupTicket(db, identity);
+  const ticket = await issueSignupTicket(db, identity);
   const res = noStoreJson({
     ok: true,
     next: "signup",
     legacyAccountHint:
       identity.channel === "email"
-        ? hasUnverifiedEmailClaim(db, identity.emailNorm)
-        : hasUnverifiedClaim(db, identity.phoneNorm),
+        ? await hasUnverifiedEmailClaim(db, identity.emailNorm)
+        : await hasUnverifiedClaim(db, identity.phoneNorm),
   });
   res.cookies.set(
     SIGNUP_TICKET_COOKIE,

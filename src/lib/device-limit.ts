@@ -1,4 +1,4 @@
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 import type { NextResponse } from "next/server";
 import { hmac, newToken } from "./crypto";
 import {
@@ -43,18 +43,18 @@ export function ensureDeviceCookie(res: NextResponse, current: string | null | u
   return id;
 }
 
-export function deviceSignupCount(db: Database.Database, hash: string) {
+export async function deviceSignupCount(db: Db, hash: string) {
   return (
-    db
-      .prepare(`SELECT COUNT(*) as c FROM device_signups WHERE device_hash = ? AND created_at >= ?`)
-      .get(hash, new Date(Date.now() - DEVICE_SIGNUP_WINDOW_MS).toISOString()) as { c: number }
+    await db
+            .prepare(`SELECT COUNT(*) as c FROM device_signups WHERE device_hash = ? AND created_at >= ?`)
+            .get(hash, new Date(Date.now() - DEVICE_SIGNUP_WINDOW_MS).toISOString()) as { c: number }
   ).c;
 }
 
-export function deviceLimitReached(db: Database.Database, hash: string) {
-  return deviceSignupCount(db, hash) >= DEVICE_SIGNUP_MAX;
+export async function deviceLimitReached(db: Db, hash: string) {
+  return await deviceSignupCount(db, hash) >= DEVICE_SIGNUP_MAX;
 }
 
-export function noteDeviceSignup(db: Database.Database, hash: string, at: string) {
-  db.prepare(`INSERT INTO device_signups (device_hash, created_at) VALUES (?, ?)`).run(hash, at);
+export async function noteDeviceSignup(db: Db, hash: string, at: string) {
+  await db.prepare(`INSERT INTO device_signups (device_hash, created_at) VALUES (?, ?)`).run(hash, at);
 }

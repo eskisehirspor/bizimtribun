@@ -1,7 +1,7 @@
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 import { z } from "zod";
 import { writeAudit } from "./audit";
-import { getDb } from "./db";
+import { dbGeneration, getDb } from "./db";
 import { LEAGUE_ORDER } from "./teams";
 
 /**
@@ -81,10 +81,10 @@ export const DEFAULT_SETTINGS: Settings = {
 };
 
 const CACHE_MS = 15_000;
-let cache = new WeakMap<Database.Database, { at: number; value: Settings }>();
+let cache = new WeakMap<object, { at: number; value: Settings }>();
 
-function readAll(db: Database.Database): Settings {
-  const rows = db.prepare(`SELECT key, value FROM site_settings`).all() as { key: string; value: string }[];
+async function readAll(db: Db): Promise<Settings> {
+  const rows = await db.prepare(`SELECT key, value FROM site_settings`).all() as { key: string; value: string }[];
   const out: Settings = structuredClone(DEFAULT_SETTINGS);
   for (const row of rows) {
     if (!(row.key in SETTING_SCHEMAS)) continue;
@@ -100,11 +100,12 @@ function readAll(db: Database.Database): Settings {
   return out;
 }
 
-export function getSettings(db: Database.Database = getDb()): Settings {
-  const hit = cache.get(db);
+export async function getSettings(db: Db = getDb()): Promise<Settings> {
+  const key = db === getDb() ? dbGeneration() : db;
+  const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
-  const value = readAll(db);
-  cache.set(db, { at: Date.now(), value });
+  const value = await readAll(db);
+  cache.set(key, { at: Date.now(), value });
   return value;
 }
 
@@ -112,12 +113,12 @@ export function invalidateSettingsCache() {
   cache = new WeakMap();
 }
 
-export function updateSetting(
-  db: Database.Database,
+export async function updateSetting(
+  db: Db,
   actorUserId: number,
   key: SettingKey,
   input: unknown,
-): { ok: true; value: Settings[SettingKey] } | { ok: false; error: string; status: number } {
+): Promise<{ ok: true; value: Settings[SettingKey] } | { ok: false; error: string; status: number }> {
   const parsed = SETTING_SCHEMAS[key].safeParse(input);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Geçersiz ayar.", status: 400 };
@@ -126,9 +127,9 @@ export function updateSetting(
   if (key === "featuredTopics") {
     const ids = (value as Settings["featuredTopics"]).ids;
     for (const id of ids) {
-      const t = db
-        .prepare(`SELECT board FROM forum_topics WHERE id = ? AND deleted_at IS NULL AND held_at IS NULL`)
-        .get(id) as { board: string } | undefined;
+      const t = await db
+              .prepare(`SELECT board FROM forum_topics WHERE id = ? AND deleted_at IS NULL AND held_at IS NULL`)
+              .get(id) as { board: string } | undefined;
       if (!t) return { ok: false, error: `#${id} numaralı yayında bir konu yok.`, status: 400 };
       if (t.board === "team") {
         return { ok: false, error: `#${id} bir takım tribünü konusu; takım tribünleri yalnızca taraftarlarına açık.`, status: 400 };
@@ -136,37 +137,37 @@ export function updateSetting(
     }
   }
   const now = new Date().toISOString();
-  db.transaction(() => {
-    db.prepare(
-      `INSERT INTO site_settings (key, value, updated_at, updated_by_user_id) VALUES (?, ?, ?, ?)
+  await db.transaction(async () => {
+        await db.prepare(
+                `INSERT INTO site_settings (key, value, updated_at, updated_by_user_id) VALUES (?, ?, ?, ?)
        ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at,
          updated_by_user_id = excluded.updated_by_user_id`,
-    ).run(key, JSON.stringify(value), now, actorUserId);
-    writeAudit(db, {
-      actorUserId,
-      action: `setting_${key}`,
-      targetType: "setting",
-      targetId: key,
-      meta: { value: JSON.stringify(value).slice(0, 1500) },
-    });
-  })();
+              ).run(key, JSON.stringify(value), now, actorUserId);
+        await writeAudit(db, {
+                actorUserId,
+                action: `setting_${key}`,
+                targetType: "setting",
+                targetId: key,
+                meta: { value: JSON.stringify(value).slice(0, 1500) },
+              });
+      })();
   invalidateSettingsCache();
   return { ok: true, value };
 }
 
-export function settingsMeta(db: Database.Database) {
-  return db
-    .prepare(
-      `SELECT s.key, s.updated_at as updatedAt, u.username as updatedBy
+export async function settingsMeta(db: Db) {
+  return await db
+      .prepare(
+        `SELECT s.key, s.updated_at as updatedAt, u.username as updatedBy
        FROM site_settings s LEFT JOIN users u ON u.id = s.updated_by_user_id`,
-    )
-    .all() as { key: string; updatedAt: string; updatedBy: string | null }[];
+      )
+      .all() as { key: string; updatedAt: string; updatedBy: string | null }[];
 }
 
 export const MAINTENANCE_ERROR = "Site bakımda; şu an yalnızca okunabiliyor. Biraz sonra tekrar dene.";
 
 /** Read-only maintenance applies to members; staff can still work. */
-export function maintenanceBlocks(role: string | null | undefined) {
-  const { maintenance } = getSettings();
+export async function maintenanceBlocks(role: string | null | undefined) {
+  const { maintenance } = await getSettings();
   return maintenance.enabled && (role ?? "user") === "user";
 }

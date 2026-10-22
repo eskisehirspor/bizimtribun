@@ -8,27 +8,32 @@
     "start": "next start",
     "lint": "eslint",
     "test": "tsx --test src/lib/moderation/*.test.ts src/lib/*.test.ts && tsx --test --test-concurrency=1 src/test/http/*.test.ts",
-    "db:backup": "tsx scripts/db-backup.ts",
-    "db:restore": "tsx scripts/db-restore.ts",
-    "admin:bootstrap": "tsx scripts/admin-bootstrap.ts"
+    "admin:bootstrap": "tsx scripts/admin-bootstrap.ts",
+    "db:sql": "tsx scripts/db-sql.ts",
+    "cf:build": "opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
-    "better-sqlite3": "^13.0.3",
-    "next": "16.3.4",
+    "@opennextjs/cloudflare": "^1.20.13",
+    "@supabase/supabase-js": "^2.118.0",
+    "next": "16.4.2",
+    "postgres": "^3.4.9",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@tailwindcss/postcss": "^4",
-    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.4.2",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.151.3"
   }
 }

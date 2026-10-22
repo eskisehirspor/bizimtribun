@@ -51,18 +51,18 @@ function toCatalogTeam(row: TeamRow): CatalogTeam {
 
 const COLUMNS = `id, name, league, city, color_primary, color_secondary, is_active, is_forum_active`;
 
-export function listLeagues(): League[] {
-  const rows = getDb()
-    .prepare(`SELECT id, name, sort_order FROM leagues ORDER BY sort_order, id`)
-    .all() as { id: LeagueId; name: string; sort_order: number }[];
+export async function listLeagues(): Promise<League[]> {
+  const rows = await getDb()
+      .prepare(`SELECT id, name, sort_order FROM leagues ORDER BY sort_order, id`)
+      .all() as { id: LeagueId; name: string; sort_order: number }[];
   if (rows.length === 0) {
     return LEAGUE_ORDER.map((id, i) => ({ id, name: LEAGUE_LABEL[id], sortOrder: i }));
   }
   return rows.map((r) => ({ id: r.id, name: r.name, sortOrder: r.sort_order }));
 }
 
-export function leagueLabels(): Record<string, string> {
-  return Object.fromEntries(listLeagues().map((l) => [l.id, l.name]));
+export async function leagueLabels(): Promise<Record<string, string>> {
+  return Object.fromEntries((await listLeagues()).map((l) => [l.id, l.name]));
 }
 
 /**
@@ -70,11 +70,11 @@ export function leagueLabels(): Record<string, string> {
  * ordered by league order then name. `activeOnly` limits to teams that can
  * receive new votes.
  */
-export function listTeamCatalog(opts: { activeOnly?: boolean } = {}): CatalogTeam[] {
-  const rows = getDb()
-    .prepare(`SELECT ${COLUMNS} FROM teams ${opts.activeOnly ? "WHERE is_active = 1" : ""}`)
-    .all() as TeamRow[];
-  const order = new Map(listLeagues().map((l) => [l.id as string, l.sortOrder]));
+export async function listTeamCatalog(opts: { activeOnly?: boolean } = {}): Promise<CatalogTeam[]> {
+  const rows = await getDb()
+      .prepare(`SELECT ${COLUMNS} FROM teams ${opts.activeOnly ? "WHERE is_active = 1" : ""}`)
+      .all() as TeamRow[];
+  const order = new Map((await listLeagues()).map((l) => [l.id as string, l.sortOrder]));
   return rows
     .map(toCatalogTeam)
     .sort(
@@ -84,19 +84,19 @@ export function listTeamCatalog(opts: { activeOnly?: boolean } = {}): CatalogTea
     );
 }
 
-export function getCatalogTeam(id: string): CatalogTeam | undefined {
-  const row = getDb()
-    .prepare(`SELECT ${COLUMNS} FROM teams WHERE id = ?`)
-    .get(resolveTeamAlias(id)) as TeamRow | undefined;
+export async function getCatalogTeam(id: string): Promise<CatalogTeam | undefined> {
+  const row = await getDb()
+      .prepare(`SELECT ${COLUMNS} FROM teams WHERE id = ?`)
+      .get(resolveTeamAlias(id)) as TeamRow | undefined;
   return row ? toCatalogTeam(row) : undefined;
 }
 
-export function forumActiveTeamIds(): string[] {
-  return listTeamCatalog()
+export async function forumActiveTeamIds(): Promise<string[]> {
+  return (await listTeamCatalog())
     .filter((t) => t.isForumActive)
     .map((t) => t.id);
 }
 
-export function isForumActiveTeamDb(id: string) {
-  return getCatalogTeam(id)?.isForumActive ?? false;
+export async function isForumActiveTeamDb(id: string) {
+  return (await getCatalogTeam(id))?.isForumActive ?? false;
 }

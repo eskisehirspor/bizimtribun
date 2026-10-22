@@ -14,11 +14,11 @@ const Body = z.object({
 export async function POST(req: Request) {
   const body = await readJsonBody(req);
   if ("error" in body) return noStoreJson({ error: body.error }, 400);
-  const active = requireForumWriter(await getSessionUser(req));
+  const active = await requireForumWriter(await getSessionUser(req));
   if (!active.ok) return noStoreJson({ error: active.error }, active.status);
   const parsed = Body.safeParse(body.data);
   if (!parsed.success) return noStoreJson({ error: "Bir sebep seç." }, 400);
-  const result = fileReport(getDb(), active.user.id, parsed.data);
+  const result = await fileReport(getDb(), active.user.id, parsed.data);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true }, 201);
 }

@@ -6,7 +6,7 @@ const globalSecurityHeaders = securityHeaders({ production });
 const noReferrer = [{ key: "Referrer-Policy", value: "no-referrer" }];
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["@electric-sql/pglite"],
   poweredByHeader: false,
   allowedDevOrigins: ["127.0.0.1", "localhost", "192.168.1.49"],
   async redirects() {

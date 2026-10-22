@@ -11,7 +11,7 @@ export default async function Image({ params }: { params: Promise<{ citySlug: st
   const { citySlug } = await params;
   const city = getCityBySlug(citySlug);
   if (!city) return renderShareCard({ eyebrow: "Bizim Tribün", title: "İl bulunamadı" });
-  const { total, rows } = cityVoteTotals(city.name);
+  const { total, rows } = await cityVoteTotals(city.name);
   const top = rows[0];
   const leaders = top ? rows.filter((r) => r.votes === top.votes) : [];
   const lines =

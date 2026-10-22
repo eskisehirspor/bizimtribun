@@ -1,6 +1,6 @@
 import { runHousekeepingIfDue } from "./housekeeping";
 import { randomBytes, randomInt } from "crypto";
-import type Database from "better-sqlite3";
+import type { Db } from "./db";
 import { hmac, identityEmailHash, identityPhoneHash, safeEqual } from "./crypto";
 import { isDevMailInbox, mailConfigured, sendOtpEmail } from "./mail";
 import {
@@ -51,21 +51,21 @@ function since(ms: number) {
 }
 
 /** Counts hits on an opaque rate-limit key (already hashed) since `ms` ago. */
-export function rateCount(db: Database.Database, key: string, ms: number) {
+export async function rateCount(db: Db, key: string, ms: number) {
   return (
-    db
-      .prepare(
-        `SELECT COUNT(*) as c FROM register_attempts WHERE ip_hash = ? AND created_at >= ?`,
-      )
-      .get(key, since(ms)) as { c: number }
+    await db
+            .prepare(
+              `SELECT COUNT(*) as c FROM register_attempts WHERE ip_hash = ? AND created_at >= ?`,
+            )
+            .get(key, since(ms)) as { c: number }
   ).c;
 }
 
-export function rateNote(db: Database.Database, key: string) {
-  db.prepare(`INSERT INTO register_attempts (ip_hash, created_at) VALUES (?, ?)`).run(
-    key,
-    new Date().toISOString(),
-  );
+export async function rateNote(db: Db, key: string) {
+  await db.prepare(`INSERT INTO register_attempts (ip_hash, created_at) VALUES (?, ?)`).run(
+        key,
+        new Date().toISOString(),
+      );
 }
 
 export type OtpRequestResult =
@@ -127,7 +127,7 @@ function emailTarget(emailNorm: string, emailTo: string): OtpTarget {
  * and a resend cooldown per phone.
  */
 export async function requestOtp(
-  db: Database.Database,
+  db: Db,
   input: {
     phoneNorm: string;
     ipKey: string;
@@ -140,7 +140,7 @@ export async function requestOtp(
 
 /** Same as requestOtp, for an e-mail address (already normalised and checked). */
 export async function requestEmailOtp(
-  db: Database.Database,
+  db: Db,
   input: {
     emailNorm: string;
     /** The address as typed; the mail goes here. */
@@ -154,26 +154,26 @@ export async function requestEmailOtp(
 }
 
 async function requestCode(
-  db: Database.Database,
+  db: Db,
   target: OtpTarget,
   input: { ipKey: string; purpose: OtpPurpose; userId?: number | null },
 ): Promise<OtpRequestResult> {
-  runHousekeepingIfDue(db);
+  await runHousekeepingIfDue(db);
   const phoneHash = target.keyHash;
   const ipRateKey = hmac(`otp-send-ip:${input.ipKey}`);
 
-  if (rateCount(db, ipRateKey, HOUR_MS) >= OTP_PER_IP_HOUR) {
+  if (await rateCount(db, ipRateKey, HOUR_MS) >= OTP_PER_IP_HOUR) {
     return { ok: false, status: 429, error: "Çok fazla deneme. Biraz sonra tekrar dene." };
   }
-  const phoneCounts = db
-    .prepare(
-      `SELECT
+  const phoneCounts = await db
+      .prepare(
+        `SELECT
          SUM(CASE WHEN created_at >= ? THEN 1 ELSE 0 END) as hour,
          COUNT(*) as day,
          MAX(created_at) as last
        FROM auth_otps WHERE phone_hash = ? AND created_at >= ?`,
-    )
-    .get(since(HOUR_MS), phoneHash, since(DAY_MS)) as {
+      )
+      .get(since(HOUR_MS), phoneHash, since(DAY_MS)) as {
     hour: number | null;
     day: number;
     last: string | null;
@@ -199,41 +199,41 @@ async function requestCode(
     return { ok: false, status: 503, error: target.unavailableError };
   }
 
-  rateNote(db, ipRateKey);
+  await rateNote(db, ipRateKey);
   const now = new Date().toISOString();
   const code = newCode();
   const salt = randomBytes(16).toString("hex");
-  const id = db.transaction(() => {
-    db.prepare(
-      `UPDATE auth_otps SET voided_at = ?
+  const id = await db.transaction(async () => {
+      await db.prepare(
+              `UPDATE auth_otps SET voided_at = ?
        WHERE phone_hash = ? AND purpose = ? AND consumed_at IS NULL AND voided_at IS NULL`,
-    ).run(now, phoneHash, input.purpose);
-    const info = db
-      .prepare(
-        `INSERT INTO auth_otps
+            ).run(now, phoneHash, input.purpose);
+      const info = await db
+            .prepare(
+              `INSERT INTO auth_otps
          (phone_hash, purpose, user_id, salt, code_hash, expires_at, attempts, max_attempts, created_at)
          VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)`,
-      )
-      .run(
-        phoneHash,
-        input.purpose,
-        input.userId ?? null,
-        salt,
-        codeHash(salt, phoneHash, code),
-        new Date(Date.now() + OTP_TTL_MS).toISOString(),
-        OTP_MAX_ATTEMPTS,
-        now,
-      );
-    return Number(info.lastInsertRowid);
-  })();
+            )
+            .run(
+              phoneHash,
+              input.purpose,
+              input.userId ?? null,
+              salt,
+              codeHash(salt, phoneHash, code),
+              new Date(Date.now() + OTP_TTL_MS).toISOString(),
+              OTP_MAX_ATTEMPTS,
+              now,
+            );
+      return Number(info.lastInsertRowid);
+    })();
 
   try {
     await target.send(code);
   } catch (err) {
-    db.prepare(`UPDATE auth_otps SET voided_at = ? WHERE id = ? AND voided_at IS NULL`).run(
-      new Date().toISOString(),
-      id,
-    );
+    await db.prepare(`UPDATE auth_otps SET voided_at = ? WHERE id = ? AND voided_at IS NULL`).run(
+            new Date().toISOString(),
+            id,
+          );
     if (err instanceof Error && err.message === "NOT_CONFIGURED") {
       return { ok: false, status: 503, error: target.unavailableError };
     }
@@ -258,8 +258,8 @@ const INVALID = { ok: false as const, status: 400, error: "Kod hatalı veya sür
  * Every wrong guess counts; the code is voided at max_attempts. A right code
  * is consumed exactly once even under concurrent requests.
  */
-export function verifyOtp(
-  db: Database.Database,
+export async function verifyOtp(
+  db: Db,
   input: {
     phoneNorm: string;
     code: string;
@@ -267,12 +267,12 @@ export function verifyOtp(
     purpose: OtpPurpose;
     userId?: number | null;
   },
-): OtpVerifyResult {
+): Promise<OtpVerifyResult> {
   return verifyCode(db, phoneKeyHash(input.phoneNorm), input);
 }
 
-export function verifyEmailOtp(
-  db: Database.Database,
+export async function verifyEmailOtp(
+  db: Db,
   input: {
     emailNorm: string;
     code: string;
@@ -280,75 +280,75 @@ export function verifyEmailOtp(
     purpose: OtpPurpose;
     userId?: number | null;
   },
-): OtpVerifyResult {
+): Promise<OtpVerifyResult> {
   return verifyCode(db, emailKeyHash(input.emailNorm), input);
 }
 
-function verifyCode(
-  db: Database.Database,
+async function verifyCode(
+  db: Db,
   phoneHash: string,
   input: { code: string; ipKey: string; purpose: OtpPurpose; userId?: number | null },
-): OtpVerifyResult {
+): Promise<OtpVerifyResult> {
   const ipRateKey = hmac(`otp-verify-ip:${input.ipKey}`);
   const phoneRateKey = hmac(`otp-verify-phone:${phoneHash}`);
   if (
-    rateCount(db, ipRateKey, HOUR_MS) >= OTP_VERIFY_PER_IP_HOUR ||
-    rateCount(db, phoneRateKey, HOUR_MS) >= OTP_VERIFY_PER_PHONE_HOUR
+    await rateCount(db, ipRateKey, HOUR_MS) >= OTP_VERIFY_PER_IP_HOUR ||
+    await rateCount(db, phoneRateKey, HOUR_MS) >= OTP_VERIFY_PER_PHONE_HOUR
   ) {
     return { ok: false, status: 429, error: "Çok fazla deneme. Biraz sonra tekrar dene." };
   }
-  rateNote(db, ipRateKey);
-  rateNote(db, phoneRateKey);
+  await rateNote(db, ipRateKey);
+  await rateNote(db, phoneRateKey);
 
   if (!/^\d{6}$/.test(input.code)) return INVALID;
 
   const now = new Date().toISOString();
-  return db.transaction((): OtpVerifyResult => {
-    const row = db
-      .prepare(
-        `SELECT id, salt, code_hash, expires_at, attempts, max_attempts
+  return db.transaction(async (): Promise<OtpVerifyResult> => {
+    const row = await db
+          .prepare(
+            `SELECT id, salt, code_hash, expires_at, attempts, max_attempts
          FROM auth_otps
          WHERE phone_hash = ? AND purpose = ? AND consumed_at IS NULL AND voided_at IS NULL
-           AND (? IS NULL OR user_id = ?)
+           AND (?::integer IS NULL OR user_id = ?::integer)
          ORDER BY id DESC LIMIT 1`,
-      )
-      .get(phoneHash, input.purpose, input.userId ?? null, input.userId ?? null) as
+          )
+          .get(phoneHash, input.purpose, input.userId ?? null, input.userId ?? null) as
       | OtpRow
       | undefined;
     if (!row) return INVALID;
     if (new Date(row.expires_at).getTime() <= Date.now()) {
-      db.prepare(`UPDATE auth_otps SET voided_at = ? WHERE id = ?`).run(now, row.id);
+      await db.prepare(`UPDATE auth_otps SET voided_at = ? WHERE id = ?`).run(now, row.id);
       return INVALID;
     }
     if (!safeEqual(row.code_hash, codeHash(row.salt, phoneHash, input.code))) {
       const attempts = row.attempts + 1;
-      db.prepare(
-        `UPDATE auth_otps SET attempts = ?, voided_at = CASE WHEN ? >= max_attempts THEN ? ELSE voided_at END
+      await db.prepare(
+                `UPDATE auth_otps SET attempts = ?, voided_at = CASE WHEN ? >= max_attempts THEN ? ELSE voided_at END
          WHERE id = ?`,
-      ).run(attempts, attempts, now, row.id);
+              ).run(attempts, attempts, now, row.id);
       return INVALID;
     }
-    const hit = db
-      .prepare(
-        `UPDATE auth_otps SET consumed_at = ?
+    const hit = await db
+          .prepare(
+            `UPDATE auth_otps SET consumed_at = ?
          WHERE id = ? AND consumed_at IS NULL AND voided_at IS NULL`,
-      )
-      .run(now, row.id);
+          )
+          .run(now, row.id);
     if (hit.changes !== 1) return INVALID;
     return { ok: true };
   })();
 }
 
 /** Housekeeping: drop expired codes, tickets, finished holds and old device rows. */
-export function purgeExpiredAuthRows(db: Database.Database) {
+export async function purgeExpiredAuthRows(db: Db) {
   const now = new Date().toISOString();
-  db.prepare(`DELETE FROM auth_otps WHERE created_at < ?`).run(since(2 * DAY_MS));
-  db.prepare(`DELETE FROM signup_tickets WHERE expires_at < ?`).run(now);
-  db.prepare(`DELETE FROM phone_holds WHERE release_at < ?`).run(now);
-  db.prepare(`DELETE FROM device_signups WHERE created_at < ?`).run(since(DEVICE_SIGNUP_WINDOW_MS));
-  db.prepare(`DELETE FROM register_attempts WHERE created_at < ?`).run(since(2 * DAY_MS));
+  await db.prepare(`DELETE FROM auth_otps WHERE created_at < ?`).run(since(2 * DAY_MS));
+  await db.prepare(`DELETE FROM signup_tickets WHERE expires_at < ?`).run(now);
+  await db.prepare(`DELETE FROM phone_holds WHERE release_at < ?`).run(now);
+  await db.prepare(`DELETE FROM device_signups WHERE created_at < ?`).run(since(DEVICE_SIGNUP_WINDOW_MS));
+  await db.prepare(`DELETE FROM register_attempts WHERE created_at < ?`).run(since(2 * DAY_MS));
   // Ended sessions are kept 30 days for "where am I signed in" questions, then dropped.
-  db.prepare(`DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?`).run(since(30 * DAY_MS), since(30 * DAY_MS));
+  await db.prepare(`DELETE FROM sessions WHERE expires_at < ? OR revoked_at < ?`).run(since(30 * DAY_MS), since(30 * DAY_MS));
   // Security events hold only hashed IP / browser data; kept one year.
-  db.prepare(`DELETE FROM security_events WHERE created_at < ?`).run(since(365 * DAY_MS));
+  await db.prepare(`DELETE FROM security_events WHERE created_at < ?`).run(since(365 * DAY_MS));
 }

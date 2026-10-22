@@ -19,7 +19,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!parsed.success) return noStoreJson({ error: "Geçersiz istek." }, 400);
   const reason = cleanAdminReason(parsed.data.reason);
   if (!reason) return noStoreJson({ error: "Gerekçe en az 3 karakter olmalı." }, 400);
-  const result = closeReport(getDb(), gate.user.id, id, parsed.data.outcome, reason);
+  const result = await closeReport(getDb(), gate.user.id, id, parsed.data.outcome, reason);
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
   return noStoreJson({ ok: true, closed: result.closed });
 }

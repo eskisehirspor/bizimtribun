@@ -29,8 +29,8 @@ function excerpt(text: string, max = 155) {
 
 async function publicTopic(topicId: string) {
   const id = parseIdParam(topicId);
-  const topic = id == null ? undefined : findLiveTopic(id);
-  if (!topic || !topicBoardOpen(topic)) return { topic: undefined, open: false };
+  const topic = id == null ? undefined : await findLiveTopic(id);
+  if (!topic || !await topicBoardOpen(topic)) return { topic: undefined, open: false };
   return { topic, open: topic.board === "general" };
 }
 
@@ -43,7 +43,7 @@ export async function generateMetadata({ params }: { params: Promise<{ topicId: 
   // Team tribunes are members-only: no title or excerpt for anyone who can't read it,
   // and never indexed.
   if (!open) {
-    if (!topicAccess(topic, await getSessionUser()).ok) {
+    if (!(await topicAccess(topic, await getSessionUser())).ok) {
       return { title: `Takım tribünü | ${SITE_NAME}`, robots: { index: false, follow: false } };
     }
     return { title: `${topic.title} | ${SITE_NAME}`, robots: { index: false, follow: false } };
@@ -79,12 +79,12 @@ export default async function TopicPage({ params }: { params: Promise<{ topicId:
   // load in the browser after the membership check, as before.
   if (!topic || !open) return <ForumTopicView />;
 
-  const first = listPosts(topic.id, 0, FORUM_PAGE_DEFAULT, null);
-  const initial = { topic: serializeTopic(topic, null), posts: first.posts, total: first.total } as TopicInitial;
+  const first = await listPosts(topic.id, 0, FORUM_PAGE_DEFAULT, null);
+  const initial = { topic: await serializeTopic(topic, null), posts: first.posts, total: first.total } as TopicInitial;
   const names = [initial.topic.author?.username, ...initial.posts.map((p) => p.author?.username)].filter(
     (n): n is string => Boolean(n),
   );
-  const publicNames = publicUsernames(getDb(), names);
+  const publicNames = await publicUsernames(getDb(), names);
   const jsonLd = graph(
     discussionForumPostingJsonLd({
       topic: initial.topic,
