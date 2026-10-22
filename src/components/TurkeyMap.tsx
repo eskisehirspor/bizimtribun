@@ -219,7 +219,6 @@ export default function TurkeyMap({ leaders, standings }: Props) {
       ) : (
         <div className="mt-3 min-h-[48px] font-ultras text-[20px] md:text-[24px] leading-tight tracking-wide border-[3px] border-black p-3 bg-[#FFEA00] -rotate-[0.4deg] shadow-[4px_4px_0_black]">
           Bir ile dokun ya da üzerine gel: özetini gör, sonra il sayfasına geç. Gri: henüz oy yok.
-          Çizgili: liderlik eşit.
         </div>
       )}
       <label className="mt-4 block max-w-[420px]">
