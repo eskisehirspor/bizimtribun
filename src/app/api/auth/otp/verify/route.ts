@@ -30,18 +30,10 @@ import {
   isDeviceId,
 } from "@/lib/device-limit";
 import { verifyChannel } from "@/lib/verify-channel";
-import {
-  attachAdmin2faCookie,
-  attachSessionCookie,
-  createSession,
-  readCookie,
-  sessionTtlMsForUser,
-  signupTicketCookieOptions,
-} from "@/lib/auth";
-import { createLoginChallenge, passwordLoginNextStep, recordSecurityEvent } from "@/lib/admin-2fa";
-import { isUserBanned, reconcileExpiredBan, toPublicUser } from "@/lib/users";
+import { readCookie, signupTicketCookieOptions } from "@/lib/auth";
+import { recordSecurityEvent } from "@/lib/admin-2fa";
 import { hashedIp } from "@/lib/stats";
-import { DEVICE_COOKIE, SIGNUP_TICKET_COOKIE, SIGNUP_TICKET_TTL_MS } from "@/lib/policy";
+import { ALREADY_MEMBER_ERROR, DEVICE_COOKIE, SIGNUP_TICKET_COOKIE, SIGNUP_TICKET_TTL_MS } from "@/lib/policy";
 
 const Body = z.object({
   phone: z.string().max(24).optional(),
@@ -50,9 +42,9 @@ const Body = z.object({
 });
 
 /**
- * Step 2: check the code. A verified account on this e-mail (or number, in
- * SMS mode) signs in; otherwise a short-lived sign-up ticket (httpOnly
- * cookie) is issued and the client continues with username + team.
+ * Step 2 of sign-up: check the code and issue a short-lived sign-up ticket
+ * (httpOnly cookie); the client continues with username + team. An address
+ * that already has an account is sent to the password sign-in.
  */
 export async function POST(req: Request) {
   const body = await readJsonBody(req);
@@ -93,20 +85,9 @@ export async function POST(req: Request) {
     identity.channel === "email"
       ? await findVerifiedUserByEmail(db, identity.emailNorm)
       : await findVerifiedUserByPhone(db, identity.phoneNorm);
+  // Members sign in with their password; a code only opens sign-up.
   if (existing) {
-    const user = await reconcileExpiredBan(existing);
-    if (isUserBanned(user)) {
-      await recordSecurityEvent(db, { userId: user.id, action: "otp_login_banned", success: false, ipHash: hashedIp(ip) });
-      return noStoreJson({ error: "Hesap askıya alınmış." }, 403);
-    }
-    await recordSecurityEvent(db, { userId: user.id, action: "otp_login", success: true, ipHash: hashedIp(ip) });
-    if (passwordLoginNextStep(user) === "need2fa") {
-      const challenge = await createLoginChallenge(db, user.id);
-      return attachAdmin2faCookie(noStoreJson({ ok: true, next: "2fa" }), challenge);
-    }
-    const raw = await createSession(user.id);
-    const res = noStoreJson({ ok: true, next: "home", user: toPublicUser(user) });
-    return attachSessionCookie(res, raw, sessionTtlMsForUser(user));
+    return noStoreJson({ error: ALREADY_MEMBER_ERROR, registered: true }, 409);
   }
 
   if (identity.channel === "sms" && await phoneHoldActive(db, identity.phoneNorm)) {

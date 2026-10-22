@@ -54,6 +54,10 @@ export const USER_EMAIL_VERIFY_TTL_MS = 24 * 60 * 60 * 1000;
 export const USER_EMAIL_RESEND_COOLDOWN_MS = 60 * 1000;
 export const USER_EMAIL_RESEND_PER_USER_HOUR = 3;
 export const USER_EMAIL_RESEND_PER_IP_HOUR = 8;
+export const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000;
+export const PASSWORD_RESET_COOLDOWN_MS = 60 * 1000;
+export const PASSWORD_RESET_PER_USER_HOUR = 3;
+export const PASSWORD_RESET_PER_IP_HOUR = 10;
 export const FORUM_PHONE_UNVERIFIED_ERROR =
   "Forumda yazabilmek için hesabını doğrulaman gerekiyor.";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -86,3 +90,6 @@ export const TEAM_REQUEST_MESSAGE_MAX = 500;
 export const TEAM_REQUESTS_PER_USER_HOUR = 3;
 export const TEAM_REQUESTS_PER_IP_HOUR = 8;
 export const MAX_JSON_BYTES = 8_192;
+
+export const ALREADY_MEMBER_ERROR =
+  "Bu adresle zaten üyesin. Giriş sayfasından şifrenle gir; şifreni unuttuysan \"Şifremi unuttum\" de.";

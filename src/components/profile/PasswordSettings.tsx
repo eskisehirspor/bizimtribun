@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import PasswordFields, { passwordReady } from "@/components/auth/PasswordFields";
 import { errorText, inputClass, Notice, postJson, primaryButton } from "@/components/auth/ui";
-import { hintClass, labelClass } from "@/components/ui";
+import { labelClass } from "@/components/ui";
 
-/** Set a first password, or change it (old password, unless just signed in with a code). */
+/** Set a first password, or change it with the old one. */
 export default function PasswordSettings() {
   const [hasPassword, setHasPassword] = useState<boolean | null>(null);
   const [current, setCurrent] = useState("");
@@ -58,7 +58,7 @@ export default function PasswordSettings() {
     <form onSubmit={(e) => void save(e)} className="space-y-3">
       <p className="font-mono text-[12px]">
         {hasPassword
-          ? "Şifreni değiştirebilirsin. Şifreni unuttuysan çıkış yapıp e-posta koduyla gir; girişten sonraki 15 dakika içinde eski şifre sorulmaz."
+          ? "Şifreni değiştirebilirsin. Eski şifreni unuttuysan çıkış yapıp giriş sayfasında \"Şifremi unuttum\" de."
           : "Henüz şifren yok. Bir şifre belirlersen e-postan ve şifrenle giriş yapabilirsin."}
       </p>
       {hasPassword && (
@@ -71,8 +71,8 @@ export default function PasswordSettings() {
             className={inputClass}
             autoComplete="current-password"
             maxLength={128}
+            required
           />
-          <span className={hintClass}>Az önce kodla girdiysen boş bırakabilirsin.</span>
         </label>
       )}
       <PasswordFields

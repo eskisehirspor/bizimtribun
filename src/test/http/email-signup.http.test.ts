@@ -126,12 +126,11 @@ test("e-mail sign-up: code → account verified by e-mail with its permanent vot
   assert.equal(dev.length, 1);
   assert.deepEqual(Object.keys(dev[0]).sort(), ["created_at", "device_hash", "id"]);
 
-  // The same address signs in again, also written another way.
+  // The same address, also written another way, gets no second code: members sign in with a password.
   await ageOtps();
   const again = await sendCode(email.toUpperCase(), device);
-  const login = await checkCode(email.toUpperCase(), (again.json as { devCode: string }).devCode, device);
-  assert.equal((login.json as { next: string }).next, "home");
-  assert.equal((login.json as { user: { id: number } }).user.id, user.id);
+  assert.equal(again.status, 409);
+  assert.equal((again.json as { registered: boolean }).registered, true);
 });
 
 test("gmail dots and +tags are one inbox: no second account, no second vote", async () => {
@@ -140,8 +139,7 @@ test("gmail dots and +tags are one inbox: no second account, no second vote", as
   assert.equal(first.status, 200, first.text);
   await ageOtps();
   const sent = await sendCode("aliveli+ikinci@googlemail.com", testDevice());
-  const again = await checkCode("aliveli+ikinci@googlemail.com", (sent.json as { devCode: string }).devCode, testDevice());
-  assert.equal((again.json as { next: string }).next, "home");
+  assert.equal(sent.status, 409);
   assert.equal(await total(), 1);
 });
 

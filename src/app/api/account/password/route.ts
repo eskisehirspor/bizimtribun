@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { getSessionUser, requireActiveUser, sessionCreatedAt } from "@/lib/auth";
+import { getSessionUser, requireActiveUser } from "@/lib/auth";
 import { PASSWORD_RULE_ERROR } from "@/lib/accounts";
 import { writeAudit } from "@/lib/audit";
 import { getDb } from "@/lib/db";
@@ -13,9 +13,6 @@ const Body = z
   })
   .strict();
 
-/** A code sign-in this recent counts as "forgot my password": no old password needed. */
-const FRESH_SIGN_IN_MS = 15 * 60 * 1000;
-
 /** Whether the member has a password, so /hesap can say "set" or "change". */
 export async function GET(req: Request) {
   const active = requireActiveUser(await getSessionUser(req));
@@ -24,9 +21,9 @@ export async function GET(req: Request) {
 }
 
 /**
- * Sets or changes the password. Changing one needs the current password,
- * unless the member signed in with an e-mail/SMS code in the last 15 minutes
- * (the "forgot my password" path). Other sessions stay signed in.
+ * Sets or changes the password. Changing one needs the current password;
+ * a forgotten one is reset from the mailed link instead. Other sessions stay
+ * signed in.
  */
 export async function POST(req: Request) {
   const body = await readJsonBody(req);
@@ -42,13 +39,9 @@ export async function POST(req: Request) {
   const db = getDb();
   const user = active.user;
   if (user.password_hash) {
-    const signedInAt = await sessionCreatedAt(req);
-    const fresh = signedInAt !== null && Date.now() - signedInAt < FRESH_SIGN_IN_MS;
-    if (!fresh) {
-      const current = parsed.data.currentPassword ?? "";
-      if (!current || !(await verifyPassword(current, user.password_hash))) {
-        return noStoreJson({ error: "Mevcut şifren hatalı." }, 403);
-      }
+    const current = parsed.data.currentPassword ?? "";
+    if (!current || !(await verifyPassword(current, user.password_hash))) {
+      return noStoreJson({ error: "Mevcut şifren hatalı." }, 403);
     }
   }
 

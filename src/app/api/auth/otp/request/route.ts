@@ -14,7 +14,7 @@ import {
   PHONE_FORMAT_ERROR,
   requestIpKey,
 } from "@/lib/otp-http";
-import { DEVICE_COOKIE } from "@/lib/policy";
+import { ALREADY_MEMBER_ERROR, DEVICE_COOKIE } from "@/lib/policy";
 import { verifyChannel } from "@/lib/verify-channel";
 import { findUserByEmailNorm, findUserByPhoneNorm } from "@/lib/users";
 
@@ -30,11 +30,10 @@ export async function GET() {
 }
 
 /**
- * Step 1 of sign-in and sign-up: send a code by e-mail or SMS, whichever
- * VERIFY_CHANNEL selects. On the sign-up page (`?amac=kayit`) an address that
- * already has an account gets "already a member" instead of a code; that
- * answer comes only after the CAPTCHA and inside the send limits. Sign-in
- * answers the same either way. The browser gets a device cookie here;
+ * Step 1 of sign-up: send a code by e-mail or SMS, whichever VERIFY_CHANNEL
+ * selects. Members sign in with their password, so an address that already
+ * has an account gets "already a member" instead of a code; that answer
+ * comes only after the CAPTCHA. The browser gets a device cookie here;
  * sign-up counts accounts per device.
  */
 export async function POST(req: Request) {
@@ -60,19 +59,9 @@ export async function POST(req: Request) {
   const captcha = await checkCaptcha(parsed.data.captchaToken, ip);
   if (captcha) return noStoreJson({ error: captcha.error }, captcha.status);
 
-  if (new URL(req.url).searchParams.get("amac") === "kayit") {
-    const existing = email ? await findUserByEmailNorm(email.norm) : await findUserByPhoneNorm(phoneNorm!);
-    if (existing && !existing.deleted_at) {
-      return noStoreJson(
-        {
-          error: email
-            ? "Bu e-posta ile zaten üyesin. Giriş sayfasından şifrenle ya da kodla giriş yap."
-            : "Bu telefonla zaten üyesin. Giriş sayfasından giriş yap.",
-          registered: true,
-        },
-        409,
-      );
-    }
+  const existing = email ? await findUserByEmailNorm(email.norm) : await findUserByPhoneNorm(phoneNorm!);
+  if (existing && !existing.deleted_at) {
+    return noStoreJson({ error: ALREADY_MEMBER_ERROR, registered: true }, 409);
   }
 
   const db = getDb();

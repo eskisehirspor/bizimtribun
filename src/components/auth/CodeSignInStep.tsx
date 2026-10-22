@@ -28,17 +28,15 @@ type Props = {
   channel: VerifyChannel;
   onVerified: (data: Record<string, unknown>) => void;
   submitLabel?: string;
-  /** On the sign-up page an address that already has an account is told so instead of getting a code. */
-  forSignup?: boolean;
 };
 
-/** Sign-in / sign-up code step on the active channel. */
-export default function CodeSignInStep({ channel, onVerified, submitLabel, forSignup }: Props) {
+/** Sign-up code step on the active channel. */
+export default function CodeSignInStep({ channel, onVerified, submitLabel }: Props) {
   const Step = channel === "sms" ? PhoneOtpStep : EmailOtpStep;
   return (
     <Step
       key={channel}
-      requestUrl={forSignup ? "/api/auth/otp/request?amac=kayit" : "/api/auth/otp/request"}
+      requestUrl="/api/auth/otp/request"
       verifyUrl="/api/auth/otp/verify"
       submitLabel={submitLabel}
       onVerified={onVerified}

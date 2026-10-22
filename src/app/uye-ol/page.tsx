@@ -85,20 +85,11 @@ function Flow() {
   }
 
   async function onVerified(data: Record<string, unknown>) {
-    if (data.next === "signup") {
-      setLegacyHint(Boolean(data.legacyAccountHint));
-      const t = await fetch("/api/auth/signup", { cache: "no-store" }).then((r) => r.json());
-      setVerifiedAs(ticketLabel(t));
-      setTicketChannel(t.channel ?? null);
-      setStep("profile");
-      return;
-    }
-    if (data.next === "2fa") {
-      router.push(`/giris?next=${encodeURIComponent(next)}&adim=2fa`);
-      return;
-    }
-    await refresh();
-    router.push(next);
+    setLegacyHint(Boolean(data.legacyAccountHint));
+    const t = await fetch("/api/auth/signup", { cache: "no-store" }).then((r) => r.json());
+    setVerifiedAs(ticketLabel(t));
+    setTicketChannel(t.channel ?? null);
+    setStep("profile");
   }
 
   async function submit(teamId: string, city: string | null) {
@@ -156,7 +147,7 @@ function Flow() {
               ? "Bizim Tribün'de her hesap SMS ile doğrulanmış bir cep telefonuna bağlıdır ve bir telefonla yalnızca bir hesap açılır."
               : "Bizim Tribün'de her hesap doğrulanmış bir e-posta adresine bağlıdır; bir adresle ve bir cihazdan sınırlı sayıda hesap açılır."}{" "}
             Zaten üyeysen{" "}
-            <Link href="/giris" className="underline">
+            <Link href={`/giris?next=${encodeURIComponent(next)}`} className="underline">
               giriş sayfasından
             </Link>{" "}
             gir.
@@ -165,7 +156,6 @@ function Flow() {
             channel={channel}
             onVerified={(d) => void onVerified(d)}
             submitLabel="DOĞRULA VE DEVAM ET"
-            forSignup
           />
         </>
       )}
@@ -314,8 +304,8 @@ function Flow() {
             onRepeat={setPassword2}
           />
           <p className={hintClass}>
-            Sonraki girişlerinde e-postan ve bu şifreyle girersin. Şifreni unutursan e-postana gelen
-            kodla girip yenisini belirleyebilirsin.
+            Sonraki girişlerinde e-postan ve bu şifreyle girersin. Şifreni unutursan giriş sayfasındaki
+            &quot;Şifremi unuttum&quot; ile e-postana gelen linkten yenisini belirlersin.
           </p>
           <fieldset className="space-y-2 border-[3px] border-black p-3">
             <legend className={`${labelClass} px-1`}>ONAYLAR (HEPSİ ZORUNLU)</legend>

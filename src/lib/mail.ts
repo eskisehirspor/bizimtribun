@@ -179,3 +179,21 @@ export async function sendDeleteEmail(to: string, token: string) {
   }
   return { ...result, link };
 }
+
+export async function sendPasswordResetEmail(to: string, token: string) {
+  const link = `${appUrl()}/sifre-sifirla?token=${token}`;
+  const html = mailLayout({
+    preheader: "Yeni şifreni belirle.",
+    title: "Şifreni belirle",
+    body:
+      para("Yeni şifreni belirlemek için aşağıdaki düğmeye tıkla. Bağlantı <b>30 dakika</b> geçerli ve tek kullanımlık.") +
+      button(link, "Şifremi belirle"),
+    footer: "Bu isteği sen yapmadıysan bu maili yok say, şifren değişmez.",
+  });
+  const file = path.join(process.cwd(), "data", "last-reset-link.txt");
+  const result = await sendHtml(to, "Şifreni belirle — Bizim Tribün", html, file);
+  if (result.dev && !isProd()) {
+    fs.writeFileSync(file, `${to}\n${link}\n`, "utf8");
+  }
+  return { ok: result.ok, dev: result.dev };
+}

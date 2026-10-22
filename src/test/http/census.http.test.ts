@@ -163,15 +163,16 @@ test("sign-up needs a fresh, single-use ticket and the permanent-team confirmati
   assert.equal((await stats()).total, 1);
 });
 
-test("same phone cannot open a second account; verifying again signs in", async () => {
+test("same phone cannot open a second account; a registered number gets no code", async () => {
   const p = phone();
-  const u = await smsSignup({ phone: p, username: name() });
+  await smsSignup({ phone: p, username: name() });
+
+  await ageOtps();
+  const again = await sendCode(p);
+  assert.equal(again.status, 409);
+  assert.equal((again.json as { registered: boolean }).registered, true);
 
   // A second ticket obtained before the first sign-up finished cannot be used after it.
-  await ageOtps();
-  const again = await checkCode(p, lastCode(await sendCode(p)));
-  assert.equal((again.json as { next: string }).next, "home");
-  assert.equal(((again.json as { user: { id: number } }).user).id, u.id);
 
   const p2 = phone();
   const c1 = await checkCode(p2, lastCode(await sendCode(p2)));

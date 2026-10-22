@@ -34,8 +34,9 @@ export default function TermsText() {
           çoğaltmak için birden fazla hesap açmak yasaktır.
         </li>
         <li>
-          <strong>Hesap güvenliği:</strong> Hesabına giriş e-postana (ya da SMS ile) gelen kodla
-          yapılır. Kodu kimseyle paylaşma.
+          <strong>Hesap güvenliği:</strong> Hesabına e-postan ve kendi belirlediğin şifreyle girersin.
+          Şifreni unutursan e-postana gelen tek kullanımlık linkle yenisini belirlersin. Şifreni ve
+          linki kimseyle paylaşma.
           Hesabından yapılan işlemlerden sen sorumlusun. Yetkisiz kullanım fark edersen bize hemen bildir.
         </li>
         <li>

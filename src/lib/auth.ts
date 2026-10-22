@@ -182,16 +182,6 @@ export async function userFromSessionToken(raw: string | null | undefined) {
   return user;
 }
 
-/** When the current session was opened (sign-in time), or null without one. */
-export async function sessionCreatedAt(req?: Request) {
-  const raw = await readSessionToken(req);
-  if (!raw) return null;
-  const row = await getDb()
-      .prepare(`SELECT created_at FROM sessions WHERE token_hash = ?`)
-      .get(tokenHash(raw)) as { created_at: string } | undefined;
-  return row ? Date.parse(row.created_at) : null;
-}
-
 export async function getSessionUser(req?: Request) {
   await applyDevAdminBootstrap();
   const token = await readSessionToken(req);
