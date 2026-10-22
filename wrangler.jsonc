@@ -23,5 +23,26 @@
       // Only used by `wrangler dev`; the deployed Worker uses Supabase.
       "localConnectionString": "postgres://postgres@localhost:5432/postgres"
     }
-  ]
+  ],
+  // Test copy at bizimtribun-staging.bizimtribun.workers.dev for live checks
+  // with throwaway accounts: `npx opennextjs-cloudflare deploy --env staging`.
+  // Same database; its own APP_SECRET (wrangler secret put APP_SECRET --env staging).
+  "env": {
+    "staging": {
+      "name": "bizimtribun-staging",
+      "vars": {
+        "APP_URL": "https://bizimtribun-staging.bizimtribun.workers.dev",
+        "TRUST_PROXY": "cloudflare",
+        "VERIFY_CHANNEL": "email",
+        "MAIL_LINK_URL": "https://bizimtribun-staging.bizimtribun.workers.dev"
+      },
+      "hyperdrive": [
+        {
+          "binding": "HYPERDRIVE",
+          "id": "b52aecddb119402cbe903779272ed73f",
+          "localConnectionString": "postgres://postgres@localhost:5432/postgres"
+        }
+      ]
+    }
+  }
 }
