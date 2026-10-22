@@ -197,11 +197,6 @@ export default function HomeClient({
               <div className="font-anton text-[28px] sm:text-[34px] md:text-[38px] leading-none tabular-nums mt-1">
                 {preview.total.toLocaleString("tr-TR")}
               </div>
-              {opening > 0 && (
-                <div className="font-mono text-[9px] md:text-[10px] leading-tight mt-0.5">
-                  {opening.toLocaleString("tr-TR")} AÇILIŞ VERİSİ DAHİL
-                </div>
-              )}
               <div className="font-mono text-[10px] md:text-[11px] mt-1 leading-tight">
                 KİM ÖNDE?
                 <br className="md:hidden" />
