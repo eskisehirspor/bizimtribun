@@ -41,7 +41,7 @@ export default async function Home() {
   const total = await totalVerified();
   return (
     <>
-      <JsonLd data={graph(organizationJsonLd(), websiteJsonLd())} />
+      <JsonLd data={graph(organizationJsonLd(Object.values(settings.socialLinks)), websiteJsonLd())} />
       <HomeClient
         initialTeams={teams}
         initialTotal={total}

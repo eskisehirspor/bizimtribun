@@ -25,13 +25,16 @@ export function jsonLdString(data: unknown) {
 
 type JsonLd = Record<string, unknown>;
 
-export function organizationJsonLd(): JsonLd {
+/** `sameAs` ties the site to its social profiles, so search and AI answers know they are one brand. */
+export function organizationJsonLd(sameAs: string[] = []): JsonLd {
+  const profiles = sameAs.filter((url) => url.startsWith("https://"));
   return {
     "@type": "Organization",
     "@id": `${siteOrigin()}/#organization`,
     name: SITE_NAME,
     url: `${siteOrigin()}/`,
     logo: { "@type": "ImageObject", url: absoluteUrl("/logo.png"), width: 512, height: 512 },
+    ...(profiles.length ? { sameAs: profiles } : {}),
   };
 }
 

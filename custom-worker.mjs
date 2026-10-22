@@ -9,6 +9,7 @@ import openNext from "./.open-next/worker.js";
 const SHARED_PAGES = new Map([
   ["/", 60],
   ["/sitemap.xml", 3600],
+  ["/llms.txt", 600],
 ]);
 
 const NO_STORE = "private, no-cache, no-store, max-age=0, must-revalidate";
