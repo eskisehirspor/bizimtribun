@@ -39,7 +39,7 @@ function Form() {
         });
         const data = await res.json();
         if (!res.ok) {
-          setError(forumApiError(res.status, data.error));
+          setError(typeof data.error === "string" ? data.error : forumApiError(res.status));
           return;
         }
         await finishLogin();
@@ -53,7 +53,7 @@ function Form() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(forumApiError(res.status, data.error));
+        setError(typeof data.error === "string" ? data.error : forumApiError(res.status));
         return;
       }
       if (data.need2fa) {
