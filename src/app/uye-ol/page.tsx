@@ -13,6 +13,7 @@ import KvkkText from "@/components/legal/KvkkText";
 import TermsText from "@/components/legal/TermsText";
 import { errorText, inputClass, Notice, postJson, primaryButton } from "@/components/auth/ui";
 import { safeNextPath } from "@/lib/forum-ui";
+import { foldTr } from "@/lib/teams";
 import { hintClass, labelClass } from "@/components/ui";
 import { LEGAL_DOCS } from "@/lib/legal";
 import { formatTrMobileInput } from "@/lib/phone";
@@ -24,6 +25,11 @@ const STEPS: { id: Step; label: string }[] = [
   { id: "profile", label: "2. PROFİL" },
   { id: "team", label: "3. TAKIM" },
 ];
+
+/** Lower case, Turkish letters folded to ASCII (Şimşek → simsek), no spaces. */
+function asciiUsername(value: string) {
+  return foldTr(value).replace(/\s+/g, "");
+}
 
 function ticketLabel(t: { phoneMasked?: string | null; emailMasked?: string | null }) {
   if (t.emailMasked) return `E-posta doğrulandı: ${t.emailMasked}`;
@@ -163,7 +169,7 @@ function Flow() {
       {step === "profile" && (
         <form
           className="space-y-3"
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault();
             if (!/^[a-z0-9_]{3,20}$/.test(username)) {
               setError("Takma ad 3–20 karakter olmalı; küçük harf, rakam ve alt çizgi.");
@@ -185,6 +191,13 @@ function Flow() {
               setError("Doğum tarihini seç.");
               return;
             }
+            const check = await fetch(`/api/auth/username?name=${encodeURIComponent(username)}`)
+              .then((r) => r.json() as Promise<{ available?: boolean; error?: string }>)
+              .catch(() => null);
+            if (check && check.available === false) {
+              setError(check.error ?? "Bu takma ad kullanılamaz.");
+              return;
+            }
             setError(null);
             setStep("team");
           }}
@@ -203,7 +216,7 @@ function Flow() {
             <input
               required
               value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().trim())}
+              onChange={(e) => setUsername(asciiUsername(e.target.value))}
               className={inputClass}
               autoComplete="username"
               maxLength={20}
@@ -211,7 +224,7 @@ function Flow() {
             />
             <span id="u-help" className={hintClass}>
               Forumda ve profilinde görünen tek kimliğin. 3–20 karakter: küçük harf (a-z), rakam (0-9)
-              ve alt çizgi (_).
+              ve alt çizgi (_). Türkçe harfler kendiliğinden çevrilir (ş → s).
             </span>
           </label>
           <fieldset className="block">
