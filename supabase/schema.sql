@@ -514,6 +514,20 @@ CREATE TABLE IF NOT EXISTS site_settings (
   updated_by_user_id INTEGER REFERENCES users(id)
 );
 
+-- Usernames nobody can sign up with (club names, cities, staff-like names).
+-- `name` is the flat form: lower-case ASCII letters and digits only.
+-- Releasing one keeps the row, so a re-run of the seed does not lock it again.
+CREATE TABLE IF NOT EXISTS reserved_usernames (
+  name TEXT PRIMARY KEY CHECK (name ~ '^[a-z0-9]{3,20}$'),
+  kind TEXT NOT NULL CHECK (kind IN ('team', 'city', 'generic', 'manual')),
+  team_id TEXT REFERENCES teams(id),
+  note TEXT,
+  created_at TEXT NOT NULL,
+  released_at TEXT,
+  released_by_user_id INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_reserved_usernames_team ON reserved_usernames(team_id);
+
 -- Guards the database keeps on its own, whatever the app does.
 
 CREATE OR REPLACE FUNCTION bt_abort() RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$

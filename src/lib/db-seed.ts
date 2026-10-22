@@ -5,6 +5,8 @@ import {
   FORUM_SYSTEM_USERNAME,
 } from "./forum-system";
 import { CURRENT_POLL_ID } from "./policy";
+import { PROVINCES } from "./provinces";
+import { buildReservedUsernames } from "./reserved-usernames";
 import { FORUM_ACTIVE_TEAM_IDS, LEAGUE_LABEL, LEAGUE_ORDER, TEAMS } from "./teams";
 
 function lit(value: string | number | null): string {
@@ -15,8 +17,9 @@ function lit(value: string | number | null): string {
 
 /**
  * The rows every database starts with: leagues, the team catalog, the forum's
- * system account and its pinned starter topics. Safe to run again: the code
- * catalog refreshes teams no admin has edited, and nothing is duplicated.
+ * system account, its pinned starter topics and the reserved usernames. Safe
+ * to run again: the code catalog refreshes teams no admin has edited, and
+ * nothing is duplicated.
  */
 export function seedSql(now = new Date().toISOString()): string {
   const out: string[] = [];
@@ -75,6 +78,15 @@ WHERE u.email_norm = ${lit(FORUM_SYSTEM_EMAIL)}
     WHERE f.team_id = t.id AND f.title = s.title AND f.deleted_at IS NULL
   )
 ORDER BY t.ord, s.ord;`,
+  );
+
+  // A name an admin released stays released: existing rows are left alone.
+  out.push(
+    `INSERT INTO reserved_usernames (name, kind, team_id, note, created_at) VALUES
+${buildReservedUsernames(TEAMS, PROVINCES)
+  .map((r) => `  (${lit(r.name)}, ${lit(r.kind)}, ${lit(r.teamId)}, ${lit(r.note)}, ${lit(now)})`)
+  .join(",\n")}
+ON CONFLICT (name) DO NOTHING;`,
   );
 
   return out.join("\n\n") + "\n";

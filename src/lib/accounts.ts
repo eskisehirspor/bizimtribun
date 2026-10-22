@@ -14,6 +14,7 @@ import {
 import { isProvince } from "./provinces";
 import { isUserBanned, isUsername, normalizeUsername, type UserRow } from "./users";
 import { isReservedName } from "./name";
+import { isUsernameReserved } from "./reserved-usernames";
 import { isTrMobile, normalizePhone } from "./phone";
 import { hashPassword, isStrongPassword } from "./password";
 
@@ -214,6 +215,26 @@ export function ageFromBirthDate(raw: string, today = new Date()) {
   return age;
 }
 
+/**
+ * Why a new member may not take `usernameNorm`, or null when the format is
+ * fine and the name is not held back. Whether it is taken is checked apart.
+ */
+export async function usernameProblem(db: Db, usernameNorm: string) {
+  if (!isUsername(usernameNorm)) {
+    return {
+      status: 400,
+      error: "Kullanıcı adı 3–20 karakter olmalı; yalnızca küçük harf, rakam ve alt çizgi.",
+    };
+  }
+  if (usernameNorm.startsWith("silinmis_") || isReservedName(usernameNorm)) {
+    return { status: 400, error: "Bu kullanıcı adı kullanılamaz." };
+  }
+  if (await isUsernameReserved(db, usernameNorm)) {
+    return { status: 409, error: "Bu kullanıcı adı ayrılmış, başka bir ad seç." };
+  }
+  return null;
+}
+
 export type SignupResult =
   | { ok: true; userId: number }
   | { ok: false; status: number; error: string };
@@ -224,16 +245,8 @@ export type SignupResult =
  */
 export async function signupWithTicket(db: Db, input: SignupInput): Promise<SignupResult> {
   const usernameNorm = normalizeUsername(input.username);
-  if (!isUsername(usernameNorm)) {
-    return {
-      ok: false,
-      status: 400,
-      error: "Kullanıcı adı 3–20 karakter olmalı; yalnızca küçük harf, rakam ve alt çizgi.",
-    };
-  }
-  if (usernameNorm.startsWith("silinmis_") || isReservedName(usernameNorm)) {
-    return { ok: false, status: 400, error: "Bu kullanıcı adı kullanılamaz." };
-  }
+  const usernameError = await usernameProblem(db, usernameNorm);
+  if (usernameError) return { ok: false, ...usernameError };
   const displayName = (input.displayName ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
   if (displayName && /[<>]/.test(displayName)) {
     return { ok: false, status: 400, error: "Görünen ad < veya > içeremez." };
