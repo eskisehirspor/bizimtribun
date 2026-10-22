@@ -157,6 +157,7 @@ function Flow() {
             channel={channel}
             onVerified={(d) => void onVerified(d)}
             submitLabel="DOĞRULA VE DEVAM ET"
+            forSignup
           />
         </>
       )}

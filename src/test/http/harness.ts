@@ -327,4 +327,5 @@ export const LEGAL_OK = {
   confirmAge: true,
   termsVersion: TERMS_VERSION,
   privacyVersion: PRIVACY_NOTICE_VERSION,
+  password: TEST_PASSWORD,
 } as const;

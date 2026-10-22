@@ -42,6 +42,7 @@ const Body = z.object({
   birthDate: z.string().max(10),
   phone: z.string().max(24).optional().nullable(),
   marketingConsent: z.boolean().optional(),
+  password: z.string().max(128),
 });
 
 export async function GET(req: Request) {
@@ -101,6 +102,7 @@ export async function POST(req: Request) {
       birthDate: parsed.data.birthDate,
       phone: parsed.data.phone,
       marketingConsent: parsed.data.marketingConsent === true,
+      password: parsed.data.password,
     });
   if (!result.ok) return noStoreJson({ error: result.error }, result.status);
 

@@ -124,7 +124,6 @@ export default function TurkeyMap({ leaders, standings }: Props) {
             : t
               ? `url(#${uid}-il-${idx})`
               : NEUTRAL_FILL;
-          const active = shown === il.name;
           return (
             <g
               key={il.name}
@@ -146,13 +145,35 @@ export default function TurkeyMap({ leaders, standings }: Props) {
             >
               {il.paths.map((_, i) => (
                 <use
+                  key={i}
+                  href={`#${uid}-p-${idx}-${i}`}
+                  fill={fill}
+                  stroke="#1A1A1A"
+                  strokeWidth={1.5}
+                  strokeLinejoin="round"
+                  paintOrder="fill stroke"
+                />
+              ))}
+            </g>
+          );
+        })}
+        {/* The hovered or picked province is drawn again on top, so its yellow
+            outline is never hidden under the neighbours' borders. */}
+        {data.provinces.map((il, idx) => {
+          if (shown !== il.name) return null;
+          const lead = leaders[il.name];
+          const t = lead && !lead.tied ? getTeam(lead.teamId) : undefined;
+          const fill = lead?.tied ? `url(#${uid}-tie)` : t ? `url(#${uid}-il-${idx})` : NEUTRAL_FILL;
+          return (
+            <g key={`active-${il.name}`} className="pointer-events-none">
+              {il.paths.map((_, i) => (
+                <use
                   key={`halo-${i}`}
                   href={`#${uid}-p-${idx}-${i}`}
                   fill="none"
-                  stroke={active ? "#FFEA00" : "transparent"}
-                  strokeWidth={active && !t ? 5 : 3.4}
+                  stroke="#FFEA00"
+                  strokeWidth={6}
                   strokeLinejoin="round"
-                  className="pointer-events-none"
                 />
               ))}
               {il.paths.map((_, i) => (
@@ -160,10 +181,9 @@ export default function TurkeyMap({ leaders, standings }: Props) {
                   key={i}
                   href={`#${uid}-p-${idx}-${i}`}
                   fill={fill}
-                  stroke={active ? "#111" : "#1A1A1A"}
-                  strokeWidth={active ? 2.15 : 1.5}
+                  stroke="#111"
+                  strokeWidth={1.6}
                   strokeLinejoin="round"
-                  paintOrder="fill stroke"
                 />
               ))}
             </g>

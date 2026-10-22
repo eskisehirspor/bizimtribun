@@ -16,6 +16,7 @@ import {
 } from "@/lib/otp-http";
 import { DEVICE_COOKIE } from "@/lib/policy";
 import { verifyChannel } from "@/lib/verify-channel";
+import { findUserByEmailNorm, findUserByPhoneNorm } from "@/lib/users";
 
 const Body = z.object({
   phone: z.string().max(24).optional(),
@@ -30,9 +31,11 @@ export async function GET() {
 
 /**
  * Step 1 of sign-in and sign-up: send a code by e-mail or SMS, whichever
- * VERIFY_CHANNEL selects. The answer is the same whether or not an account
- * exists, so this cannot be used to look up who is registered. The browser
- * gets a device cookie here; sign-up counts accounts per device.
+ * VERIFY_CHANNEL selects. On the sign-up page (`?amac=kayit`) an address that
+ * already has an account gets "already a member" instead of a code; that
+ * answer comes only after the CAPTCHA and inside the send limits. Sign-in
+ * answers the same either way. The browser gets a device cookie here;
+ * sign-up counts accounts per device.
  */
 export async function POST(req: Request) {
   const body = await readJsonBody(req);
@@ -56,6 +59,21 @@ export async function POST(req: Request) {
   const ip = await requestIpKey();
   const captcha = await checkCaptcha(parsed.data.captchaToken, ip);
   if (captcha) return noStoreJson({ error: captcha.error }, captcha.status);
+
+  if (new URL(req.url).searchParams.get("amac") === "kayit") {
+    const existing = email ? await findUserByEmailNorm(email.norm) : await findUserByPhoneNorm(phoneNorm!);
+    if (existing && !existing.deleted_at) {
+      return noStoreJson(
+        {
+          error: email
+            ? "Bu e-posta ile zaten üyesin. Giriş sayfasından şifrenle ya da kodla giriş yap."
+            : "Bu telefonla zaten üyesin. Giriş sayfasından giriş yap.",
+          registered: true,
+        },
+        409,
+      );
+    }
+  }
 
   const db = getDb();
   const result = email

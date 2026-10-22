@@ -15,6 +15,7 @@ import { isProvince } from "./provinces";
 import { isUserBanned, isUsername, normalizeUsername, type UserRow } from "./users";
 import { isReservedName } from "./name";
 import { isTrMobile, normalizePhone } from "./phone";
+import { hashPassword, isStrongPassword } from "./password";
 
 function ticketHash(raw: string) {
   return hmac(`signup-ticket:${raw}`);
@@ -182,9 +183,14 @@ export type SignupInput = {
   phone?: string | null;
   /** Separate, optional consent to campaign SMS. Never a condition of sign-up. */
   marketingConsent?: boolean;
+  /** Lets the member sign in with e-mail + password; codes stay as the fallback. */
+  password: string;
 };
 
 export const MIN_SIGNUP_AGE = 13;
+
+export const PASSWORD_RULE_ERROR =
+  "Şifre en az 8 karakter olmalı; büyük harf, küçük harf, rakam ve özel karakter içermeli.";
 
 const NAME_RE = /^[\p{L}][\p{L}' .-]{0,39}$/u;
 
@@ -258,6 +264,10 @@ export async function signupWithTicket(db: Db, input: SignupInput): Promise<Sign
   if (typedPhone && !isTrMobile(typedPhone)) {
     return { ok: false, status: 400, error: "Cep telefonunu 5XX XXX XX XX biçiminde yaz." };
   }
+  if (!isStrongPassword(input.password ?? "")) {
+    return { ok: false, status: 400, error: PASSWORD_RULE_ERROR };
+  }
+  const passwordHash = await hashPassword(input.password);
 
   try {
     return await db.transaction(async (): Promise<SignupResult> => {
@@ -315,8 +325,8 @@ export async function signupWithTicket(db: Db, input: SignupInput): Promise<Sign
            (username, username_norm, display_name, status, role, created_at, updated_at,
             phone, phone_norm, phone_verified_at, email, email_norm, email_verified_at,
             first_name, last_name, birth_date, marketing_consent_at,
-            city, terms_version, terms_accepted_at)
-           VALUES (?, ?, ?, 'active', 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            city, terms_version, terms_accepted_at, password_hash)
+           VALUES (?, ?, ?, 'active', 'user', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                   )
                   .run(
                     usernameNorm,
@@ -337,6 +347,7 @@ export async function signupWithTicket(db: Db, input: SignupInput): Promise<Sign
                     city,
                     TERMS_VERSION,
                     now,
+                    passwordHash,
                   );
           await noteDeviceSignup(db, input.deviceHash, now);
           const userId = Number(info.lastInsertRowid);
