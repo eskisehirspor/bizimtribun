@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import ForumShell from "@/components/ForumShell";
+import BirthDateSelect from "@/components/auth/BirthDateSelect";
 import CodeSignInStep, { useVerifyChannel } from "@/components/auth/CodeSignInStep";
 import LegalReadModal from "@/components/auth/LegalReadModal";
 import PasswordFields, { passwordReady } from "@/components/auth/PasswordFields";
@@ -293,23 +294,13 @@ function Flow() {
               (İsteğe bağlı, istediğin zaman Hesabım sayfasından geri alabilirsin.)
             </span>
           </label>
-          <label className="block">
+          <div className="block">
             <span className={labelClass}>DOĞUM TARİHİ</span>
-            <input
-              required
-              type="date"
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
-              className={inputClass}
-              autoComplete="bday"
-              min="1900-01-01"
-              max={new Date().toISOString().slice(0, 10)}
-              aria-describedby="bday-help"
-            />
+            <BirthDateSelect value={birthDate} onChange={setBirthDate} describedBy="bday-help" />
             <span id="bday-help" className={hintClass}>
               Yaş sınırı için. 13 yaşından küçükler üye olamaz. Herkese açık görünmez.
             </span>
-          </label>
+          </div>
           <PasswordFields
             password={password}
             repeat={password2}
