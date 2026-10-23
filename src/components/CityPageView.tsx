@@ -9,7 +9,7 @@ import type { CityTeamRow } from "@/lib/city-rank";
 import type { CityHistoryPoint } from "@/lib/city-stats";
 import BackLink from "@/components/BackLink";
 import CityShare from "@/components/CityShare";
-import { btnSecondary } from "@/components/ui";
+import { btnPrimary, btnSecondary } from "@/components/ui";
 import TeamColors from "@/components/TeamColors";
 import { listTeamCatalog } from "@/lib/team-catalog";
 
@@ -24,6 +24,8 @@ type Props = {
   viewerTeamId?: string | null;
   /** Staff may read every team tribune. */
   viewerIsStaff?: boolean;
+  /** "guest": not signed in, "novote": signed in without a vote, null: already voted. */
+  voteCta?: "guest" | "novote" | null;
 };
 
 function fmt(iso: string) {
@@ -45,6 +47,7 @@ export default async function CityPageView({
   generatedAt,
   viewerTeamId = null,
   viewerIsStaff = false,
+  voteCta = null,
 }: Props) {
   const catalog = new Map((await listTeamCatalog()).map((t) => [t.id, t]));
   const getTeam = (id: string) => catalog.get(id);
@@ -80,6 +83,33 @@ export default async function CityPageView({
           {cityHeadline(city)}
         </p>
         <p className="font-mono text-[13px] mt-4 max-w-[52ch]">{cityBlurb(city)}</p>
+
+        {voteCta && (
+          <div className="mt-6 border-[4px] border-black bg-[#FFEA00] p-4 md:p-5 shadow-[8px_8px_0_black]">
+            <p className="font-anton text-[26px] md:text-[32px] leading-[1.05]">
+              {voteCta === "guest" ? "ÜYE OL, HEMEN OY KULLAN" : "HEMEN OY KULLAN"}
+            </p>
+            <p className="font-mono text-[13px] mt-2 max-w-[56ch]">
+              Tuttuğun takımı seç, oyun {city.name} sayımına eklensin. Hesap başına bir kalıcı oy.
+            </p>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+              <Link
+                href={voteCta === "guest" ? `/uye-ol?il=${city.slug}` : `/takim-sec?il=${city.slug}`}
+                className={btnPrimary}
+              >
+                {voteCta === "guest" ? "ÜYE OL VE OY VER" : "TAKIMINI SEÇ, OY VER"}
+              </Link>
+              {voteCta === "guest" && (
+                <Link
+                  href={`/giris?next=${encodeURIComponent(`/takim-sec?il=${city.slug}`)}`}
+                  className="font-mono text-[13px] underline underline-offset-4 decoration-2 min-h-10 inline-flex items-center"
+                >
+                  Zaten üye misin? Giriş yap
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
 
         <div className="mt-6 border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[8px_8px_0_black]">
           <p className="font-mono text-[12px] opacity-70">DOĞRULANMIŞ OY</p>

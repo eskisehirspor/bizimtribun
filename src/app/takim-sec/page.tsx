@@ -8,6 +8,7 @@ import ForumShell from "@/components/ForumShell";
 import PhoneOtpStep from "@/components/auth/PhoneOtpStep";
 import { useVerifyChannel } from "@/components/auth/CodeSignInStep";
 import TeamPicker from "@/components/auth/TeamPicker";
+import { getCityBySlug } from "@/lib/cities";
 import { errorText, Notice, postJson, primaryButton } from "@/components/auth/ui";
 
 /** One-time team choice for accounts that exist but have not voted (e.g. older accounts). */
@@ -100,6 +101,7 @@ function Flow() {
   return (
     <TeamPicker
       initialTeamId={params.get("takim") ?? user.teamId}
+      initialCity={getCityBySlug(params.get("il") ?? "")?.name ?? null}
       busy={busy}
       error={error}
       confirmLabel="ONAYLA, OYUMU KESİNLEŞTİR"

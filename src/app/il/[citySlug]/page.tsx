@@ -52,6 +52,7 @@ export default async function CityPage({
         generatedAt={new Date().toISOString()}
         viewerTeamId={viewerTeamId}
         viewerIsStaff={Boolean(viewer && isStaffRole(viewer.role))}
+        voteCta={!viewer ? "guest" : viewerTeamId ? null : "novote"}
       />
     </>
   );

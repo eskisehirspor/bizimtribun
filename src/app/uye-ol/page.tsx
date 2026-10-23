@@ -10,6 +10,7 @@ import CodeSignInStep, { useVerifyChannel } from "@/components/auth/CodeSignInSt
 import LegalReadModal from "@/components/auth/LegalReadModal";
 import PasswordFields, { passwordReady } from "@/components/auth/PasswordFields";
 import TeamPicker from "@/components/auth/TeamPicker";
+import { getCityBySlug } from "@/lib/cities";
 import KvkkText from "@/components/legal/KvkkText";
 import TermsText from "@/components/legal/TermsText";
 import { errorText, inputClass, Notice, postJson, primaryButton } from "@/components/auth/ui";
@@ -383,6 +384,7 @@ function Flow() {
           </p>
           <TeamPicker
             initialTeamId={preselect}
+            initialCity={getCityBySlug(params.get("il") ?? "")?.name ?? null}
             busy={busy}
             error={error}
             confirmLabel="ONAYLA VE HESABI AÇ"
