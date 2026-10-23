@@ -6,6 +6,14 @@ export function maskPhone(norm: string | null | undefined) {
   return `${digits.slice(0, 3)} *** ** ${digits.slice(8)}`;
 }
 
+/** `5321234567` → `0532 123 45 67`. Only for the audited super admin reveal. */
+export function formatPhone(norm: string | null | undefined) {
+  if (!norm) return null;
+  const digits = norm.replace(/\D/g, "").slice(-10);
+  if (digits.length < 10) return digits;
+  return `0${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 8)} ${digits.slice(8)}`;
+}
+
 /** `ali.veli@ornek.com` → `a***@ornek.com`. */
 export function maskEmail(email: string | null | undefined) {
   if (!email) return null;

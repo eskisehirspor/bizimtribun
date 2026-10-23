@@ -71,6 +71,9 @@ export default function AdminUserDetailPage() {
   const [nextRole, setNextRole] = useState("user");
   const [user, setUser] = useState<Detail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [phone, setPhone] = useState<string | null>(null);
+  const [phoneBusy, setPhoneBusy] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -87,6 +90,21 @@ export default function AdminUserDetailPage() {
     void Promise.resolve().then(load);
   }, [load]);
 
+  const revealPhone = async () => {
+    setPhoneBusy(true);
+    setPhoneError(null);
+    try {
+      const data = await adminJson<{ phone: string }>(`/api/admin/users/${params.userId}/phone`, {
+        method: "POST",
+      });
+      setPhone(data.phone);
+    } catch (err) {
+      setPhoneError(err instanceof Error ? err.message : "Gösterilemedi.");
+    } finally {
+      setPhoneBusy(false);
+    }
+  };
+
   if (error) return <AdminNotice kind="error">{error}</AdminNotice>;
   if (!user) return <AdminNotice kind="loading">Yükleniyor…</AdminNotice>;
 
@@ -102,7 +120,25 @@ export default function AdminUserDetailPage() {
       <div className="grid sm:grid-cols-2 gap-2 mt-4 font-mono text-[12px]">
         {[
           ["E-posta", `${user.email || "—"}${user.email ? (user.emailVerified ? " (doğrulandı)" : " (doğrulanmadı)") : ""}`],
-          ["Telefon", `${user.phoneMasked || "—"}${user.phoneVerified ? " (doğrulandı)" : " (doğrulanmadı)"}`],
+          [
+            "Telefon",
+            <>
+              {phone || user.phoneMasked || "—"}
+              {user.phoneVerified ? " (doğrulandı)" : " (doğrulanmadı)"}
+              {can("users.phone") && user.phoneMasked && !phone && (
+                <button
+                  type="button"
+                  className="ml-2 underline disabled:opacity-50"
+                  disabled={phoneBusy}
+                  onClick={() => void revealPhone()}
+                >
+                  {phoneBusy ? "…" : "Numarayı göster"}
+                </button>
+              )}
+              {phone && <span className="block opacity-60">Bu görüntüleme denetim kaydına yazıldı.</span>}
+              {phoneError && <span className="block text-[#B00020]">{phoneError}</span>}
+            </>,
+          ],
           ...(can("users.pii")
             ? [
                 ["Ad", user.firstName || "—"],
@@ -129,7 +165,7 @@ export default function AdminUserDetailPage() {
           ["Ban bitiş", user.banExpiresAt ? formatWhen(user.banExpiresAt) : "kalıcı / yok"],
           ["Ban gerekçe", user.banReason || "—"],
         ].map(([k, v]) => (
-          <div key={k} className="border-[2px] border-black bg-[#FFFEFA] p-2">
+          <div key={String(k)} className="border-[2px] border-black bg-[#FFFEFA] p-2">
             <div className="opacity-50 text-[12px]">{k}</div>
             <div>{v}</div>
           </div>

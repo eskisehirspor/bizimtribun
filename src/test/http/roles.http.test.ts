@@ -9,6 +9,7 @@ import { GET as userDetail } from "../../app/api/admin/users/[id]/route";
 import { POST as banRoute } from "../../app/api/admin/users/[id]/ban/route";
 import { PUT as roleRoute } from "../../app/api/admin/users/[id]/role/route";
 import { DELETE as voidVote } from "../../app/api/admin/users/[id]/vote/route";
+import { POST as revealPhone } from "../../app/api/admin/users/[id]/phone/route";
 import { GET as stats } from "../../app/api/stats/route";
 import { getDb } from "@/lib/db";
 import { freshDb, invoke, smsSignup, trPhone, uniq } from "./harness";
@@ -168,4 +169,35 @@ test("admin voids a vote: it stops counting, stays on its team, is audited", asy
     body: { reason: "ikinci deneme" },
   });
   assert.equal(again.status, 409);
+});
+
+test("only a super admin reveals a full phone number, and each view is audited", async () => {
+  const adminUser = await member("admin");
+  const target = await member();
+  const full = trPhone(7000 + n);
+  const reveal = (cookie: string) =>
+    invoke(revealPhone, {
+      method: "POST",
+      path: `/api/admin/users/${target.id}/phone`,
+      cookie,
+      params: { id: String(target.id) },
+    });
+
+  const denied = await reveal(adminUser.cookie);
+  assert.equal(denied.status, 403);
+  assert.ok(!denied.text.includes(full.slice(-7)));
+
+  const boss = await member("super_admin");
+  const ok = await reveal(boss.cookie);
+  assert.equal(ok.status, 200);
+  const digits = String((ok.json as { phone: string }).phone).replace(/\D/g, "");
+  assert.ok(digits.endsWith(full.replace(/\D/g, "").slice(-10)));
+
+  const rows = (await getDb()
+    .prepare(`SELECT actor_user_id, target_id, meta FROM audit_log WHERE action = 'user_phone_view'`)
+    .all()) as Array<{ actor_user_id: number; target_id: string; meta: string }>;
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].actor_user_id, boss.id);
+  assert.equal(rows[0].target_id, String(target.id));
+  assert.ok(!rows[0].meta.includes(full.replace(/\D/g, "").slice(-7)));
 });

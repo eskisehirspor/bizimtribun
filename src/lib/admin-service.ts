@@ -1,7 +1,8 @@
 import type { Db } from "./db";
 import { refreshBadges } from "./profiles";
 import { can, canBanRole, roleRank } from "./permissions";
-import { maskEmail, maskPhone } from "./privacy";
+import { formatPhone, maskEmail, maskPhone } from "./privacy";
+import { writeAudit } from "./audit";
 import { notifyModeration } from "./notifications";
 import { getDb } from "./db";
 import { FORUM_SYSTEM_PASSWORD_HASH } from "./forum-system";
@@ -540,6 +541,27 @@ export async function adminUnbanUser(targetId: number, reason: string, moderator
   const denied = await banPermissionError(targetId, moderator);
   if (denied) return denied;
   return db.transaction(() => unbanUser(targetId, reason, moderator.id))();
+}
+
+/**
+ * Full phone number of one member for a super admin (KVKK: everyone else
+ * only ever sees the masked form). The audit row is written before the
+ * number is returned, so there is no reveal without a record of who looked,
+ * at whom and when. The number itself never goes into the audit row.
+ */
+export async function adminRevealPhone(targetId: number, viewer: UserRow) {
+  const user = await findUserById(targetId);
+  if (!user) return { ok: false as const, status: 404, error: "Kullanıcı bulunamadı." };
+  const phone = formatPhone(user.phone_norm ?? user.phone);
+  if (!phone) return { ok: false as const, status: 404, error: "Bu üyenin kayıtlı telefonu yok." };
+  await writeAudit(getDb(), {
+    actorUserId: viewer.id,
+    action: "user_phone_view",
+    targetType: "user",
+    targetId,
+    meta: { targetUsername: user.username },
+  });
+  return { ok: true as const, phone };
 }
 
 export function adminSetRole(

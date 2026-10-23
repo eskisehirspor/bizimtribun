@@ -10,6 +10,7 @@ export const PERMISSIONS = [
   "users.ban",
   "users.ban_staff",
   "users.pii",
+  "users.phone",
   "roles.manage",
   "votes.void",
   "votes.restore",
@@ -48,7 +49,14 @@ const ADMIN: Permission[] = [
   "content.manage",
 ];
 
-const SUPER_ADMIN: Permission[] = [...ADMIN, "roles.manage", "settings.manage", "votes.restore"];
+const SUPER_ADMIN: Permission[] = [
+  ...ADMIN,
+  "roles.manage",
+  "settings.manage",
+  "votes.restore",
+  // Full phone number, one member at a time, each view audited.
+  "users.phone",
+];
 
 const TABLE: Record<string, ReadonlySet<Permission>> = {
   moderator: new Set(MODERATOR),
