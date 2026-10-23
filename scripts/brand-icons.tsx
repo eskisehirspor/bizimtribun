@@ -37,32 +37,60 @@ async function render(size: number) {
   return Buffer.from(await img.arrayBuffer());
 }
 
-/** .ico holding PNG images, which every current browser reads. */
-function ico(images: { size: number; png: Buffer }[]) {
+/** Classic 32-bit BMP icon entry; Safari shows these more reliably than PNG-in-ICO. */
+async function bmp(png: Buffer, size: number) {
+  const { default: sharp } = await import("sharp");
+  const rgba = await sharp(png).ensureAlpha().raw().toBuffer();
+  const header = Buffer.alloc(40);
+  header.writeUInt32LE(40, 0);
+  header.writeInt32LE(size, 4);
+  header.writeInt32LE(size * 2, 8);
+  header.writeUInt16LE(1, 12);
+  header.writeUInt16LE(32, 14);
+  const pixels = Buffer.alloc(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const from = ((size - 1 - y) * size + x) * 4;
+      const to = (y * size + x) * 4;
+      pixels[to] = rgba[from + 2];
+      pixels[to + 1] = rgba[from + 1];
+      pixels[to + 2] = rgba[from];
+      pixels[to + 3] = rgba[from + 3];
+    }
+  }
+  const mask = Buffer.alloc(Math.ceil(size / 32) * 4 * size);
+  return Buffer.concat([header, pixels, mask]);
+}
+
+function ico(images: { size: number; data: Buffer }[]) {
   const header = Buffer.alloc(6 + 16 * images.length);
   header.writeUInt16LE(0, 0);
   header.writeUInt16LE(1, 2);
   header.writeUInt16LE(images.length, 4);
   let offset = header.length;
-  images.forEach(({ size, png }, i) => {
+  images.forEach(({ size, data }, i) => {
     const at = 6 + 16 * i;
     header.writeUInt8(size, at);
     header.writeUInt8(size, at + 1);
     header.writeUInt16LE(1, at + 4);
     header.writeUInt16LE(32, at + 6);
-    header.writeUInt32LE(png.length, at + 8);
+    header.writeUInt32LE(data.length, at + 8);
     header.writeUInt32LE(offset, at + 12);
-    offset += png.length;
+    offset += data.length;
   });
-  return Buffer.concat([header, ...images.map((i) => i.png)]);
+  return Buffer.concat([header, ...images.map((i) => i.data)]);
 }
 
 (async () => {
   const out = (path: string, data: Buffer) => writeFileSync(join(root, path), data);
   const big = await render(512);
-  out("src/app/icon.png", big);
+  out("src/app/icon1.png", await render(32));
+  out("src/app/icon2.png", big);
   out("public/logo.png", big);
   out("src/app/apple-icon.png", await render(180));
   out("public/icon-192.png", await render(192));
-  out("src/app/favicon.ico", ico([{ size: 16, png: await render(16) }, { size: 32, png: await render(32) }]));
+  const entries = await Promise.all(
+    [16, 32, 48].map(async (size) => ({ size, data: await bmp(await render(size), size) })),
+  );
+  out("src/app/favicon.ico", ico(entries));
 })();
