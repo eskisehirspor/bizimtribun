@@ -2,7 +2,6 @@ import { getSettings } from "./site-settings";
 import { leaderOf, type CityLeader, type CityStanding } from "./stats";
 import { listTeamCatalog } from "./team-catalog";
 import { CITIES } from "./cities";
-import { TEAM_IDS } from "./teams";
 
 /**
  * "Açılış verisi": a few clearly labelled starter numbers so the home map is
@@ -11,13 +10,49 @@ import { TEAM_IDS } from "./teams";
  * cards; only the home map and its counters add them, with a visible note.
  * An admin switches them off for good from /admin/ayarlar.
  *
- * Each active team gets 3-5 in its own province: the province's flagship club
- * (highest league, then the curated order in teams.ts) and the big three get
- * 5, so they lead at home; the rest get 3-4. Provinces without a team of
- * their own get 3-4 spread over the big three. The numbers are derived from
- * the ids, so they are the same on every request.
+ * Six provinces are led by their own club (LOCAL_LEADERS). Every other
+ * province is led by the big-three club that public surveys put first there
+ * (SURVEY_LEADERS; Galatasaray where none is listed): the leader gets 5, the
+ * other two 3. Every other active club gets a small 1-2 at home, or 3-4 in
+ * the six local provinces, so no club shows zero. The numbers are derived
+ * from the ids, so they are the same on every request.
  */
 const BIG_THREE = ["galatasaray", "fenerbahce", "besiktas"];
+
+const LOCAL_LEADERS: Record<string, string> = {
+  Eskişehir: "eskisehirspor",
+  Bursa: "bursaspor",
+  Sakarya: "sakaryaspor",
+  Kocaeli: "kocaelispor",
+  Trabzon: "trabzonspor",
+  İzmir: "goztepe",
+};
+
+/**
+ * Provinces where the survey leader is not Galatasaray. Source: the 81-province
+ * fan map published by Sabah (research company study), as reprinted by
+ * Yeni Şafak on 25.04.2026 and Sözcü on 19.09.2026. Sivas, listed there for
+ * Sivasspor, falls back to Galatasaray, the national leader.
+ */
+const SURVEY_LEADERS: Record<string, string> = {
+  Afyonkarahisar: "fenerbahce",
+  Aksaray: "fenerbahce",
+  Amasya: "fenerbahce",
+  Bitlis: "fenerbahce",
+  Burdur: "fenerbahce",
+  Çorum: "fenerbahce",
+  Denizli: "fenerbahce",
+  Erzurum: "fenerbahce",
+  Gümüşhane: "fenerbahce",
+  Hatay: "fenerbahce",
+  Karabük: "fenerbahce",
+  Kastamonu: "fenerbahce",
+  Kırşehir: "fenerbahce",
+  Tokat: "fenerbahce",
+  Yalova: "fenerbahce",
+  Yozgat: "fenerbahce",
+  Ardahan: "besiktas",
+};
 
 function pick(seed: string, mod: number) {
   let h = 2166136261;
@@ -31,36 +66,19 @@ export async function openingVotes(): Promise<OpeningVote[]> {
   const teams = (await listTeamCatalog()).filter((t) => t.isActive);
   const known = new Set(teams.map((t) => t.id));
   const out: OpeningVote[] = [];
-  const curated = (id: string) => {
-    const i = TEAM_IDS.indexOf(id);
-    return i === -1 ? Infinity : i;
-  };
-  // The catalog is sorted by league, so the first team seen in a province
-  // plays in its highest league; the curated order breaks ties inside it.
-  const flagship = new Map<string, { id: string; league: string }>();
-  for (const team of teams) {
-    const best = flagship.get(team.city);
-    if (!best || (best.league === team.league && curated(team.id) < curated(best.id))) {
-      flagship.set(team.city, { id: team.id, league: team.league });
+  for (const city of CITIES) {
+    const local = LOCAL_LEADERS[city.name];
+    if (local && known.has(local)) continue;
+    const leader = SURVEY_LEADERS[city.name] ?? "galatasaray";
+    for (const id of BIG_THREE) {
+      if (known.has(id)) out.push({ city: city.name, teamId: id, votes: id === leader ? 5 : 3 });
     }
   }
-  const covered = new Set<string>();
   for (const team of teams) {
-    if (!CITIES.some((c) => c.name === team.city)) continue;
-    covered.add(team.city);
-    const top = flagship.get(team.city)?.id === team.id || BIG_THREE.includes(team.id);
-    out.push({ city: team.city, teamId: team.id, votes: top ? 5 : 3 + pick(team.id, 2) });
-  }
-  const big = BIG_THREE.filter((id) => known.has(id));
-  if (big.length === 0) return out;
-  for (const city of CITIES) {
-    if (covered.has(city.name)) continue;
-    const start = pick(city.slug, big.length);
-    const order = big.map((_, i) => big[(start + i) % big.length]);
-    const shares = pick(`${city.slug}:n`, 2) === 0 ? [2, 1] : [2, 1, 1];
-    shares.forEach((votes, i) => {
-      if (order[i]) out.push({ city: city.name, teamId: order[i], votes });
-    });
+    if (BIG_THREE.includes(team.id) || !CITIES.some((c) => c.name === team.city)) continue;
+    const local = LOCAL_LEADERS[team.city];
+    const votes = !local || !known.has(local) ? 1 + pick(team.id, 2) : local === team.id ? 5 : 3 + pick(team.id, 2);
+    out.push({ city: team.city, teamId: team.id, votes });
   }
   return out;
 }

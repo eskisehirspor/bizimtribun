@@ -114,7 +114,7 @@ test("opening data shows on the home stats only, labelled, and an admin can turn
   const { teamSummary, totalVerified } = await import("@/lib/stats");
   const admin = await member("admin");
   const sup = await member("super_admin");
-  type Stats = { total: number; opening: number; teams: { id: string; votes: number }[]; cities: Record<string, { teamId: string }> };
+  type Stats = { total: number; opening: number; teams: { id: string; votes: number }[]; cities: Record<string, { teamId: string; tied: boolean }> };
   const read = async () => (await invoke(stats, { path: "/api/stats" })).json as Stats;
 
   // Off by default: the numbers are the real ones.
@@ -131,7 +131,11 @@ test("opening data shows on the home stats only, labelled, and an admin can turn
   assert.equal(on.cities["Eskişehir"]?.teamId, "eskisehirspor");
   assert.equal(on.cities["Trabzon"]?.teamId, "trabzonspor");
   assert.equal(on.teams.find((t) => t.id === "eskisehirspor")?.votes, 5);
-  assert.ok(on.teams.every((t) => t.votes >= 3));
+  assert.ok(on.teams.every((t) => t.votes >= 1));
+  for (const [city, team] of [["Bursa", "bursaspor"], ["Sakarya", "sakaryaspor"], ["Kocaeli", "kocaelispor"], ["İzmir", "goztepe"], ["Ankara", "galatasaray"], ["Yozgat", "fenerbahce"], ["Ardahan", "besiktas"], ["İstanbul", "galatasaray"]]) {
+    assert.equal(on.cities[city]?.teamId, team, city);
+    assert.equal(on.cities[city]?.tied, false, city);
+  }
   // Every province is coloured.
   assert.equal(Object.keys(on.cities).length, 81);
 

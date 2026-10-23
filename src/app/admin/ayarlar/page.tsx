@@ -204,8 +204,8 @@ function OpeningData({ initial, meta }: { initial: boolean; meta?: Meta }) {
     <section className="border-[3px] border-[#C8102E] bg-[#FFFEFA] p-4 space-y-2">
       <h3 className="font-anton text-[20px]">AÇILIŞ VERİSİ</h3>
       <p className="font-mono text-[12px]">
-        Ana sayfadaki harita ve sayaçlara, her takıma kendi ilinde 3-5 başlangıç oyu ekler (takımı olmayan illere
-        Galatasaray, Fenerbahçe, Beşiktaş). Gerçek oylara yazılmaz; sitede &quot;açılış verisi&quot; notuyla görünür.
+        Ana sayfadaki harita ve sayaçlara başlangıç oyu ekler. Eskişehir, Bursa, Sakarya, Kocaeli, Trabzon ve
+        İzmir&apos;de yerel takım, diğer illerde anketlere göre Galatasaray, Fenerbahçe veya Beşiktaş önde. Gerçek oylara yazılmaz; sitede &quot;açılış verisi&quot; notuyla görünür.
         Takım ve il sayfaları, başlıklar, Google ve paylaşım görselleri her zaman yalnızca gerçek oyları gösterir.
       </p>
       <p className="font-mono text-[13px] font-bold">Şu an: {enabled ? "AÇIK" : "KAPALI"}</p>
