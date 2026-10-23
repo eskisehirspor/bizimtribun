@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { cityCanonical } from "@/lib/city-seo";
 import { btnAccent } from "@/components/ui";
 
 type Props = {
@@ -10,26 +9,50 @@ type Props = {
   summary: string;
 };
 
+/** Phones and tablets share to WhatsApp; desktops copy the page link. */
+function isMobile(): boolean {
+  const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  if (nav.userAgentData?.mobile) return true;
+  return /Android|iPhone|iPad|iPod|Mobile|Opera Mini|IEMobile/i.test(nav.userAgent);
+}
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    /* older browsers / insecure context */
+  }
+  try {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.setAttribute("readonly", "");
+    el.style.position = "fixed";
+    el.style.opacity = "0";
+    document.body.appendChild(el);
+    el.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(el);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function CityShare({ slug, headline, summary }: Props) {
   const [copied, setCopied] = useState(false);
-  const url = cityCanonical(slug);
 
   async function share() {
-    const text = `${headline}\n${summary}\n${url}`;
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try {
-        await navigator.share({ title: headline, text: summary, url });
-        return;
-      } catch {
-        /* fallback */
-      }
+    // The browser's own origin: right on bizimtribun.com, staging and local dev alike.
+    const url = `${window.location.origin}/il/${slug}`;
+    if (isMobile()) {
+      const text = `${headline}\n${summary}\n${url}`;
+      window.location.href = `https://wa.me/?text=${encodeURIComponent(text)}`;
+      return;
     }
-    try {
-      await navigator.clipboard.writeText(text);
+    if (await copyText(url)) {
       setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      setCopied(false);
+      window.setTimeout(() => setCopied(false), 2500);
     }
   }
 
@@ -39,7 +62,7 @@ export default function CityShare({ slug, headline, summary }: Props) {
       onClick={() => void share()}
       className={`${btnAccent} shadow-[4px_4px_0_black]`}
     >
-      {copied ? "KOPYALANDI" : "PAYLAŞ"}
+      {copied ? "LİNK KOPYALANDI" : "PAYLAŞ"}
     </button>
   );
 }
