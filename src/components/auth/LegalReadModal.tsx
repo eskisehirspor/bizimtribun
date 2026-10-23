@@ -51,7 +51,7 @@ export default function LegalReadModal({
     >
       <div className="flex max-h-[92vh] w-full max-w-[720px] flex-col border-[4px] border-black bg-[#FFFEFA] shadow-[8px_8px_0_black]">
         <div className="flex items-center justify-between gap-3 border-b-[4px] border-black bg-black px-4 py-3">
-          <h2 className="font-anton text-[20px] leading-none text-[#FFEA00]">{title}</h2>
+          <h2 className="font-anton text-[20px] leading-[1.05] text-[#FFEA00]">{title}</h2>
           <button type="button" onClick={onClose} className="font-mono text-[12px] text-white underline">
             KAPAT
           </button>

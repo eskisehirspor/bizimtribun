@@ -96,7 +96,7 @@ export default function AdminUserDetailPage() {
       <Link href="/admin/uyeler" className="font-mono text-[12px] underline">
         ← üyeler
       </Link>
-      <h2 className="font-anton text-[32px] leading-none mt-2">{user.username}</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05] mt-2">{user.username}</h2>
       <p className="font-mono text-[12px] opacity-70">{user.displayName}</p>
 
       <div className="grid sm:grid-cols-2 gap-2 mt-4 font-mono text-[12px]">

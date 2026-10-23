@@ -18,7 +18,7 @@ export default function TeamBoardGate({ title, next }: { title: string; next: st
     <ForumShell>
       <div className="max-w-[560px] bg-white border-[4px] border-black shadow-[6px_6px_0_black] p-5">
         <p className="font-mono text-[12px] uppercase tracking-wide">Taraftarlara özel</p>
-        <h1 className="font-anton text-[32px] leading-none mt-1">{title.toLocaleUpperCase("tr")}</h1>
+        <h1 className="font-anton text-[32px] leading-[1.05] mt-1">{title.toLocaleUpperCase("tr")}</h1>
         <p className="font-mono text-[14px] mt-3">
           {user
             ? "Takım tribünleri yalnızca o takıma oy veren taraftarlara açık. Kendi takımının tribününde yazabilir, Milli Takım Tribünü'nde herkesle konuşabilirsin."

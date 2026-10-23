@@ -63,7 +63,7 @@ export default function AdminDashboardPage() {
 function ModeratorHome() {
   return (
     <div>
-      <h2 className="font-anton text-[32px] leading-none">MODERATÖR</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">MODERATÖR</h2>
       <p className="font-mono text-[12px] mt-2">
         Forum içeriğini yönetebilir, bekleyen içerikleri onaylayabilir ve normal üyeleri
         banlayabilirsin. Rol, oy ve site ayarları yöneticilere açık.
@@ -136,7 +136,7 @@ function DashboardView() {
 
   return (
     <div>
-      <h2 className="font-anton text-[32px] leading-none">DASHBOARD</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">DASHBOARD</h2>
       <p className="font-mono text-[12px] mt-1 opacity-60">
         Canlı veritabanı sayıları. Silinmiş hesaplar ve kaldırılmış içerik sayılmaz.
       </p>

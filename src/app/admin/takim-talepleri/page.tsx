@@ -111,7 +111,7 @@ export default function AdminTeamRequestsPage() {
       {approveOpen && (
         <div className="fixed inset-0 z-[80] bg-black/50 flex items-center justify-center p-4">
           <div className="w-full max-w-[440px] border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[8px_8px_0_black]">
-            <h3 className="font-anton text-[24px] leading-none">ONAYLA</h3>
+            <h3 className="font-anton text-[24px] leading-[1.05]">ONAYLA</h3>
             <p className="font-mono text-[12px] mt-2">
               {approveOpen.teamName} takımı eklenecek veya mevcut kayıt kullanılacak. Forum
               otomatik açılmaz.
@@ -151,7 +151,7 @@ export default function AdminTeamRequestsPage() {
         </div>
       )}
 
-      <h2 className="font-anton text-[32px] leading-none">TAKIM TALEPLERİ</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">TAKIM TALEPLERİ</h2>
       <div className="flex flex-wrap gap-2 mt-3">
         {["pending", "approved", "rejected", ""].map((key) => (
           <button
@@ -260,7 +260,7 @@ export default function AdminTeamRequestsPage() {
         <div className="mt-5 border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[6px_6px_0_black]">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
-              <h3 className="font-anton text-[24px] leading-none">{detail.teamName}</h3>
+              <h3 className="font-anton text-[24px] leading-[1.05]">{detail.teamName}</h3>
               <p className="font-mono text-[12px] mt-1">
                 {detail.city} • {REQUEST_STATUS[detail.status] ?? detail.status} • {detail.requestCount} talep
               </p>

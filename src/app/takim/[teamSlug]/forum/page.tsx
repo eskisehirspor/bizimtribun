@@ -64,7 +64,7 @@ export default function TeamForumPage() {
             <div className="mt-3 flex items-start gap-3">
               <TeamMark team={team} size={56} />
               <div className="min-w-0">
-                <h1 className="font-anton text-[32px] sm:text-[42px] leading-[0.85]">
+                <h1 className="font-anton text-[32px] sm:text-[42px] leading-[1.05]">
                   {tribunTitle(team.name)}
                 </h1>
                 <p className="font-mono text-[12px] opacity-70 mt-1">

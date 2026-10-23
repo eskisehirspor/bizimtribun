@@ -49,7 +49,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h2 className="font-anton text-[32px] leading-none">SİTE AYARLARI</h2>
+        <h2 className="font-anton text-[32px] leading-[1.05]">SİTE AYARLARI</h2>
         <p className="font-mono text-[12px] mt-1 opacity-70">
           Her kayıt denetim kaydına yazılır. Metinler düz yazı olarak gösterilir; HTML veya kod çalışmaz.
         </p>

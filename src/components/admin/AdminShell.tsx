@@ -65,7 +65,7 @@ export default function AdminShell({
         <aside className="md:w-[210px] shrink-0 mb-4 md:mb-0">
           <div className="border-[4px] border-black bg-black text-[#FFEA00] p-3 shadow-[6px_6px_0_#111]">
             <p className="font-mono text-[11px] tracking-[0.22em] opacity-80">BİZİM TRİBÜN</p>
-            <h1 className="font-anton text-[28px] leading-none mt-1">ADMIN</h1>
+            <h1 className="font-anton text-[28px] leading-[1.05] mt-1">ADMIN</h1>
             <p className="font-mono text-[12px] mt-1">{viewer.roleLabel.toLocaleUpperCase("tr-TR")}</p>
           </div>
           <Link
@@ -109,7 +109,7 @@ export default function AdminShell({
         <main className="min-w-0 flex-1">
           {needs2fa && (
             <div role="alert" className="mb-4 border-[4px] border-black bg-[#FFEA00] p-4 shadow-[6px_6px_0_black]">
-              <p className="font-anton text-[22px] leading-none">ÖNCE 2FA&apos;YI AÇ</p>
+              <p className="font-anton text-[22px] leading-[1.05]">ÖNCE 2FA&apos;YI AÇ</p>
               <p className="font-mono text-[13px] mt-2">
                 Yönetim paneli iki adımlı doğrulama olmadan açılmaz. Telefonuna bir doğrulama uygulaması (Google
                 Authenticator, Authy, 1Password…) kur, Güvenlik sayfasındaki anahtarı uygulamaya elle ekle ve uygulamanın verdiği 6 haneli

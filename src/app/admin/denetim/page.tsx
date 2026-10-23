@@ -46,7 +46,7 @@ export default function AdminAuditPage() {
 
   return (
     <div>
-      <h2 className="font-anton text-[32px] leading-none">DENETİM KAYDI</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">DENETİM KAYDI</h2>
       <p className="font-mono text-[12px] mt-2">
         Yetkili işlemlerin değiştirilemez kaydı. Kayıtlar silinemez ve düzenlenemez.
       </p>

@@ -68,7 +68,7 @@ export default function AdminTeamsPage() {
   return (
     <div>
       {dialog}
-      <h2 className="font-anton text-[32px] leading-none">TAKIMLAR, LİGLER, SEZONLAR</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">TAKIMLAR, LİGLER, SEZONLAR</h2>
       <p className="font-mono text-[12px] mt-2">
         Aktif sezon: <b>{data.currentSeason ?? "tanımlı değil"}</b>. Takım adını, ligini veya rengini
         değiştirmek oyları etkilemez. Pasif takım yeni oy almaz, eski oyları sayılmaya devam eder.

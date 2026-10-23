@@ -255,7 +255,7 @@ export default function ForumBoardView({
           <div className="p-8 text-center">
             {meta ? (
               <>
-                <p className="font-anton text-[26px] leading-none">BU KATEGORİDE KONU YOK</p>
+                <p className="font-anton text-[26px] leading-[1.05]">BU KATEGORİDE KONU YOK</p>
                 <p className="font-mono text-[14px] mt-2">
                   {meta.label} kategorisinde henüz konu açılmadı.
                 </p>
@@ -265,7 +265,7 @@ export default function ForumBoardView({
               </>
             ) : (
               <>
-                <p className="font-anton text-[28px] leading-none">TRİBÜN BOŞ</p>
+                <p className="font-anton text-[28px] leading-[1.05]">TRİBÜN BOŞ</p>
                 <p className="font-mono text-[14px] mt-2">İlk konuyu sen aç. Sesini duyur.</p>
               </>
             )}

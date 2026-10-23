@@ -68,7 +68,7 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <h2 className="font-anton text-[32px] leading-none">ÜYELER</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">ÜYELER</h2>
       <form
         className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 items-end"
         onSubmit={(e) => {

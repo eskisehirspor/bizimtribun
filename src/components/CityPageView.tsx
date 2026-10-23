@@ -73,10 +73,10 @@ export default async function CityPageView({
         <p className="font-mono text-[11px] tracking-[0.2em] mt-2">
           BİZİM TRİBÜN • İL SAYIMI
         </p>
-        <h1 className="font-anton text-[42px] md:text-[56px] leading-[0.85] mt-2">
+        <h1 className="font-anton text-[42px] md:text-[56px] leading-[1.05] mt-2">
           {city.name.toLocaleUpperCase("tr")}
         </h1>
-        <p className="font-ultras text-[22px] md:text-[28px] mt-3 bg-[#FFEA00] inline-block px-2 border-[3px] border-black -rotate-1">
+        <p className="font-ultras text-[22px] md:text-[28px] leading-[1.2] mt-4 bg-[#FFEA00] inline-block px-2 py-[0.1em] border-[3px] border-black -rotate-1">
           {cityHeadline(city)}
         </p>
         <p className="font-mono text-[13px] mt-4 max-w-[52ch]">{cityBlurb(city)}</p>
@@ -89,7 +89,7 @@ export default async function CityPageView({
         </div>
 
         <section className="mt-6 border-[4px] border-black bg-white p-4 md:p-5 shadow-[8px_8px_0_black]">
-          <h2 className="font-anton text-[26px] leading-none">{headline}</h2>
+          <h2 className="font-anton text-[26px] leading-[1.05]">{headline}</h2>
           <p className="font-mono text-[12px] mt-2">{summary}</p>
           {rows.length === 0 ? (
             <p className="font-mono text-[13px] mt-4">Bu ilde henüz oy yok.</p>
@@ -139,7 +139,7 @@ export default async function CityPageView({
 
         {history.some((h) => h.total > 0) && (
           <section className="mt-6 border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[6px_6px_0_black]">
-            <h2 className="font-anton text-[22px] leading-none">SON 8 HAFTA</h2>
+            <h2 className="font-anton text-[22px] leading-[1.05]">SON 8 HAFTA</h2>
             <p className="font-mono text-[12px] mt-1 opacity-70">
               Her haftanın sonundaki doğrulanmış oy sayısı ve o haftanın lideri.
             </p>

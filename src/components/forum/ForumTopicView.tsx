@@ -258,7 +258,7 @@ export default function KonuPage({ initial }: { initial?: TopicInitial }) {
 
       <article className="mt-3 border-[4px] border-black bg-[#FFFEFA] shadow-[6px_6px_0_black] p-4 sm:p-5">
         <>
-            <h1 className="font-anton text-[28px] sm:text-[36px] leading-[0.95]">
+            <h1 className="font-anton text-[28px] sm:text-[36px] leading-[1.05]">
               {topic.isPinned ? (
                 <span className="mr-2 font-mono text-[11px] bg-[#FFEA00] border-[2px] border-black px-1 align-middle">
                   SABİT

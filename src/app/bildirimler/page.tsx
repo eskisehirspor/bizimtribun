@@ -77,7 +77,7 @@ export default function NotificationsPage() {
   return (
     <ForumShell>
       <p className="font-mono text-[11px] tracking-[0.16em]">BİZİM TRİBÜN • HESAP</p>
-      <h1 className="font-anton text-[40px] leading-[0.85] mt-2">BİLDİRİMLER</h1>
+      <h1 className="font-anton text-[40px] leading-[1.05] mt-2">BİLDİRİMLER</h1>
       {!loading && !user && (
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <p className="font-mono text-[14px]">Bildirimleri görmek için giriş yap.</p>

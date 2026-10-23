@@ -109,7 +109,7 @@ export default function TakimTalepPage() {
   if (done) {
     return (
       <ForumShell>
-        <h1 className="font-anton text-[36px] leading-[0.85]">TALEP ALINDI</h1>
+        <h1 className="font-anton text-[36px] leading-[1.05]">TALEP ALINDI</h1>
         <p className="font-mono text-[13px] mt-3 max-w-[480px]">
           Talebin alındı. Takımın Tribün&apos;e eklenmesi için değerlendirilecek.
         </p>
@@ -123,7 +123,7 @@ export default function TakimTalepPage() {
   return (
     <ForumShell>
       <BackLink href="/takimlar">Takım tribünleri</BackLink>
-      <h1 className="font-anton text-[36px] sm:text-[46px] leading-[0.85] mt-3">
+      <h1 className="font-anton text-[36px] sm:text-[46px] leading-[1.05] mt-3">
         YENİ TAKIM
         <br />
         TALEP ET

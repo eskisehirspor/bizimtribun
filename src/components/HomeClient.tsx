@@ -177,7 +177,7 @@ export default function HomeClient({
             })}
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[auto_minmax(0,1fr)_auto] items-start md:items-end gap-x-3 gap-y-2 md:gap-x-6">
-            <h1 className="font-anton text-[40px] sm:text-[48px] md:text-[68px] leading-[0.82] tracking-tighter">
+            <h1 className="font-anton text-[40px] sm:text-[48px] md:text-[68px] leading-[0.95] tracking-tighter">
               BİZİM
               <br />
               <span className="bg-black text-[#FFEA00] px-2 inline-block rotate-[-1deg]">
@@ -225,7 +225,7 @@ export default function HomeClient({
 
       <main className="relative z-10 max-w-[1320px] mx-auto px-4 md:px-6 py-6 grid grid-cols-12 gap-6 md:gap-8">
         <div className="col-span-12 border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[8px_8px_0_black]">
-          <h2 className="font-anton text-[32px] md:text-[48px] leading-[0.85] tracking-tight mb-8 md:mb-10">
+          <h2 className="font-anton text-[32px] md:text-[48px] leading-[1.05] tracking-tight mb-8 md:mb-10">
             TÜRKİYE HARİTASI
             <br />
             <span className="mt-2 inline-block bg-black text-[#FFEA00] px-3 py-1 rotate-[-1deg] text-[26px] md:text-[36px]">
@@ -239,7 +239,7 @@ export default function HomeClient({
         <section className="col-span-12 lg:col-span-8 space-y-6">
           <div className="border-[4px] border-black bg-[#FFFEFA] p-4 md:p-5 shadow-[8px_8px_0_black]">
             <div className="flex justify-between items-baseline flex-wrap gap-2">
-              <h2 className="font-anton text-[28px] md:text-[36px] leading-[0.9]">
+              <h2 className="font-anton text-[28px] md:text-[36px] leading-[1.05]">
                 TAKIMINI{" "}
                 <span className="bg-[#C8102E] text-white px-2 inline-block rotate-1">
                   SEÇ
@@ -305,7 +305,7 @@ export default function HomeClient({
                         href={`/takim/${team.id}`}
                         className="inline-flex min-h-10 items-center gap-2 hover:underline underline-offset-4"
                       >
-                        <span className="font-anton text-[17px] leading-none">
+                        <span className="font-anton text-[17px] leading-[1.05]">
                           {team.name}
                         </span>
                         <TeamColors team={team} />

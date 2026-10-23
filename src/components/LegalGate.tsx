@@ -54,7 +54,7 @@ export default function LegalGate() {
       aria-labelledby="legal-gate-title"
       className="w-full max-w-[560px] border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[6px_6px_0_black]"
     >
-      <p id="legal-gate-title" className="font-anton text-[22px] leading-none">
+      <p id="legal-gate-title" className="font-anton text-[22px] leading-[1.05]">
         METİNLERİMİZ GÜNCELLENDİ
       </p>
       <p className="mt-2 font-mono text-[13px]">

@@ -38,7 +38,7 @@ function Form() {
   return (
     <main className="min-h-screen bg-[#F2EFE6] paper-bg flex items-center justify-center p-6">
       <div className="w-full max-w-[520px] bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black] p-7">
-        <h1 className="font-anton text-[36px] leading-[0.9]">VERİLERİMİ SİL</h1>
+        <h1 className="font-anton text-[36px] leading-[1.05]">VERİLERİMİ SİL</h1>
         {done ? (
           <p className="font-mono text-[13px] mt-4">
             Kayıt silindi / anonimleştirildi. Mühür sayımdan düştü.

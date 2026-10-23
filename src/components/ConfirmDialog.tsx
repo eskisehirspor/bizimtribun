@@ -106,7 +106,7 @@ export default function ConfirmDialog({
         aria-busy={busy || undefined}
         className="w-full max-w-[460px] border-[4px] border-black bg-[#FFFEFA] text-black p-5 shadow-[8px_8px_0_black]"
       >
-        <h2 id={`${id}-t`} className="font-anton text-[26px] leading-none">
+        <h2 id={`${id}-t`} className="font-anton text-[26px] leading-[1.05]">
           {title}
         </h2>
         {body ? (

@@ -59,7 +59,7 @@ export default function TakimlarPage() {
     <ForumShell>
       <BackLink href="/forum">Tüm tribünler</BackLink>
       <p className="font-mono text-[11px] tracking-[0.16em] mt-3">BİZİM TRİBÜN • TRİBÜN</p>
-      <h1 className="font-anton text-[40px] sm:text-[52px] leading-[0.85] mt-2">
+      <h1 className="font-anton text-[40px] sm:text-[52px] leading-[1.05] mt-2">
         TAKIM
         <br />
         <span className="bg-black text-[#FFEA00] px-2 inline-block rotate-[-1deg]">

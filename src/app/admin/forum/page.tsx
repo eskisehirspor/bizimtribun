@@ -215,7 +215,7 @@ export default function AdminForumPage() {
   return (
     <div>
       {dialog}
-      <h2 className="font-anton text-[32px] leading-none">FORUM</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">FORUM</h2>
       <div className="flex gap-2 mt-3" role="group" aria-label="Görünüm">
         <button
           type="button"

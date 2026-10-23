@@ -115,7 +115,7 @@ export default function AdminModerationPage() {
   return (
     <div>
       {dialog}
-      <h2 className="font-anton text-[32px] leading-none">MODERASYON</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">MODERASYON</h2>
       <p className="font-mono text-[12px] mt-2">
         Bekleyen: {heldLoading ? "…" : held?.total ?? 0}
       </p>
@@ -146,7 +146,7 @@ export default function AdminModerationPage() {
                 <span className="opacity-50">#{item.id}</span>
                 <span className="opacity-60">{formatWhen(item.heldAt)}</span>
               </div>
-              <p className="font-anton text-[20px] leading-none mt-2">{item.title}</p>
+              <p className="font-anton text-[20px] leading-[1.05] mt-2">{item.title}</p>
               <p className="font-mono text-[12px] mt-1">
                 <Link className="underline" href={`/admin/uyeler/${item.userId}`}>
                   {item.username}

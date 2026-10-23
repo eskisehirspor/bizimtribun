@@ -82,7 +82,7 @@ export default function AdminReportsPage() {
   return (
     <div>
       {dialog}
-      <h2 className="font-anton text-[32px] leading-none">ÜYE BİLDİRİMLERİ</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">ÜYE BİLDİRİMLERİ</h2>
       <p className="font-mono text-[12px] mt-2">
         Üyelerin şikâyet ettiği konu, yorum ve hesaplar. İçeriği kaldırmak için Forum ekranındaki
         silme işlemini, hesap için ban işlemini kullan; ikisi de denetim kaydına yazılır.

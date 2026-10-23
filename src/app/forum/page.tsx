@@ -29,7 +29,7 @@ export default async function ForumIndexPage() {
   return (
     <ForumShell>
       <p className="font-mono text-[11px] tracking-[0.16em]">BİZİM TRİBÜN • TRİBÜN</p>
-      <h1 className="font-anton text-[40px] sm:text-[52px] leading-[0.85] mt-2">TRİBÜN</h1>
+      <h1 className="font-anton text-[40px] sm:text-[52px] leading-[1.05] mt-2">TRİBÜN</h1>
       <p className="font-mono text-[14px] mt-3 max-w-[60ch]">
         Her takımın kendi tribünü var. Takım tribünlerine yalnızca o takıma oy veren taraftarlar
         girebilir. Milli Takım Tribünü herkese açık.
@@ -39,12 +39,12 @@ export default async function ForumIndexPage() {
           href="/takimlar"
           className="border-[4px] border-black bg-[#FFEA00] p-4 shadow-[6px_6px_0_black]"
         >
-          <p className="font-anton text-[26px] leading-none">TAKIM TRİBÜNLERİ</p>
+          <p className="font-anton text-[26px] leading-[1.05]">TAKIM TRİBÜNLERİ</p>
           <p className="font-mono text-[13px] mt-2">Her kulübün kendi tribünü. 🔒 Yalnızca o takımın taraftarları girer.</p>
         </Link>
         <Link href={NATIONAL_BOARD_PATH} className="block">
           <MilliPanel className="h-full p-4 pb-6">
-            <p className="font-anton text-[26px] leading-none">{NATIONAL_BOARD_TITLE}</p>
+            <p className="font-anton text-[26px] leading-[1.05]">{NATIONAL_BOARD_TITLE}</p>
             <p className="font-mono text-[13px] mt-2 max-w-[34ch]">
               Ay yıldızlılar ve takım ayırmadan futbol. Herkese açık. {general} konu.
             </p>

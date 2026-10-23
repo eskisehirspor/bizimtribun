@@ -14,7 +14,7 @@ export default function NationalForumPage() {
       active
       header={(total) => (
         <MilliPanel className="mt-3 p-4 pb-6">
-          <h1 className="font-anton text-[32px] sm:text-[42px] leading-[0.85]">{NATIONAL_BOARD_TITLE}</h1>
+          <h1 className="font-anton text-[32px] sm:text-[42px] leading-[1.05]">{NATIONAL_BOARD_TITLE}</h1>
           <p className="font-mono text-[12px] mt-3 max-w-[52ch]">
             Ay yıldızlılar, milli maçlar, kadro ve takım ayırmadan futbol gündemi. Her takımdan
             doğrulanmış taraftar yazabilir.

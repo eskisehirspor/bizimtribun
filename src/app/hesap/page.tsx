@@ -53,7 +53,7 @@ function Account() {
       )}
       <section className="border-[3px] border-black bg-white p-4">
         <p className={labelClass}>KULLANICI ADI</p>
-        <p className="font-anton text-[26px] leading-none">@{user.username}</p>
+        <p className="font-anton text-[26px] leading-[1.05]">@{user.username}</p>
         <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 font-mono text-[12px]">
           <dt className="opacity-70">Doğrulama</dt>
           <dd>
@@ -138,7 +138,7 @@ export default function HesapPage() {
     <ForumShell>
       <div className="max-w-[560px] mx-auto bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black] p-5 sm:p-6">
         <p className="font-mono text-[11px] tracking-[0.2em]">BİZİM TRİBÜN • HESAP</p>
-        <h1 className="font-anton text-[40px] leading-[0.85] mt-2 mb-5">HESABIM</h1>
+        <h1 className="font-anton text-[40px] leading-[1.05] mt-2 mb-5">HESABIM</h1>
         <Suspense fallback={<p className="font-mono text-[12px]">Yükleniyor…</p>}>
           <Account />
         </Suspense>

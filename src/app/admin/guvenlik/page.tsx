@@ -109,7 +109,7 @@ export default function AdminSecurityPage() {
 
   return (
     <div>
-      <h2 className="font-anton text-[32px] leading-none">GÜVENLİK</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">GÜVENLİK</h2>
       <p className="font-mono text-[12px] mt-2">
         Yönetici hesabı için TOTP (Google Authenticator, Authy, 1Password). SMS yok.
       </p>

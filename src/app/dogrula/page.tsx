@@ -6,7 +6,7 @@ export default function DogrulaPage() {
   return (
     <main className="min-h-screen bg-[#F2EFE6] paper-bg px-4 py-10">
       <div className="max-w-[520px] mx-auto bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black] p-6">
-        <h1 className="font-anton text-[34px] leading-[0.9]">E-POSTA SAYIMI KAPANDI</h1>
+        <h1 className="font-anton text-[34px] leading-[1.05]">E-POSTA SAYIMI KAPANDI</h1>
         <p className="font-mono text-[13px] mt-4 leading-[1.5]">
           Bizim Tribün artık kodla doğrulanmış üyelik kullanıyor. Her hesap tek bir takım
           seçer ve sayaçlar yalnızca bu seçimlerden hesaplanır. Eski e-posta linkleri artık oy

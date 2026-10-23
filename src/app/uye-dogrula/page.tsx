@@ -70,7 +70,7 @@ function Panel() {
         <div className="font-mono text-[11px] tracking-[0.2em]">
           BİZİM TRİBÜN • ÜYELİK
         </div>
-        <h1 className="font-anton text-[40px] leading-none mt-2">
+        <h1 className="font-anton text-[40px] leading-[1.05] mt-2">
           E-POSTA
           <br />
           DOĞRULA

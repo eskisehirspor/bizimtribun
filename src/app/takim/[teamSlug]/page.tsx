@@ -105,7 +105,7 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
             <p className="font-mono text-[11px] tracking-[0.2em]">
               {league.toLocaleUpperCase("tr")} • {team.city.toLocaleUpperCase("tr")}
             </p>
-            <h1 className="font-anton text-[38px] sm:text-[52px] leading-[0.9]">{team.name.toLocaleUpperCase("tr")}</h1>
+            <h1 className="font-anton text-[38px] sm:text-[52px] leading-[1.05]">{team.name.toLocaleUpperCase("tr")}</h1>
             {!team.isActive && (
               <p className="font-mono text-[12px] mt-1 bg-black text-white inline-block px-1">
                 Bu takım şu an listede pasif; geçmiş oyları sayımda kalır.
@@ -136,7 +136,7 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
               ].map(([label, value]) => (
                 <div key={label} className="p-3 border-[1.5px] border-black bg-white">
                   <dt className="font-mono text-[11px] tracking-wide">{label}</dt>
-                  <dd className="font-anton text-[30px] leading-none mt-1">{value}</dd>
+                  <dd className="font-anton text-[30px] leading-[1.05] mt-1">{value}</dd>
                 </div>
               ))}
             </dl>

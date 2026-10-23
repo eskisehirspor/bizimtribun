@@ -202,7 +202,7 @@ export default function ForumNewTopicView({ apiPath, boardPath, boardTitle, acti
       </span>
       <div className="mt-2 flex items-center gap-3">
         {mark}
-        <h1 className="font-anton text-[32px] leading-[0.85]">YENİ KONU</h1>
+        <h1 className="font-anton text-[32px] leading-[1.05]">YENİ KONU</h1>
       </div>
 
       <form

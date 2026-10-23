@@ -81,7 +81,7 @@ export default function AdminReservedUsernamesPage() {
   return (
     <div>
       {dialog}
-      <h2 className="font-anton text-[32px] leading-none">AYRILMIŞ TAKMA ADLAR</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">AYRILMIŞ TAKMA ADLAR</h2>
       <p className="font-mono text-[12px] mt-2 max-w-[640px]">
         Bu adlarla yeni üyelik açılamaz. Alt çizgi sayılmaz: <b>eskisehir_spor</b> da{" "}
         <b>eskisehirspor</b> gibi engellenir. Bir adı satmak ya da vermek için serbest bırak; o adla ilk

@@ -17,7 +17,7 @@ export default function LegalPage({
     <main className="min-h-screen bg-[#F2EFE6] paper-bg px-4 py-10">
       <article className="max-w-[760px] mx-auto bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black] p-5 md:p-8">
         <p className="font-mono text-[11px] tracking-[0.2em]">{kicker}</p>
-        <h1 className="font-anton text-[32px] md:text-[36px] leading-[0.9] mt-2">{title}</h1>
+        <h1 className="font-anton text-[32px] md:text-[36px] leading-[1.05] mt-2">{title}</h1>
         <div className={`mt-5 ${LEGAL_PROSE}`}>
           {children}
         </div>

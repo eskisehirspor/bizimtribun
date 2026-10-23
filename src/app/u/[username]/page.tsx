@@ -114,7 +114,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           </div>
           <div className="min-w-0 flex-1">
             <p className="font-mono text-[11px] tracking-[0.2em]">BİZİM TRİBÜN • ÜYE</p>
-            <h1 className="font-anton text-[34px] sm:text-[42px] leading-[0.9] break-words">@{p.username}</h1>
+            <h1 className="font-anton text-[34px] sm:text-[42px] leading-[1.05] break-words">@{p.username}</h1>
             {p.displayName && <p className="font-mono text-[13px] mt-1">{p.displayName}</p>}
             <p className="font-mono text-[12px] mt-2 flex flex-wrap gap-x-3 gap-y-1">
               {team ? (
@@ -152,7 +152,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ userna
           ].map(([label, value]) => (
             <div key={label} className="p-3 border-[1.5px] border-black bg-white">
               <dt className={labelClass}>{label}</dt>
-              <dd className="font-anton text-[26px] leading-none">{value}</dd>
+              <dd className="font-anton text-[26px] leading-[1.05]">{value}</dd>
             </div>
           ))}
         </dl>

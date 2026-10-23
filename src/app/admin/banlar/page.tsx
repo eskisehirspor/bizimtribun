@@ -54,7 +54,7 @@ export default function AdminBansPage() {
   return (
     <div>
       {dialog}
-      <h2 className="font-anton text-[32px] leading-none">BANLAR</h2>
+      <h2 className="font-anton text-[32px] leading-[1.05]">BANLAR</h2>
       <div className="flex gap-2 mt-3">
         <button
           type="button"

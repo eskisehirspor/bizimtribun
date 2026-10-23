@@ -35,7 +35,7 @@ export default function SifremiUnuttumPage() {
     <ForumShell>
       <div className="max-w-[420px] mx-auto bg-[#FFFEFA] border-[4px] border-black shadow-[8px_8px_0_black] p-6">
         <p className="font-mono text-[11px] tracking-[0.2em]">BİZİM TRİBÜN • ÜYELİK</p>
-        <h1 className="font-anton text-[40px] leading-[0.85] mt-2">
+        <h1 className="font-anton text-[40px] leading-[1.05] mt-2">
           ŞİFREMİ
           <br />
           <span className="bg-[#FFEA00] px-2 inline-block rotate-1">UNUTTUM</span>

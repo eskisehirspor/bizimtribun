@@ -79,7 +79,7 @@ export default function TeamPicker({
       <div className="space-y-4">
         <div className="border-[4px] border-black bg-[#FFEA00] p-4 shadow-[4px_4px_0_black]">
           <p className={labelClass}>SEÇİMİN</p>
-          <p className="font-anton text-[30px] leading-none mt-1">{chosen.name}</p>
+          <p className="font-anton text-[30px] leading-[1.05] mt-1">{chosen.name}</p>
           <p className="font-mono text-[13px] mt-1">
             {labels[chosen.league]}
             {city ? ` • ${city}` : ""}
