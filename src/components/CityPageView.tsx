@@ -76,7 +76,7 @@ export default async function CityPageView({
         <h1 className="font-anton text-[42px] md:text-[56px] leading-[1.05] mt-2">
           {city.name.toLocaleUpperCase("tr")}
         </h1>
-        <p className="font-ultras text-[22px] md:text-[28px] leading-[1.2] mt-4 bg-[#FFEA00] inline-block px-2 py-[0.1em] border-[3px] border-black -rotate-1">
+        <p className="font-ultras text-[22px] md:text-[28px] leading-[1.2] mt-1.5 bg-[#FFEA00] inline-block px-2 py-[0.1em] border-[3px] border-black -rotate-1">
           {cityHeadline(city)}
         </p>
         <p className="font-mono text-[13px] mt-4 max-w-[52ch]">{cityBlurb(city)}</p>
