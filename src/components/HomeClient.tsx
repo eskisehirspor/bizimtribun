@@ -358,8 +358,8 @@ export default function HomeClient({
             <div className="grid md:grid-cols-2 gap-4 mt-3">
               {[
                 {
-                  t: "1. SMS İLE DOĞRULA",
-                  d: "Cep telefonuna gelen kodla hesabını aç. Her telefon numarası tek hesap açabilir.",
+                  t: "1. E-POSTANI DOĞRULA",
+                  d: "E-postana gelen kodla hesabını aç. Her hesap doğrulanmış bir e-posta adresine bağlıdır.",
                 },
                 {
                   t: "2. TAKIMINI BİR KEZ SEÇ",

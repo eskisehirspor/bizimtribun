@@ -129,7 +129,7 @@ export default async function CityPageView({
           )}
           <p className="font-mono text-[12px] opacity-70 mt-3">
             Veri: {fmt(generatedAt)}
-            {lastVoteAt ? ` • son oy ${fmt(lastVoteAt)}` : ""} • yalnızca telefonu doğrulanmış
+            {lastVoteAt ? ` • son oy ${fmt(lastVoteAt)}` : ""} • yalnızca doğrulanmış
             hesapların, hesap başına bir kalıcı oyu sayılır.
           </p>
           <div className="mt-4">

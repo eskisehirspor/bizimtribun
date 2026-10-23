@@ -80,7 +80,7 @@ export function LikeButton({
   }
   if (viewer === "unverified") {
     return (
-      <Link href="/takim-sec" className={`${likeBase} bg-white hover:bg-[#FFEA00]/40`} title="Alkışlamak için telefonunu doğrula">
+      <Link href="/takim-sec" className={`${likeBase} bg-white hover:bg-[#FFEA00]/40`} title="Alkışlamak için hesabını doğrula">
         👏 Alkışla · {state.count}
       </Link>
     );
