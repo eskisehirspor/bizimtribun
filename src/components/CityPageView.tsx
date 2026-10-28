@@ -78,6 +78,9 @@ export default async function CityPageView({
         </p>
         <h1 className="font-anton text-[42px] md:text-[56px] leading-[1.05] mt-2">
           {city.name.toLocaleUpperCase("tr")}
+          <span className="block font-mono text-[12px] md:text-[13px] tracking-[0.12em] leading-snug mt-1">
+            {cityLocative(city.name).toLocaleUpperCase("tr")} EN ÇOK HANGİ TAKIM TUTULUYOR?
+          </span>
         </h1>
         <p className="font-ultras text-[22px] md:text-[28px] leading-[1.2] mt-1.5 bg-[#FFEA00] inline-block px-2 py-[0.1em] border-[3px] border-black -rotate-1">
           {cityHeadline(city)}

@@ -177,13 +177,14 @@ export default function HomeClient({
             })}
           </div>
           <div className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[auto_minmax(0,1fr)_auto] items-start md:items-end gap-x-3 gap-y-2 md:gap-x-6">
-            <h1 className="font-anton text-[40px] sm:text-[48px] md:text-[68px] leading-[0.95] tracking-tighter">
+            {/* The brand is a logo, not the page topic: the H1 is the keyword heading in HomeTeamCounts. */}
+            <div className="font-anton text-[40px] sm:text-[48px] md:text-[68px] leading-[0.95] tracking-tighter">
               BİZİM
               <br />
               <span className="bg-black text-[#FFEA00] px-2 inline-block rotate-[-1deg]">
                 TRİBÜN
               </span>
-            </h1>
+            </div>
             <p className="col-start-1 md:col-start-2 font-ultras text-[18px] sm:text-[22px] md:text-[32px] tracking-wide -rotate-2 md:-rotate-[1.2deg] origin-left leading-[1.05] md:mb-2">
               Türkiye&apos;nin en gürültülü gerçek sayımı!
             </p>

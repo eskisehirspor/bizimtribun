@@ -16,7 +16,7 @@ export default function HomeTeamCounts({ teams, total }: { teams: Team[]; total:
   return (
     <section className="relative z-10 max-w-[1320px] mx-auto px-4 md:px-6 pb-8">
       <div className="border-[4px] border-black bg-[#FFFEFA] p-4 md:p-6 shadow-[8px_8px_0_black]">
-        <h2 className="font-anton text-[28px] md:text-[40px] leading-[1.05]">HANGİ TAKIMIN KAÇ TARAFTARI VAR?</h2>
+        <h1 className="font-anton text-[28px] md:text-[40px] leading-[1.05]">HANGİ TAKIMIN KAÇ TARAFTARI VAR?</h1>
         <p className="font-mono text-[14px] mt-3 max-w-[70ch]">
           Bizim Tribün, Türkiye&apos;nin taraftar sayımı. Her doğrulanmış hesap tek ve kalıcı bir takım oyu
           verir; taraftar sayıları anket ya da tahmin değil, gerçek kişilerin oyları. Şu an toplam{" "}
