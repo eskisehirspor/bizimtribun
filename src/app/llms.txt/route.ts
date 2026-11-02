@@ -1,6 +1,7 @@
 import { NATIONAL_BOARD_NAME, NATIONAL_BOARD_PATH } from "@/lib/national-board";
 import { SITE_NAME, absoluteUrl } from "@/lib/seo";
 import { teamCounts, totalVerified } from "@/lib/stats";
+import { BLOG_PATH, BLOG_TITLE, blogPostPath, listPosts } from "@/lib/blog";
 import { fanForm } from "@/lib/team-seo";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,7 @@ export async function GET() {
   const n = (v: number) => v.toLocaleString("tr-TR");
   const teams = [...(await teamCounts())].sort((a, b) => b.votes - a.votes);
   const total = await totalVerified();
+  const posts = listPosts(undefined, false);
   const stamp = new Date().toLocaleString("tr-TR", { timeZone: "Europe/Istanbul", dateStyle: "long", timeStyle: "short" });
 
   const lines = [
@@ -36,6 +38,14 @@ export async function GET() {
     `- [${NATIONAL_BOARD_NAME}](${absoluteUrl(NATIONAL_BOARD_PATH)}): herkese açık futbol forumu`,
     `- [Site haritası](${absoluteUrl("/sitemap.xml")}): bütün takım ve il sayfaları`,
     "",
+    ...(posts.length
+      ? [
+          `## ${BLOG_TITLE} (${absoluteUrl(BLOG_PATH)})`,
+          "",
+          ...posts.map((p) => `- [${p.title}](${absoluteUrl(blogPostPath(p.slug))}): ${p.description}`),
+          "",
+        ]
+      : []),
     "## Takımların taraftar sayıları",
     "",
     ...teams

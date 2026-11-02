@@ -195,3 +195,52 @@ export function publicPageMetadata(opts: { title: string; description: string; p
 export function privatePageMetadata(title: string): Metadata {
   return { title: `${title} | ${SITE_NAME}`, robots: { index: false, follow: false } };
 }
+
+/** A blog post: the page's own article, written and published by the site. */
+export function articleJsonLd(opts: {
+  path: string;
+  title: string;
+  description: string;
+  publishedAt: string;
+  updatedAt?: string;
+  citations?: { title: string; url: string }[];
+}): JsonLd {
+  const url = absoluteUrl(opts.path);
+  return {
+    "@type": "Article",
+    "@id": `${url}#article`,
+    mainEntityOfPage: url,
+    url,
+    headline: opts.title,
+    description: opts.description,
+    inLanguage: "tr-TR",
+    datePublished: opts.publishedAt,
+    dateModified: opts.updatedAt ?? opts.publishedAt,
+    image: absoluteUrl(DEFAULT_SHARE_IMAGE.url),
+    author: { "@id": `${siteOrigin()}/#organization` },
+    publisher: { "@id": `${siteOrigin()}/#organization` },
+    ...(opts.citations?.length
+      ? { citation: opts.citations.map((c) => ({ "@type": "CreativeWork", name: c.title, url: c.url })) }
+      : {}),
+  };
+}
+
+/** publicPageMetadata, typed as an article for share cards. */
+export function articlePageMetadata(opts: {
+  title: string;
+  description: string;
+  path: string;
+  publishedAt: string;
+  updatedAt?: string;
+}): Metadata {
+  const base = publicPageMetadata(opts);
+  return {
+    ...base,
+    openGraph: {
+      ...base.openGraph,
+      type: "article",
+      publishedTime: opts.publishedAt,
+      modifiedTime: opts.updatedAt ?? opts.publishedAt,
+    },
+  };
+}

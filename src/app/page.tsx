@@ -10,6 +10,7 @@ import { cityStandings, teamCounts, totalVerified } from "@/lib/stats";
 import { currentSeason } from "@/lib/team-admin";
 import { listLeagues } from "@/lib/team-catalog";
 import { verifyChannel } from "@/lib/verify-channel";
+import { listPosts } from "@/lib/blog";
 import { DEFAULT_SHARE_IMAGE, graph, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +67,7 @@ export default async function Home() {
         homeLeagueIds={settings.homeLeagues.ids}
         generatedAt={new Date().toISOString()}
         verifyChannel={verifyChannel()}
+        posts={listPosts().slice(0, 3).map((p) => ({ slug: p.slug, title: p.title }))}
       />
       <HomeTeamCounts teams={teams} total={total} openingShown={shown.opening > 0} />
     </>

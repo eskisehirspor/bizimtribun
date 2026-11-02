@@ -67,6 +67,7 @@ export default function SiteNav() {
     : "";
   const inTribun = pathname.startsWith("/takim") || pathname.startsWith("/forum");
   const inAdmin = pathname.startsWith("/admin");
+  const inBlog = pathname.startsWith("/blog");
   const isStaff = isStaffRole(user?.role);
   const myBoard = user?.voteTeamId ? `/takim/${user.voteTeamId}/forum` : null;
 
@@ -98,6 +99,9 @@ export default function SiteNav() {
           </Link>
           <Link href="/forum" aria-current={inTribun ? "page" : undefined} className={tab(inTribun)}>
             TRİBÜN
+          </Link>
+          <Link href="/blog" aria-current={inBlog ? "page" : undefined} className={tab(inBlog)}>
+            BLOG
           </Link>
           {isStaff && (
             <Link href="/admin" aria-current={inAdmin ? "page" : undefined} className={tab(inAdmin)}>

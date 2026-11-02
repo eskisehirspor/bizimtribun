@@ -1,5 +1,6 @@
 import type { Db } from "./db";
 import { CITIES } from "./cities";
+import { BLOG_PATH, blogPostPath, listPosts } from "./blog";
 
 /** Google sitemap protocol: max 50_000 URLs per sitemap document. */
 export const SITEMAP_MAX_URLS = 50_000;
@@ -49,6 +50,14 @@ export function staticSitemapEntries(base: string, now = new Date()): SitemapEnt
       changeFrequency: "hourly",
       priority: 0.8,
     },
+    // Published posts only, dated by their own publish/update day.
+    { url: `${root}${BLOG_PATH}`, changeFrequency: "weekly" as const, priority: 0.7 },
+    ...listPosts(undefined, false).map((post) => ({
+      url: `${root}${blogPostPath(post.slug)}`,
+      lastModified: new Date(`${post.updatedAt ?? post.publishedAt}T00:00:00Z`),
+      changeFrequency: "monthly" as const,
+      priority: 0.7,
+    })),
     // No lastModified: these change rarely, and a date that moves on every
     // request teaches Google to ignore the dates that do matter.
     ...["/kvkk", "/kullanim-kosullari", "/cerez-politikasi"].map((path) => ({

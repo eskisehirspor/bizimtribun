@@ -57,6 +57,8 @@ type Props = {
   generatedAt: string;
   /** How new members verify; the "how it works" copy follows it. */
   verifyChannel: VerifyChannel;
+  /** Latest blog posts. */
+  posts: { slug: string; title: string }[];
 };
 
 const n = (v: number) => v.toLocaleString("tr-TR");
@@ -105,6 +107,7 @@ export default function HomeClient({
   homeLeagueIds,
   generatedAt,
   verifyChannel,
+  posts,
 }: Props) {
   const { user, loading } = useAuth();
   const [teams, setTeams] = useState(initialTeams);
@@ -428,6 +431,31 @@ export default function HomeClient({
                 </div>
               )}
             </section>
+
+            {posts.length > 0 && (
+              <section aria-labelledby="notlar-baslik">
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 id="notlar-baslik" className="font-anton text-[24px] uppercase leading-none">
+                    Tribün Notları
+                  </h2>
+                  <Link href="/blog" className="font-mono text-[13px] underline underline-offset-4 hover:bg-volt">
+                    Tüm yazılar →
+                  </Link>
+                </div>
+                <ul className="mt-4 border-t-[2px] border-line">
+                  {posts.map((p) => (
+                    <li key={p.slug} className="border-b-[2px] border-hairline">
+                      <Link
+                        href={`/blog/${p.slug}`}
+                        className="flex min-h-12 items-center py-2 text-[15px] font-semibold leading-snug hover:bg-volt/40"
+                      >
+                        {p.title}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
           </aside>
         </div>
       </main>

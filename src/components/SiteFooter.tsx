@@ -61,6 +61,11 @@ export default function SiteFooter() {
                 Takım tribünleri
               </Link>
             </li>
+            <li>
+              <Link href="/blog" className={linkClass}>
+                Tribün Notları (blog)
+              </Link>
+            </li>
           </ul>
         </nav>
         <nav aria-label="Yasal">
