@@ -1,9 +1,12 @@
 import Link from "next/link";
 import JsonLd from "@/components/JsonLd";
 import PostMeta from "@/components/blog/PostMeta";
-import { BLOG_PATH, BLOG_TITLE, blogPostPath, listPosts, readingMinutes } from "@/lib/blog";
+import { BLOG_PATH, BLOG_TITLE, blogPostPath, listPosts, readingMinutes, unreleasedLabel } from "@/lib/blog";
 import { HOME_CRUMB, breadcrumbJsonLd, graph, publicPageMetadata } from "@/lib/seo";
 import { btnPrimary } from "@/components/ui";
+
+// Rendered per request so a scheduled post is listed on its day without a deploy.
+export const dynamic = "force-dynamic";
 
 export const metadata = publicPageMetadata({
   title: `${BLOG_TITLE}: Taraftarlık, Sayım ve Tribün Yazıları | Bizim Tribün`,
@@ -45,7 +48,7 @@ export default function BlogIndexPage() {
             {lead && (
               <article className="border-[3px] border-line bg-surface shadow-[6px_6px_0_var(--color-ink)]">
                 <Link href={blogPostPath(lead.slug)} className="group block p-6 md:p-8">
-                  <PostMeta date={lead.publishedAt} minutes={readingMinutes(lead)} draft={lead.status === "draft"} />
+                  <PostMeta date={lead.publishedAt} minutes={readingMinutes(lead)} badge={unreleasedLabel(lead)} />
                   <h2 className="mt-3 font-anton text-[34px] uppercase leading-[1.02] tracking-tight group-hover:underline md:text-[44px]">
                     {lead.title}
                   </h2>
@@ -61,7 +64,7 @@ export default function BlogIndexPage() {
                 {rest.map((post) => (
                   <li key={post.slug} className="border-b-[2px] border-hairline">
                     <Link href={blogPostPath(post.slug)} className="group block py-5 hover:bg-surface md:px-2">
-                      <PostMeta date={post.publishedAt} minutes={readingMinutes(post)} draft={post.status === "draft"} />
+                      <PostMeta date={post.publishedAt} minutes={readingMinutes(post)} badge={unreleasedLabel(post)} />
                       <h2 className="mt-2 text-[20px] font-bold leading-snug group-hover:underline">{post.title}</h2>
                       <p className="mt-1 text-[15px] leading-relaxed text-muted">{post.description}</p>
                     </Link>

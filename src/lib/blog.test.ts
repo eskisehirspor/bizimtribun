@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { BLOG_POSTS } from "@/content/blog";
-import { type BlogPost, draftsVisible, formatPostDate, getPost, listPosts, postProblems, readingMinutes } from "./blog";
+import {
+  type BlogPost,
+  draftsVisible,
+  formatPostDate,
+  getPost,
+  isLive,
+  listPosts,
+  postProblems,
+  readingMinutes,
+  todayInTurkey,
+  unreleasedLabel,
+} from "./blog";
 import { parseMarkdown, inlineText } from "./blog-markdown";
 import { getCityBySlug } from "./cities";
 import { getTeam } from "./teams";
@@ -24,6 +35,22 @@ test("drafts are hidden in production and shown in development", () => {
   assert.deepEqual(listPosts(posts, true).map((p) => p.slug), ["taslak", "ornek"]);
   assert.equal(getPost("taslak", posts, false), undefined);
   assert.equal(getPost("taslak", posts, true)?.slug, "taslak");
+});
+
+test("a scheduled post goes live at midnight Türkiye time on its day", () => {
+  const later = { ...base, slug: "yarin", publishedAt: "2026-11-03" };
+  const posts = [base, later];
+  // 20:59 UTC on 2 Nov is still 23:59 on 2 Nov in Türkiye (UTC+3); 21:00 UTC is 00:00 on 3 Nov.
+  assert.equal(todayInTurkey(new Date("2026-11-02T20:59:00Z")), "2026-11-02");
+  assert.equal(todayInTurkey(new Date("2026-11-02T21:00:00Z")), "2026-11-03");
+  assert.deepEqual(listPosts(posts, false, "2026-11-02").map((p) => p.slug), ["ornek"]);
+  assert.deepEqual(listPosts(posts, false, "2026-11-03").map((p) => p.slug), ["yarin", "ornek"]);
+  assert.equal(getPost("yarin", posts, false, "2026-11-02"), undefined);
+  assert.equal(getPost("yarin", posts, true, "2026-11-02")?.slug, "yarin");
+  assert.equal(isLive({ status: "draft", publishedAt: "2026-01-01" }, "2026-11-02"), false);
+  assert.equal(unreleasedLabel(later, "2026-11-02"), "Planlı");
+  assert.equal(unreleasedLabel(later, "2026-11-03"), undefined);
+  assert.equal(unreleasedLabel({ ...base, status: "draft" }, "2030-01-01"), "Taslak");
 });
 
 test("dates and reading time", () => {

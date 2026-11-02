@@ -4,8 +4,10 @@ import { BLOG_POSTS } from "@/content/blog";
 /**
  * Blog posts live in src/content/blog as code, so they ship inside the Worker
  * bundle (no file system at runtime). A post is a draft until an editor sets
- * `status: "published"`; drafts are visible in development only and never
- * reach production pages, the sitemap or llms.txt.
+ * `status: "published"`, and a published post goes live at 00:00 Türkiye time
+ * on its `publishedAt` day, so a batch can be deployed once and released one
+ * a day. Drafts and scheduled posts are visible in development only and never
+ * reach production pages, the sitemap or llms.txt before their day.
  */
 
 export type BlogSource = {
@@ -43,15 +45,33 @@ export function draftsVisible(env: NodeJS.ProcessEnv = process.env) {
   return env.NODE_ENV !== "production";
 }
 
-/** Newest first, same-day posts in registry order; drafts only where they may be seen. */
-export function listPosts(posts: BlogPost[] = BLOG_POSTS, withDrafts = draftsVisible()) {
+const TR_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" });
+
+/** Today in Türkiye as YYYY-MM-DD. */
+export function todayInTurkey(now = new Date()) {
+  return TR_DAY.format(now);
+}
+
+/** Published and its day has come. */
+export function isLive(post: Pick<BlogPost, "status" | "publishedAt">, today = todayInTurkey()) {
+  return post.status === "published" && post.publishedAt <= today;
+}
+
+/** "Taslak" or "Planlı" for a post readers cannot see yet, else undefined. */
+export function unreleasedLabel(post: Pick<BlogPost, "status" | "publishedAt">, today = todayInTurkey()) {
+  if (post.status === "draft") return "Taslak";
+  return isLive(post, today) ? undefined : "Planlı";
+}
+
+/** Newest first, same-day posts in registry order; unreleased posts only where they may be seen. */
+export function listPosts(posts: BlogPost[] = BLOG_POSTS, withDrafts = draftsVisible(), today = todayInTurkey()) {
   return posts
-    .filter((p) => withDrafts || p.status === "published")
+    .filter((p) => withDrafts || isLive(p, today))
     .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
 }
 
-export function getPost(slug: string, posts: BlogPost[] = BLOG_POSTS, withDrafts = draftsVisible()) {
-  return listPosts(posts, withDrafts).find((p) => p.slug === slug);
+export function getPost(slug: string, posts: BlogPost[] = BLOG_POSTS, withDrafts = draftsVisible(), today = todayInTurkey()) {
+  return listPosts(posts, withDrafts, today).find((p) => p.slug === slug);
 }
 
 /** Minutes, rounded up, at a relaxed 200 words a minute. */

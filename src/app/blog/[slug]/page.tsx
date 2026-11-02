@@ -5,13 +5,12 @@ import JsonLd from "@/components/JsonLd";
 import PostBody from "@/components/blog/PostBody";
 import PostMeta from "@/components/blog/PostMeta";
 import { btnAccent } from "@/components/ui";
-import { BLOG_PATH, BLOG_TITLE, blogPostPath, formatPostDate, getPost, listPosts, readingMinutes } from "@/lib/blog";
+import { BLOG_PATH, BLOG_TITLE, blogPostPath, formatPostDate, getPost, isLive, listPosts, readingMinutes, unreleasedLabel } from "@/lib/blog";
 import { inlineText, parseMarkdown } from "@/lib/blog-markdown";
 import { HOME_CRUMB, articleJsonLd, articlePageMetadata, breadcrumbJsonLd, graph } from "@/lib/seo";
 
-export function generateStaticParams() {
-  return listPosts().map((post) => ({ slug: post.slug }));
-}
+// Rendered per request so a scheduled post appears on its day without a deploy.
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -24,8 +23,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     publishedAt: post.publishedAt,
     updatedAt: post.updatedAt,
   });
-  // A draft only ever renders in development, but never let one be indexed.
-  return post.status === "draft" ? { ...meta, robots: { index: false, follow: false } } : meta;
+  // Unreleased posts only ever render in development, but never let one be indexed.
+  return !isLive(post) ? { ...meta, robots: { index: false, follow: false } } : meta;
 }
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -53,9 +52,11 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
         )}
       />
 
-      {post.status === "draft" && (
+      {!isLive(post) && (
         <p className="border-b-[3px] border-line bg-flare px-4 py-2 text-center font-mono text-[13px] text-white">
-          Taslak: yalnızca geliştirme ortamında görünür, yayında yok.
+          {post.status === "draft"
+            ? "Taslak: yalnızca geliştirme ortamında görünür, yayında yok."
+            : `Planlı: ${formatPostDate(post.publishedAt)} günü yayına girer.`}
         </p>
       )}
 
@@ -71,7 +72,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           </h1>
           <p className="mt-4 max-w-[60ch] text-[18px] leading-relaxed text-muted md:text-[20px]">{post.description}</p>
           <div className="mt-5">
-            <PostMeta date={post.publishedAt} minutes={readingMinutes(post)} draft={post.status === "draft"} />
+            <PostMeta date={post.publishedAt} minutes={readingMinutes(post)} badge={unreleasedLabel(post)} />
             {post.updatedAt && (
               <p className="mt-1 font-mono text-[12px] text-muted">
                 Güncellendi: <time dateTime={post.updatedAt}>{formatPostDate(post.updatedAt)}</time>

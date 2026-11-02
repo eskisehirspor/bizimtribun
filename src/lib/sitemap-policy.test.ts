@@ -4,6 +4,7 @@ import { scratchDb } from "./db-test";
 import type { Db } from "./db";
 import { CITIES } from "./cities";
 import { BLOG_POSTS } from "@/content/blog";
+import { isLive } from "./blog";
 import { FORUM_ACTIVE_TEAM_IDS, TEAMS } from "./teams";
 import {
   SITEMAP_MAX_URLS,
@@ -184,10 +185,10 @@ test("team pages, general topics (not old province topics), and only public prof
   assert.equal(closed.includes(`${BASE}/forum/milli-takim`), false);
 });
 
-test("blog: the index is listed, drafts never are", () => {
+test("blog: the index is listed, live posts are, unreleased ones never are", () => {
   const urls = staticSitemapEntries(BASE).map((e) => e.url);
   assert.ok(urls.includes(`${BASE}/blog`));
-  for (const draft of BLOG_POSTS.filter((p) => p.status === "draft")) {
-    assert.ok(!urls.includes(`${BASE}/blog/${draft.slug}`), draft.slug);
+  for (const post of BLOG_POSTS) {
+    assert.equal(urls.includes(`${BASE}/blog/${post.slug}`), isLive(post), post.slug);
   }
 });

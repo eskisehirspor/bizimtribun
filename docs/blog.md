@@ -18,7 +18,10 @@ içi yollar ve `https://` adresleri olabilir.
 
 - `status: "draft"`: yalnızca `npm run dev` ile görünür (kırmızı "Taslak" şeridiyle, `noindex`).
   Üretimde 404 verir; listede, sitemap'te ve llms.txt'te yer almaz.
-- `status: "published"`: `/blog`, ana sayfadaki "Tribün Notları", sitemap ve llms.txt'e girer.
+- `status: "published"`: `publishedAt` günü Türkiye saatiyle 00:00'da `/blog`, ana sayfadaki
+  "Tribün Notları", sitemap ve llms.txt'e girer. Tarihi ileride olan yazı o güne kadar 404 verir
+  (geliştirmede "Planlı" şeridiyle görünür). Böylece bir haftalık yazı tek deploy'la gönderilir,
+  her gün biri kendiliğinden yayına çıkar; blog sayfaları bu yüzden istek başına çizilir.
 
 `npm test`, her yazının alanlarını, bağlantılarının (il, takım, diğer yazı) gerçekten var olduğunu
 ve slug'ların tekrar etmediğini kontrol eder.
