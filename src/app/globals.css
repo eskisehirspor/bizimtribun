@@ -1,11 +1,29 @@
 @import "tailwindcss";
 
+/*
+ * Bizim Tribün design tokens.
+ * Colours: ink on paper, one brand yellow (volt) for emphasis and the
+ * scoreboard, one red (flare) for alerts and destructive actions. Team
+ * colours only ever appear as data (map, swatches, bars).
+ * Type: Anton for display and numbers, Archivo for reading and UI,
+ * Space Mono for meta and data labels (never below 12px).
+ */
 @theme inline {
   --font-anton: var(--font-anton);
-  --font-marker: var(--font-marker);
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-space);
-  --font-hand: var(--font-hand);
-  --font-ultras: var(--font-ultras);
+
+  --color-ink: #111111;
+  --color-paper: #f2efe6;
+  --color-surface: #fffefa;
+  --color-sunken: #e8e4d8;
+  --color-muted: #55524a; /* 6.8:1 on paper, 7.7:1 on surface */
+  --color-line: #111111;
+  --color-hairline: #d6d1c3;
+  --color-volt: #ffea00;
+  --color-volt-soft: #fff6a3;
+  --color-flare: #c8102e;
+  --color-flare-dark: #a50d26;
 }
 
 html,
@@ -15,24 +33,32 @@ body {
 
 body {
   margin: 0;
-  background: #f2efe6;
-  color: #111;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 .font-anton {
   font-family: var(--font-anton), Impact, sans-serif;
 }
+/* Legacy display classes from the first design; mapped onto the two
+   families above so older pages keep working without extra font files. */
 .font-marker {
-  font-family: var(--font-marker), "Kalam", cursive;
+  font-family: var(--font-archivo), ui-sans-serif, sans-serif;
+  font-weight: 700;
 }
 .font-mono {
   font-family: var(--font-space), ui-monospace, monospace;
 }
 .font-hand {
-  font-family: var(--font-hand), cursive;
+  font-family: var(--font-archivo), ui-sans-serif, sans-serif;
+  font-weight: 700;
 }
 .font-ultras {
-  font-family: var(--font-ultras), "Bangers", Impact, sans-serif;
+  font-family: var(--font-anton), Impact, sans-serif;
+  letter-spacing: 0.01em;
 }
 
 .paper-bg {
@@ -118,5 +144,16 @@ body {
   label:has(> input[type="checkbox"]),
   label:has(> input[type="radio"]) {
     cursor: pointer;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

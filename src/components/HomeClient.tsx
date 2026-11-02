@@ -2,9 +2,10 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/AuthProvider";
 import type { RecentTopic } from "@/lib/home-feed";
+import type { VerifyChannel } from "@/lib/verify-channel";
 import {
   LEAGUE_LABEL,
   LEAGUE_ORDER,
@@ -13,10 +14,9 @@ import {
   type LeagueId,
   type Team,
 } from "@/lib/teams";
-import PitchDecor from "@/components/PitchDecor";
 import TeamColors from "@/components/TeamColors";
 import { MilliTag } from "@/components/AyYildiz";
-import { btnSm, chipClass, fieldClass } from "@/components/ui";
+import { btnPrimary, btnSecondary, btnSm, chipClass, fieldClass } from "@/components/ui";
 import { useLiveVotes } from "@/components/useLiveVotes";
 
 // The map is ~300 KB of outlines with nothing for search engines to read, so it
@@ -25,15 +25,17 @@ import { useLiveVotes } from "@/components/useLiveVotes";
 const TurkeyMap = dynamic(() => import("@/components/TurkeyMap"), {
   ssr: false,
   loading: () => (
-    <div aria-hidden className="w-full">
-      <div className="w-full aspect-[1007/527] bg-[#E4E0D4]/40" />
-      <div className="min-h-[190px]" />
+    <div aria-hidden className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="w-full aspect-[1007/527] bg-sunken/60" />
+      <div className="min-h-[200px]" />
     </div>
   ),
 });
 
-/** Rows shown on phones before "Tümünü göster"; desktop scrolls inside the box. */
-const MOBILE_ROWS = 10;
+/** Rows shown before "Tümünü göster"; short lists and searches show everything. */
+const COLLAPSED_ROWS = 10;
+/** Lists up to this long are never collapsed: one more tap would cost more than it saves. */
+const NO_COLLAPSE_UNDER = 13;
 
 type TeamStat = Team & { votes: number };
 type CityLeader = { teamId: string; votes: number; tied: boolean; coLeaderIds: string[] };
@@ -53,8 +55,42 @@ type Props = {
   /** Leagues an admin chose to show as filters on the home page. */
   homeLeagueIds: string[];
   generatedAt: string;
+  /** How new members verify; the "how it works" copy follows it. */
+  verifyChannel: VerifyChannel;
 };
 
+const n = (v: number) => v.toLocaleString("tr-TR");
+
+const AS_OF_PARTS = new Intl.DateTimeFormat("tr-TR", {
+  day: "2-digit",
+  month: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  // Same zone on the server (UTC) and in the browser.
+  timeZone: "Europe/Istanbul",
+});
+
+/**
+ * "23.10 10:37". Built from parts because Node and browsers join a
+ * day-month-only date differently ("23/10" vs "23.10"), which breaks hydration.
+ */
+function formatAsOf(iso: string) {
+  const p = Object.fromEntries(AS_OF_PARTS.formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+  return `${p.day}.${p.month} ${p.hour}:${p.minute}`;
+}
+
+/** Section heading: one display size, one optional line of context under it. */
+function SectionHead({ id, title, children }: { id: string; title: string; children?: ReactNode }) {
+  return (
+    <div className="mb-5">
+      <h2 id={id} className="font-anton text-[30px] md:text-[40px] leading-[1.05] tracking-tight uppercase">
+        {title}
+      </h2>
+      {children && <p className="mt-2 max-w-[62ch] text-[15px] leading-relaxed text-muted">{children}</p>}
+    </div>
+  );
+}
 
 export default function HomeClient({
   initialTeams,
@@ -68,8 +104,9 @@ export default function HomeClient({
   featuredTopics,
   homeLeagueIds,
   generatedAt,
+  verifyChannel,
 }: Props) {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const [teams, setTeams] = useState(initialTeams);
   const [total, setTotal] = useState(initialTotal);
   const [cities, setCities] = useState(initialCities);
@@ -94,37 +131,37 @@ export default function HomeClient({
     homeLeagueIds.includes("super") ? "super" : ((homeLeagueIds[0] as LeagueId | undefined) ?? "all"),
   );
   const [query, setQuery] = useState("");
-  const [showAllTeams, setShowAllTeams] = useState(false);
-  const [showAllTable, setShowAllTable] = useState(false);
+  const [showAll, setShowAll] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const preview = { teams, total, cities, standings };
   const myTeamId = user?.voteTeamId ?? null;
+  const myTeam = myTeamId ? teams.find((t) => t.id === myTeamId) : undefined;
+  const verified = total - opening;
 
   const ranked = useMemo(
     () =>
-      [...preview.teams].sort((a, b) => {
+      [...teams].sort((a, b) => {
         if (b.votes !== a.votes) return b.votes - a.votes;
-        const leagueDiff =
-          leagueOrder.indexOf(a.league) - leagueOrder.indexOf(b.league);
+        const leagueDiff = leagueOrder.indexOf(a.league) - leagueOrder.indexOf(b.league);
         if (leagueDiff) return leagueDiff;
         return a.name.localeCompare(b.name, "tr");
       }),
-    [preview.teams, leagueOrder],
+    [teams, leagueOrder],
   );
-  const leader = preview.total > 0 ? ranked[0] : undefined;
+  /** Overall rank, so a filtered list still says where a team stands in Türkiye. */
+  const rankOf = useMemo(() => new Map(ranked.map((t, i) => [t.id, i + 1])), [ranked]);
+  const topVotes = ranked[0]?.votes ?? 0;
+  const podium = total > 0 ? ranked.slice(0, 3) : [];
 
   const filtered = useMemo(() => {
     const q = foldTr(query.trim());
     return ranked.filter((t) => {
       if (league !== "all" && t.league !== league) return false;
       if (!q) return true;
-      return (
-        foldTr(t.name).includes(q) ||
-        foldTr(t.city).includes(q) ||
-        foldTr(t.short).includes(q)
-      );
+      return foldTr(t.name).includes(q) || foldTr(t.city).includes(q) || foldTr(t.short).includes(q);
     });
   }, [ranked, league, query]);
+  const collapsible = !query.trim() && filtered.length >= NO_COLLAPSE_UNDER;
+  const visible = collapsible && !showAll ? filtered.slice(0, COLLAPSED_ROWS) : filtered;
 
   async function refresh() {
     setRefreshing(true);
@@ -156,342 +193,427 @@ export default function HomeClient({
     return `/takim-sec?takim=${encodeURIComponent(teamId)}`;
   }
 
-  return (
-    <div className="min-h-screen bg-[#F2EFE6] text-black relative overflow-x-clip">
-      <div className="pointer-events-none fixed inset-0 z-0 opacity-[0.22] mix-blend-multiply paper-bg" />
-      <PitchDecor />
+  function pickLeague(id: "all" | LeagueId) {
+    setLeague(id);
+    setShowAll(false);
+  }
 
-      <header className="relative z-20 border-b-[4px] border-black bg-[#FFFEFA]">
-        <div className="absolute top-0 left-0 w-full h-[6px] bg-[repeating-linear-gradient(90deg,black_0_20px,#FFEA00_20px_40px)]" />
-        <div className="max-w-[1320px] mx-auto px-4 sm:px-5 md:px-8 pt-8 pb-5 md:py-8">
-          <div className="font-mono text-[11px] tracking-[0.08em] sm:tracking-[0.16em] leading-tight mb-5 md:mb-4">
-            81 İL • {teams.length} TAKIM • {season ? `${season} SEZONU • ` : ""}VERİ:{" "}
-            {new Date(asOf).toLocaleString("tr-TR", {
-              day: "2-digit",
-              month: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              // Same zone on the server (UTC) and in the browser, so the HTML matches.
-              timeZone: "Europe/Istanbul",
-            })}
-          </div>
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] md:grid-cols-[auto_minmax(0,1fr)_auto] items-start md:items-end gap-x-3 gap-y-2 md:gap-x-6">
-            <h1 className="font-anton text-[40px] sm:text-[48px] md:text-[68px] leading-[0.95] tracking-tighter">
-              BİZİM
-              <br />
-              <span className="bg-black text-[#FFEA00] px-2 inline-block rotate-[-1deg]">
-                TRİBÜN
-              </span>
-            </h1>
-            <p className="col-start-1 md:col-start-2 font-ultras text-[18px] sm:text-[22px] md:text-[32px] tracking-wide -rotate-2 md:-rotate-[1.2deg] origin-left leading-[1.05] md:mb-2">
-              Türkiye&apos;nin en gürültülü gerçek sayımı!
+  const steps = [
+    {
+      t: "Üye ol",
+      d:
+        verifyChannel === "sms"
+          ? "Cep telefonuna gelen kodla hesabını doğrula. Sahte hesaplar sayıma girmez."
+          : "E-posta adresine gelen 6 haneli kodla hesabını doğrula. Sahte hesaplar sayıma girmez.",
+    },
+    {
+      t: "Takımını bir kez seç",
+      d: "Seçimin kalıcıdır, sonradan değişmez. Sayaçlar yalnızca bu seçimlerden hesaplanır.",
+    },
+    {
+      t: "İlini boya, tribüne katıl",
+      d: "Oyun ilinin rengini belirler. Takımının tribününde diğer taraftarlarla konuş.",
+    },
+  ];
+
+  return (
+    <div className="relative overflow-x-clip bg-paper text-ink">
+      {/* ── Hero: what this is, the one action, and the live scoreboard ── */}
+      <header className="border-b-[3px] border-line bg-surface">
+        <div className="mx-auto grid max-w-[1240px] gap-8 px-4 py-8 md:px-8 md:py-12 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center lg:gap-12">
+          <div>
+            <p className="font-mono text-[12px] uppercase tracking-[0.12em] text-muted">
+              {season ? `${season} sezonu · ` : ""}81 il · {n(teams.length)} takım
             </p>
-            <div className="col-start-2 row-start-1 row-span-2 md:col-start-3 md:row-span-1 md:row-start-1 shrink-0 border-[3px] md:border-[4px] border-black bg-[#FFEA00] px-2.5 py-2 sm:p-3 md:p-4 shadow-[4px_4px_0_black] md:shadow-[6px_6px_0_black] rotate-1 md:-rotate-2 self-start md:self-end w-[112px] sm:w-[140px] md:w-auto mr-3 sm:mr-4 md:mr-1">
-              <div className="font-mono text-[10px] md:text-[11px] leading-tight">
-                {opening > 0 ? "TARAFTAR" : "DOĞRULANMIŞ"}
-                <br className="md:hidden" />
-                <span className="hidden md:inline"> </span>
-                {opening > 0 ? "SAYACI" : "TARAFTAR"}
-              </div>
-              <div className="font-anton text-[28px] sm:text-[34px] md:text-[38px] leading-none tabular-nums mt-1">
-                {preview.total.toLocaleString("tr-TR")}
-              </div>
-              <div className="font-mono text-[10px] md:text-[11px] mt-1 leading-tight">
-                KİM ÖNDE?
-                <br className="md:hidden" />
-                <span className="hidden md:inline"> </span>
-                {leader?.name ?? "henüz yok"}
-              </div>
+            <h1 className="mt-3 font-anton text-[44px] leading-[1.04] tracking-tight uppercase sm:text-[56px] md:text-[72px] md:leading-[1]">
+              Türkiye&apos;nin{" "}
+              <span className="bg-[linear-gradient(transparent_58%,var(--color-volt)_58%)] box-decoration-clone px-1">
+                taraftar
+              </span>{" "}
+              sayımı
+            </h1>
+            <p className="mt-4 max-w-[52ch] text-[17px] leading-relaxed md:text-[19px]">
+              Her doğrulanmış üye bir takıma bir kez, kalıcı olarak oy verir. 81 il bu oylarla
+              takım renklerine boyanır.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+              {loading ? (
+                <span className="min-h-11" aria-hidden />
+              ) : myTeam ? (
+                <>
+                  <Link href={`/takim/${myTeam.id}/forum`} className={`${btnPrimary} px-6`}>
+                    {myTeam.name} tribününe git →
+                  </Link>
+                  <Link href={`/takim/${myTeam.id}`} className={btnSecondary}>
+                    Takımının sayısı
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link href={user ? "/takim-sec" : "/uye-ol"} className={`${btnPrimary} px-6`}>
+                    Takımını seç →
+                  </Link>
+                  <a href="#harita" className={btnSecondary}>
+                    Haritayı gör
+                  </a>
+                </>
+              )}
             </div>
           </div>
-        </div>
-        <div className="border-t-[3px] border-black overflow-hidden bg-black text-[#FFEA00] font-anton text-[14px] py-1">
-          <div className="flex w-max whitespace-nowrap animate-[marquee_70s_linear_infinite]">
-            {Array.from({ length: 2 }).map((_, copy) => (
-              <span key={copy} className="shrink-0" aria-hidden={copy === 1}>
-                {Array.from({ length: 8 })
-                  .map(
-                    () =>
-                      "81 İL 81 TARAFTAR • TAKIMININ SESİNİ DUYUR • KİM DAHA BÜYÜK?",
-                  )
-                  .join(" • ")}
-                {" • "}
-              </span>
-            ))}
-          </div>
+
+          <Scoreboard
+            total={total}
+            verified={verified}
+            opening={opening}
+            podium={podium}
+            asOf={asOf}
+            refreshing={refreshing}
+            onRefresh={() => void refresh()}
+          />
         </div>
       </header>
 
-      <main className="relative z-10 max-w-[1320px] mx-auto px-4 md:px-6 py-6 grid grid-cols-12 gap-6 md:gap-8">
-        <div className="col-span-12 border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[8px_8px_0_black]">
-          <h2 className="font-anton text-[32px] md:text-[48px] leading-[1.05] tracking-tight mb-8 md:mb-10">
-            TÜRKİYE HARİTASI
-            <br />
-            <span className="mt-2 inline-block bg-black text-[#FFEA00] px-3 py-1 rotate-[-1deg] text-[26px] md:text-[36px]">
-              İL LİDERLERİ
-            </span>
-          </h2>
-          {opening > 0 && <OpeningNote opening={opening} />}
-          <TurkeyMap leaders={preview.cities} standings={preview.standings} />
+      {opening > 0 && (
+        <div className="border-b-[3px] border-line bg-volt-soft">
+          <p className="mx-auto max-w-[1240px] px-4 py-3 text-[14px] leading-snug md:px-8">
+            <strong className="font-semibold">Açılış verisi:</strong> Harita ve sayaçlarda{" "}
+            {n(opening)} başlangıç oyu var; site yeni açıldığı için boş görünmesin diye eklendi.
+            Takım ve il sayfaları yalnızca doğrulanmış oyları gösterir.
+          </p>
         </div>
+      )}
 
-        <section className="col-span-12 lg:col-span-8 space-y-6">
-          <div className="border-[4px] border-black bg-[#FFFEFA] p-4 md:p-5 shadow-[8px_8px_0_black]">
-            <div className="flex justify-between items-baseline flex-wrap gap-2">
-              <h2 className="font-anton text-[28px] md:text-[36px] leading-[1.05]">
-                TAKIMINI{" "}
-                <span className="bg-[#C8102E] text-white px-2 inline-block rotate-1">
-                  SEÇ
-                </span>
-              </h2>
-            </div>
+      <main className="mx-auto max-w-[1240px] px-4 md:px-8">
+        {/* ── Map ── */}
+        <section id="harita" aria-labelledby="harita-baslik" className="scroll-mt-4 py-10 md:py-14">
+          <SectionHead id="harita-baslik" title="İl il taraftar haritası">
+            Her il, orada en çok oy alan takımın renklerine boyanır. Bir ile dokun, özetini gör.
+          </SectionHead>
+          <TurkeyMap leaders={cities} standings={standings} />
+        </section>
 
-            <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Lig">
+        {/* ── Standings + community ── */}
+        <div className="grid gap-10 border-t-[3px] border-line py-10 md:py-14 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12">
+          <section aria-labelledby="siralama-baslik">
+            <SectionHead id="siralama-baslik" title="Türkiye sıralaması">
+              {opening > 0
+                ? `${n(verified)} doğrulanmış taraftar + ${n(opening)} açılış verisi. Eşit oyda lig, sonra alfabe sırası.`
+                : `${n(total)} doğrulanmış taraftar. Eşit oyda lig, sonra alfabe sırası.`}
+            </SectionHead>
+
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Lige göre süz">
               <button
                 type="button"
                 aria-pressed={league === "all"}
-                onClick={() => setLeague("all")}
+                onClick={() => pickLeague("all")}
                 className={chipClass(league === "all")}
               >
-                TÜMÜ
+                Tümü
               </button>
               {leagueTabs.map((id) => (
                 <button
                   key={id}
                   type="button"
                   aria-pressed={league === id}
-                  onClick={() => setLeague(id)}
+                  onClick={() => pickLeague(id)}
                   className={chipClass(league === id)}
                 >
-                  {leagueLabel[id].toLocaleUpperCase("tr")}
+                  {leagueLabel[id]}
                 </button>
               ))}
             </div>
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Takım, il veya kısaltma ara…"
-              aria-label="Takım ara"
-              className={`mt-3 ${fieldClass}`}
-            />
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-              <span className="font-mono text-[13px] opacity-80" aria-live="polite">
-                {filtered.length} takım
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Takım, il veya kısaltma ara"
+                aria-label="Takım ara"
+                className={`${fieldClass} sm:max-w-[360px]`}
+              />
+              <span className="font-mono text-[13px] text-muted sm:ml-auto" aria-live="polite">
+                {n(filtered.length)} takım
               </span>
-              <button
-                type="button"
-                onClick={() => void refresh()}
-                disabled={refreshing}
-                aria-busy={refreshing || undefined}
-                className={btnSm}
-              >
-                {refreshing ? "YENİLENİYOR…" : "↻ SAYILARI YENİLE"}
-              </button>
             </div>
 
-            <div className="mt-3 md:max-h-[420px] md:overflow-auto border-[3px] border-black divide-y-[2px] divide-black">
-              {filtered.map((team, index) => {
-                return (
-                  <div
-                    key={team.id}
-                    className={`flex flex-wrap items-center gap-3 p-2 md:p-3 bg-white ${
-                      !showAllTeams && index >= MOBILE_ROWS ? "max-md:hidden" : ""
-                    }`}
-                  >
-                    <div className="flex-1 min-w-[140px]">
-                      <Link
-                        href={`/takim/${team.id}`}
-                        className="inline-flex min-h-10 items-center gap-2 hover:underline underline-offset-4"
-                      >
-                        <span className="font-anton text-[17px] leading-[1.05]">
-                          {team.name}
-                        </span>
-                        <TeamColors team={team} />
-                      </Link>
-                      <div className="font-mono text-[12px] opacity-80">
-                        {leagueLabel[team.league]} • {team.city}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-anton text-[18px] tabular-nums leading-none">
-                        {team.votes.toLocaleString("tr-TR")}
-                      </div>
-                    </div>
-                    {myTeamId === team.id ? (
-                      <span className="font-anton text-[13px] px-3 py-2 border-[3px] border-black bg-[#FFEA00]">
-                        SENİN TAKIMIN
-                      </span>
-                    ) : teamAction(team.id) ? (
-                      <Link
-                        href={teamAction(team.id)!}
-                        className="font-anton text-[14px] px-3 py-2 border-[3px] border-black bg-black text-white shadow-[3px_3px_0_black] hover:translate-x-[1px] hover:translate-y-[1px]"
-                      >
-                        Takımım!
-                      </Link>
-                    ) : null}
-                  </div>
-                );
-              })}
-              {opening > 0 && (
-                <div className="px-2 py-1 font-mono text-[10px] text-black/50">Başlangıç verisi dahil.</div>
-              )}
+            <ol className="mt-4 border-[3px] border-line bg-surface">
+              {visible.map((team) => (
+                <RankRow
+                  key={team.id}
+                  team={team}
+                  rank={rankOf.get(team.id) ?? 0}
+                  share={topVotes > 0 ? team.votes / topVotes : 0}
+                  meta={`${leagueLabel[team.league]} · ${team.city}`}
+                  mine={myTeamId === team.id}
+                  action={teamAction(team.id)}
+                />
+              ))}
               {filtered.length === 0 && (
-                <div className="p-4 font-mono text-[14px]">Eşleşme yok. Aramayı ya da lig filtresini değiştir.</div>
-              )}
-            </div>
-            {filtered.length > MOBILE_ROWS && (
-              <button
-                type="button"
-                onClick={() => setShowAllTeams((v) => !v)}
-                aria-expanded={showAllTeams}
-                className={`md:hidden mt-2 w-full ${btnSm}`}
-              >
-                {showAllTeams ? "DAHA AZ GÖSTER" : `TÜMÜNÜ GÖSTER (${filtered.length})`}
-              </button>
-            )}
-          </div>
-
-          <div className="border-[4px] border-black bg-[#FFFEFA] p-4 shadow-[6px_6px_0_black] rotate-[0.3deg]">
-            <h3 className="font-anton text-[26px]">NASIL ÇALIŞIR?</h3>
-            <div className="grid md:grid-cols-2 gap-4 mt-3">
-              {[
-                {
-                  t: "1. E-POSTANI DOĞRULA",
-                  d: "E-postana gelen kodla hesabını aç. Her hesap doğrulanmış bir e-posta adresine bağlıdır.",
-                },
-                {
-                  t: "2. TAKIMINI BİR KEZ SEÇ",
-                  d: "Seçimin kalıcıdır, sonradan değiştirilemez. Sayaçlar yalnızca bu seçimlerden hesaplanır.",
-                },
-              ].map((m) => (
-                <div key={m.t} className="border-[3px] border-black p-3 relative">
-                  <div className="font-anton text-[14px] leading-tight">{m.t}</div>
-                  <div className="font-mono text-[13px] mt-2 leading-[1.4]">{m.d}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <aside className="col-span-12 lg:col-span-4 space-y-6">
-          <div className="relative border-[4px] border-black bg-[#0F0F0F] text-[#F2EFE6] shadow-[8px_8px_0_black] p-4 pb-5">
-            <div className="flex justify-between items-center gap-2">
-              <h3 className="font-anton text-[24px] tracking-wide">GENEL TÜRKİYE</h3>
-              <span className="font-marker text-[13px] bg-[#FFEA00] text-black px-2 rotate-2">
-                TABLO
-              </span>
-            </div>
-            <div className="mt-1 font-mono text-[12px] opacity-70">
-              {opening > 0
-                ? `${(preview.total - opening).toLocaleString("tr-TR")} doğrulanmış taraftar + ${opening.toLocaleString("tr-TR")} açılış verisi`
-                : `${preview.total.toLocaleString("tr-TR")} doğrulanmış taraftar`}{" "}
-              • eşit oyda alfabetik
-            </div>
-            <ol className="mt-3 md:max-h-[420px] md:overflow-auto space-y-1 pr-1">
-              {ranked.map((m, i) => (
-                <li
-                  key={m.id}
-                  className={`flex items-center gap-2 border-b border-dashed border-white/20 pb-1 ${
-                    !showAllTable && i >= MOBILE_ROWS ? "max-md:hidden" : ""
-                  }`}
-                >
-                  <span className="font-anton text-[15px] w-[30px] opacity-80">{i + 1}.</span>
-                  <Link
-                    href={`/takim/${m.id}`}
-                    className="font-anton text-[14px] flex-1 leading-tight inline-flex min-h-10 items-center gap-1.5 min-w-0 hover:underline underline-offset-4"
-                  >
-                    <span className="truncate">{m.name}</span>
-                    <TeamColors team={m} size={10} />
-                  </Link>
-                  <span className="font-mono text-[11px] opacity-60 w-[76px] text-right shrink-0 truncate">
-                    {leagueLabel[m.league]}
-                  </span>
-                  <span className="font-mono text-[13px] tabular-nums min-w-[32px] text-right shrink-0">
-                    {m.votes.toLocaleString("tr-TR")}
-                  </span>
+                <li className="p-5 text-[15px]">
+                  <p className="font-semibold">Eşleşen takım yok.</p>
+                  <p className="mt-1 text-muted">Aramayı kısalt ya da lig filtresini “Tümü” yap.</p>
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" className={btnSm} onClick={() => setQuery("")}>
+                      Aramayı temizle
+                    </button>
+                    <Link href="/takim-talep" className={btnSm}>
+                      Takımım listede yok
+                    </Link>
+                  </div>
                 </li>
-              ))}
+              )}
             </ol>
-            {ranked.length > MOBILE_ROWS && (
+            {collapsible && (
               <button
                 type="button"
-                onClick={() => setShowAllTable((v) => !v)}
-                aria-expanded={showAllTable}
-                className={`md:hidden mt-3 w-full ${btnSm}`}
+                onClick={() => setShowAll((v) => !v)}
+                aria-expanded={showAll}
+                className={`mt-3 w-full ${btnSecondary}`}
               >
-                {showAllTable ? "DAHA AZ GÖSTER" : `TÜM TABLOYU GÖSTER (${ranked.length})`}
+                {showAll ? "Daha az göster" : `Tümünü göster (${n(filtered.length)})`}
               </button>
             )}
-          </div>
+          </section>
 
-          {featuredTopics.length > 0 && (
-            <div className="border-[4px] border-black bg-[#FFEA00] p-4 shadow-[5px_5px_0_black]">
-              <h3 className="font-anton text-[22px]">ÖNE ÇIKAN KONULAR</h3>
-              <div className="mt-3 space-y-2">
-                {featuredTopics.map((row) => (
-                  <Link
-                    key={row.id}
-                    href={`/forum/konu/${row.id}`}
-                    className="flex min-h-11 items-center gap-2 font-mono text-[13px] border-b border-dashed border-black/30 hover:bg-white/50"
-                  >
-                    <span className="min-w-0 flex-1 truncate font-bold">{row.title}</span>
-                    <span className="shrink-0 opacity-70">@{row.authorUsername}</span>
-                  </Link>
+          <aside className="space-y-10">
+            <section aria-labelledby="nasil-baslik">
+              <h2 id="nasil-baslik" className="font-anton text-[24px] uppercase leading-none">
+                Nasıl çalışır?
+              </h2>
+              <ol className="mt-4 space-y-4">
+                {steps.map((s, i) => (
+                  <li key={s.t} className="grid grid-cols-[36px_minmax(0,1fr)] gap-3">
+                    <span
+                      aria-hidden
+                      className="flex h-9 w-9 items-center justify-center border-[3px] border-line bg-volt font-anton text-[18px]"
+                    >
+                      {i + 1}
+                    </span>
+                    <div>
+                      <p className="font-semibold leading-tight">{s.t}</p>
+                      <p className="mt-1 text-[14px] leading-relaxed text-muted">{s.d}</p>
+                    </div>
+                  </li>
                 ))}
+              </ol>
+            </section>
+
+            <section aria-labelledby="tribun-baslik">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 id="tribun-baslik" className="font-anton text-[24px] uppercase leading-none">
+                  Tribünde
+                </h2>
+                <Link href="/forum" className="font-mono text-[13px] underline underline-offset-4 hover:bg-volt">
+                  Tüm tribün →
+                </Link>
               </div>
-            </div>
-          )}
-
-          <div className="border-[4px] border-black bg-white p-4 shadow-[5px_5px_0_black]">
-            <h3 className="font-anton text-[22px]">TRİBÜNDE SON KONULAR</h3>
-            <div className="mt-3 space-y-2">
-              {recentTopics.length === 0 && (
-                <p className="font-mono text-[13px]">
-                  Henüz konu açılmadı.{" "}
-                  <Link href="/forum/milli-takim" className="underline underline-offset-4">
-                    İlk konuyu sen aç
-                  </Link>
-                  .
-                </p>
+              {featuredTopics.length > 0 && (
+                <TopicList label="Öne çıkanlar" topics={featuredTopics} teams={teams} highlight />
               )}
-              {recentTopics.map((row) => {
-                const team = row.teamId
-                  ? (teams.find((t) => t.id === row.teamId) ?? getTeam(row.teamId))
-                  : undefined;
-                return (
-                  <Link
-                    key={row.id}
-                    href={`/forum/konu/${row.id}`}
-                    className="flex min-h-11 items-center gap-2 font-mono text-[13px] border-b border-dashed border-black/20 hover:bg-[#FFEA00]/40"
-                  >
-                    {team ? (
-                      <TeamColors team={team} size={10} />
-                    ) : (
-                      <MilliTag />
-                    )}
-                    <span className="min-w-0 flex-1 truncate">{row.title}</span>
-                    <span className="shrink-0 opacity-60">@{row.authorUsername}</span>
+              {recentTopics.length > 0 ? (
+                <TopicList
+                  label={featuredTopics.length > 0 ? "Son konular" : undefined}
+                  topics={recentTopics}
+                  teams={teams}
+                />
+              ) : (
+                <div className="mt-4 border-[3px] border-dashed border-line/40 p-4">
+                  <p className="font-semibold">Tribün henüz sessiz.</p>
+                  <p className="mt-1 text-[14px] leading-relaxed text-muted">
+                    Milli Takım Tribünü herkese açık. İlk konuyu sen aç, sohbeti sen başlat.
+                  </p>
+                  <Link href="/forum/milli-takim" className={`mt-3 ${btnSm}`}>
+                    Milli Takım Tribünü
                   </Link>
-                );
-              })}
-            </div>
-          </div>
-        </aside>
+                </div>
+              )}
+            </section>
+          </aside>
+        </div>
       </main>
-
-
-
     </div>
   );
 }
 
-/** Shown wherever the opening data is part of the numbers. */
-function OpeningNote({ opening }: { opening: number }) {
+/**
+ * The live total and the top three, styled as a stadium scoreboard: the one
+ * place on the page where yellow sits on black.
+ */
+function Scoreboard({
+  total,
+  verified,
+  opening,
+  podium,
+  asOf,
+  refreshing,
+  onRefresh,
+}: {
+  total: number;
+  verified: number;
+  opening: number;
+  podium: TeamStat[];
+  asOf: string;
+  refreshing: boolean;
+  onRefresh: () => void;
+}) {
   return (
-    <p className="-mt-6 mb-4 md:-mt-8 md:mb-5 font-mono text-[10px] leading-snug text-black/50">
-      Sayılarda {opening.toLocaleString("tr-TR")} başlangıç verisi var.
-    </p>
+    <section
+      aria-label="Canlı sayım"
+      className="border-[3px] border-line bg-ink text-surface shadow-[6px_6px_0_var(--color-volt)]"
+    >
+      <div className="flex items-center justify-between gap-3 border-b-[2px] border-white/15 px-5 py-3">
+        <span className="font-mono text-[12px] uppercase tracking-[0.12em] text-white/70">Canlı sayım</span>
+        <span className="flex items-center gap-2 font-mono text-[12px] text-white/70">
+          <span aria-hidden className="h-2 w-2 rounded-full bg-volt" />
+          {formatAsOf(asOf)}
+        </span>
+      </div>
+      <div className="px-5 pt-4 pb-5">
+        <p className="font-mono text-[12px] uppercase tracking-[0.12em] text-white/70">
+          {opening > 0 ? "Sayaçtaki taraftar" : "Doğrulanmış taraftar"}
+        </p>
+        <p className="mt-1 font-anton text-[64px] leading-none tabular-nums text-volt md:text-[80px]">
+          {n(total)}
+        </p>
+        {opening > 0 && (
+          <p className="mt-2 font-mono text-[13px] text-white/80">
+            {n(verified)} doğrulanmış + {n(opening)} açılış verisi
+          </p>
+        )}
+      </div>
+      <div className="border-t-[2px] border-white/15 px-5 py-4">
+        <p className="font-mono text-[12px] uppercase tracking-[0.12em] text-white/70">Zirve</p>
+        {podium.length === 0 ? (
+          <p className="mt-2 text-[15px] text-white/80">Henüz oy yok. İlk oyu sen ver.</p>
+        ) : (
+          <ol className="mt-2 space-y-1">
+            {podium.map((t, i) => (
+              <li key={t.id}>
+                <Link
+                  href={`/takim/${t.id}`}
+                  className="flex min-h-10 items-center gap-3 hover:text-volt focus-visible:text-volt"
+                >
+                  <span className="w-5 font-anton text-[18px] text-white/60">{i + 1}</span>
+                  <TeamColors team={t} size={11} />
+                  <span className="min-w-0 flex-1 truncate font-semibold">{t.name}</span>
+                  <span className="font-anton text-[20px] tabular-nums">{n(t.votes)}</span>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={refreshing}
+        aria-busy={refreshing || undefined}
+        className="flex min-h-11 w-full items-center justify-center gap-2 border-t-[2px] border-white/15 font-mono text-[13px] text-white/80 hover:bg-white/5 hover:text-volt disabled:opacity-60"
+      >
+        <span aria-hidden className={refreshing ? "inline-block animate-spin" : ""}>
+          ↻
+        </span>
+        {refreshing ? "Yenileniyor…" : "Sayıları yenile"}
+      </button>
+    </section>
+  );
+}
+
+function RankRow({
+  team,
+  rank,
+  share,
+  meta,
+  mine,
+  action,
+}: {
+  team: TeamStat;
+  rank: number;
+  share: number;
+  meta: string;
+  mine: boolean;
+  action: string | null;
+}) {
+  return (
+    <li
+      className={`grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 border-b-[2px] border-hairline px-3 py-3 last:border-b-0 md:grid-cols-[2.75rem_minmax(0,1fr)_auto] md:gap-x-4 md:px-4 ${
+        mine ? "bg-volt-soft" : ""
+      }`}
+    >
+      <span className="font-anton text-[20px] tabular-nums text-muted md:text-[22px]">{rank}</span>
+      <div className="min-w-0">
+        <Link
+          href={`/takim/${team.id}`}
+          className="inline-flex max-w-full items-center gap-2 font-semibold leading-tight hover:underline underline-offset-4"
+        >
+          <span className="truncate">{team.name}</span>
+          <TeamColors team={team} size={11} />
+        </Link>
+        <div className="mt-1 font-mono text-[12px] text-muted">{meta}</div>
+        {/* Relative to the leader, so the gap between teams is visible at a glance. */}
+        <div aria-hidden className="mt-2 h-1.5 bg-sunken">
+          <div
+            className="h-full bg-ink"
+            style={{ width: `${Math.max(share * 100, share > 0 ? 1.5 : 0)}%` }}
+          />
+        </div>
+      </div>
+      <div className="flex flex-col items-end gap-1.5 md:flex-row md:items-center md:gap-4">
+        <span className="font-anton text-[22px] tabular-nums leading-none">
+          {n(team.votes)}
+          <span className="sr-only"> taraftar</span>
+        </span>
+        {mine ? (
+          <span className="inline-flex min-h-10 items-center border-[2px] border-line bg-volt px-2.5 font-mono text-[12px] font-bold">
+            Senin takımın
+          </span>
+        ) : action ? (
+          <Link
+            href={action}
+            className="inline-flex min-h-10 items-center border-[2px] border-line px-2.5 font-mono text-[13px] hover:bg-ink hover:text-volt"
+            aria-label={`${team.name} benim takımım`}
+          >
+            Takımım
+          </Link>
+        ) : null}
+      </div>
+    </li>
+  );
+}
+
+function TopicList({
+  label,
+  topics,
+  teams,
+  highlight = false,
+}: {
+  label?: string;
+  topics: RecentTopic[];
+  teams: TeamStat[];
+  highlight?: boolean;
+}) {
+  return (
+    <div className="mt-4">
+      {label && <p className="mb-1 font-mono text-[12px] uppercase tracking-[0.12em] text-muted">{label}</p>}
+      <ul className={`border-t-[2px] border-line ${highlight ? "bg-volt-soft" : ""}`}>
+        {topics.map((row) => {
+          const team = row.teamId ? (teams.find((t) => t.id === row.teamId) ?? getTeam(row.teamId)) : undefined;
+          return (
+            <li key={row.id} className="border-b-[2px] border-hairline">
+              <Link
+                href={`/forum/konu/${row.id}`}
+                className="flex min-h-12 items-center gap-3 px-1 py-2 hover:bg-volt/40"
+              >
+                {team ? <TeamColors team={team} size={10} /> : <MilliTag />}
+                <span className="min-w-0 flex-1">
+                  <span className="line-clamp-2 text-[15px] font-semibold leading-snug">{row.title}</span>
+                  <span className="mt-0.5 block font-mono text-[12px] text-muted">@{row.authorUsername}</span>
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Anton, Bangers, Caveat, Kalam, Space_Mono } from "next/font/google";
+import { Anton, Archivo, Space_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
 import SiteBanner from "@/components/SiteBanner";
 import SiteFooter from "@/components/SiteFooter";
@@ -8,34 +8,23 @@ import SiteNav from "@/components/SiteNav";
 import { DEFAULT_SHARE_IMAGE, SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE } from "@/lib/seo";
 import "./globals.css";
 
+// Three families: Anton for display and big numbers, Archivo for reading
+// and UI, Space Mono for data labels. See the tokens in globals.css.
 const anton = Anton({
   weight: "400",
   subsets: ["latin", "latin-ext"],
   variable: "--font-anton",
 });
 
-const marker = Kalam({
-  weight: ["400", "700"],
+const archivo = Archivo({
   subsets: ["latin", "latin-ext"],
-  variable: "--font-marker",
+  variable: "--font-archivo",
 });
 
 const mono = Space_Mono({
   weight: ["400", "700"],
   subsets: ["latin", "latin-ext"],
   variable: "--font-space",
-});
-
-const hand = Caveat({
-  weight: "700",
-  subsets: ["latin", "latin-ext"],
-  variable: "--font-hand",
-});
-
-const ultras = Bangers({
-  weight: "400",
-  subsets: ["latin", "latin-ext"],
-  variable: "--font-ultras",
 });
 
 export const metadata: Metadata = {
@@ -68,7 +57,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="tr"
-      className={`${anton.variable} ${marker.variable} ${mono.variable} ${hand.variable} ${ultras.variable} h-full`}
+      className={`${anton.variable} ${archivo.variable} ${mono.variable} h-full`}
     >
       <body className="min-h-full">
         <AuthProvider>

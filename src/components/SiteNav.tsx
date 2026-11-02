@@ -84,16 +84,14 @@ export default function SiteNav() {
   return (
     <nav aria-label="Ana menü" className="relative z-40 border-b-[4px] border-black bg-black text-[#FFEA00]">
       <div className="max-w-[1320px] mx-auto px-4 sm:px-5 md:px-8 py-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        {/* The home page shows the big logo right below, so the bar skips it there. */}
-        {pathname !== "/" && (
         <Link
           href="/"
           aria-label="Bizim Tribün ana sayfa"
+          aria-current={pathname === "/" ? "page" : undefined}
           className="order-1 shrink-0 inline-flex min-h-11 items-center font-anton text-[18px] leading-[1.2] tracking-tight text-[#FFEA00] whitespace-nowrap"
         >
           BİZİM <span className="ml-1 bg-[#FFEA00] text-black px-1 pt-0.5">TRİBÜN</span>
         </Link>
-        )}
         <div className="order-3 w-full sm:order-2 sm:w-auto flex gap-1.5">
           <Link href="/" aria-current={pathname === "/" ? "page" : undefined} className={tab(pathname === "/" || pathname.startsWith("/il/"))}>
             SAYIM

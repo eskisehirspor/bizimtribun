@@ -9,6 +9,7 @@ import { withOpeningData } from "@/lib/opening-data";
 import { cityStandings, teamCounts, totalVerified } from "@/lib/stats";
 import { currentSeason } from "@/lib/team-admin";
 import { listLeagues } from "@/lib/team-catalog";
+import { verifyChannel } from "@/lib/verify-channel";
 import { DEFAULT_SHARE_IMAGE, graph, organizationJsonLd, websiteJsonLd } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -64,8 +65,9 @@ export default async function Home() {
         featuredTopics={await featuredPublicTopics(settings.featuredTopics.ids)}
         homeLeagueIds={settings.homeLeagues.ids}
         generatedAt={new Date().toISOString()}
+        verifyChannel={verifyChannel()}
       />
-      <HomeTeamCounts teams={teams} total={total} />
+      <HomeTeamCounts teams={teams} total={total} openingShown={shown.opening > 0} />
     </>
   );
 }

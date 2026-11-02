@@ -7,7 +7,7 @@ import { citySlug } from "@/lib/cities";
 import { compactCityPreview } from "@/lib/city-rank";
 import { useTeamCatalog } from "@/components/useTeamCatalog";
 import mapData from "@/lib/turkey-paths.json";
-import { btnAccent, fieldClass, labelClass } from "@/components/ui";
+import { btnPrimary, fieldClass, labelClass } from "@/components/ui";
 
 type Standing = { teamId: string; votes: number };
 type Leader = Standing & { tied?: boolean; coLeaderIds?: string[] };
@@ -55,7 +55,7 @@ export default function TurkeyMap({ leaders, standings }: Props) {
   }
 
   return (
-    <div className="relative">
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
       <svg
         viewBox={data.viewBox}
         className="w-full h-auto turkey-map touch-manipulation"
@@ -190,54 +190,89 @@ export default function TurkeyMap({ leaders, standings }: Props) {
           );
         })}
       </svg>
-      {shown && preview ? (
-        <div
-          className="mt-3 border-[3px] border-black bg-black text-[#FFEA00] p-3 font-mono text-[13px] shadow-[4px_4px_0_#FFEA00]"
-          aria-live="polite"
-        >
-          <p className="font-anton text-[20px] text-[#FFEA00]">{shown}</p>
-          <p>Toplam geçerli oy: {preview.total.toLocaleString("tr-TR")}</p>
-          {leaders[shown]?.tied ? <p>Liderlik eşit: ortak lider var</p> : null}
-          {preview.first ? (
-            <p>
-              1. Takım: %{preview.first.percent} {preview.first.name}
-            </p>
-          ) : null}
-          {preview.second ? (
-            <p>
-              2. Takım: %{preview.second.percent} {preview.second.name}
-            </p>
+      {/* Side panel on wide screens, under the map on phones: the summary of
+          the province in focus, the legend, and a list for keyboard and
+          screen-reader users who would rather not walk 81 shapes. */}
+      <div className="space-y-4 lg:sticky lg:top-4">
+        <div className="border-[3px] border-line bg-surface p-4 lg:min-h-[188px]" aria-live="polite">
+          {shown && preview ? (
+            <>
+              <p className="font-anton text-[28px] uppercase leading-none">{shown}</p>
+              <p className="mt-2 font-mono text-[13px] text-muted">
+                {preview.total.toLocaleString("tr-TR")} geçerli oy
+              </p>
+              {leaders[shown]?.tied ? (
+                <p className="mt-2 text-[14px] font-semibold">Liderlik eşit: ortak lider var.</p>
+              ) : null}
+              {preview.total === 0 ? (
+                <p className="mt-3 text-[15px]">Bu ilde henüz oy yok.</p>
+              ) : (
+                <dl className="mt-3 space-y-1.5 text-[15px]">
+                  {[preview.first, preview.second].map((row, i) =>
+                    row ? (
+                      <div key={i} className="flex items-baseline justify-between gap-3">
+                        <dt className="min-w-0 truncate font-semibold">
+                          {i + 1}. {row.name}
+                        </dt>
+                        <dd className="font-anton text-[20px] tabular-nums">%{row.percent}</dd>
+                      </div>
+                    ) : null,
+                  )}
+                </dl>
+              )}
+              {picked === shown && (
+                <Link href={`/il/${citySlug(shown)}`} className={`mt-4 w-full ${btnPrimary}`}>
+                  {shown} sayımını aç →
+                </Link>
+              )}
+            </>
           ) : (
-            preview.total === 0 && <p>Henüz oy yok</p>
-          )}
-          {picked === shown && (
-            <Link href={`/il/${citySlug(shown)}`} className={`mt-3 w-full sm:w-auto ${btnAccent}`}>
-              {shown} sayımını aç →
-            </Link>
+            <>
+              <p className="font-semibold">Bir ile dokun ya da üzerine gel.</p>
+              <p className="mt-1 text-[14px] leading-relaxed text-muted">
+                İlin özetini burada gör, sonra il sayfasına geç.
+              </p>
+            </>
           )}
         </div>
-      ) : (
-        <div className="mt-3 min-h-[48px] font-ultras text-[20px] md:text-[24px] leading-tight tracking-wide border-[3px] border-black p-3 bg-[#FFEA00] -rotate-[0.4deg] shadow-[4px_4px_0_black]">
-          Bir ile dokun ya da üzerine gel: özetini gör, sonra il sayfasına geç. Gri: henüz oy yok.
-        </div>
-      )}
-      <label className="mt-4 block max-w-[420px]">
-        <span className={labelClass}>İL SEÇ</span>
-        <select
-          className={`mt-1 ${fieldClass}`}
-          value=""
-          onChange={(e) => {
-            if (e.target.value) goCity(e.target.value);
-          }}
-        >
-          <option value="">Listeden bir il seç…</option>
-          {provinceNames.map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
+        <ul className="space-y-1.5 font-mono text-[12px] text-muted" aria-label="Harita açıklaması">
+          <li className="flex items-center gap-2">
+            <span aria-hidden className="inline-flex h-3 w-6 border-[2px] border-line">
+              <span className="w-1/2 bg-flare" />
+              <span className="w-1/2 bg-volt" />
+            </span>
+            Lider takımın renkleri
+          </li>
+          <li className="flex items-center gap-2">
+            <span
+              aria-hidden
+              className="h-3 w-6 border-[2px] border-line bg-[repeating-linear-gradient(45deg,#111_0_2px,#fffefa_2px_4px)]"
+            />
+            Eşitlik
+          </li>
+          <li className="flex items-center gap-2">
+            <span aria-hidden className="h-3 w-6 border-[2px] border-line" style={{ background: NEUTRAL_FILL }} />
+            Henüz oy yok
+          </li>
+        </ul>
+        <label className="block">
+          <span className={labelClass}>Listeden il seç</span>
+          <select
+            className={`mt-1 ${fieldClass}`}
+            value=""
+            onChange={(e) => {
+              if (e.target.value) goCity(e.target.value);
+            }}
+          >
+            <option value="">81 il…</option>
+            {provinceNames.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
     </div>
   );
 }

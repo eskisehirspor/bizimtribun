@@ -9,57 +9,88 @@ const n = (v: number) => v.toLocaleString("tr-TR");
 /**
  * Plain-text answer to what people search for ("X kaç taraftarı var",
  * "en çok taraftarı olan takım"), rendered on the server under the map.
+ * It always counts verified votes only; when the map above adds the opening
+ * data, a note says so, so the two never look like they disagree.
  */
-export default function HomeTeamCounts({ teams, total }: { teams: Team[]; total: number }) {
+export default function HomeTeamCounts({
+  teams,
+  total,
+  openingShown = false,
+}: {
+  teams: Team[];
+  total: number;
+  openingShown?: boolean;
+}) {
   // Stable sort: equal counts keep the catalog order (Süper Lig first).
   const top = [...teams].sort((a, b) => b.votes - a.votes).slice(0, 10);
   return (
-    <section className="relative z-10 max-w-[1320px] mx-auto px-4 md:px-6 pb-8">
-      <div className="border-[4px] border-black bg-[#FFFEFA] p-4 md:p-6 shadow-[8px_8px_0_black]">
-        <h2 className="font-anton text-[28px] md:text-[40px] leading-[1.05]">HANGİ TAKIMIN KAÇ TARAFTARI VAR?</h2>
-        <p className="font-mono text-[14px] mt-3 max-w-[70ch]">
+    <section aria-labelledby="sayilar-baslik" className="border-t-[3px] border-line bg-surface">
+      <div className="mx-auto max-w-[1240px] px-4 py-10 md:px-8 md:py-14">
+        <h2 id="sayilar-baslik" className="font-anton text-[30px] md:text-[40px] leading-[1.05] tracking-tight uppercase">
+          Hangi takımın kaç taraftarı var?
+        </h2>
+        <p className="mt-3 max-w-[68ch] text-[16px] leading-relaxed">
           Bizim Tribün, Türkiye&apos;nin taraftar sayımı. Her doğrulanmış hesap tek ve kalıcı bir takım oyu
           verir; taraftar sayıları anket ya da tahmin değil, gerçek kişilerin oyları. Şu an toplam{" "}
           <strong>{n(total)}</strong> doğrulanmış taraftar sayıldı.
         </p>
-        <h3 className="font-anton text-[20px] md:text-[24px] mt-5">EN ÇOK TARAFTARI OLAN TAKIMLAR</h3>
-        {top[0] && top[0].votes > 0 && (
-          <p className="font-mono text-[13px] mt-1">
-            Türkiye&apos;de en çok taraftarı olan takım şu an {top[0].name}: {n(top[0].votes)} doğrulanmış{" "}
-            {fanForm(top[0].name)}. Kaç kişinin hangi takımı tuttuğunu görmek için takımına dokun.
+        {openingShown && (
+          <p className="mt-2 max-w-[68ch] font-mono text-[13px] text-muted">
+            Bu bölüm yalnızca doğrulanmış oyları sayar; yukarıdaki harita ve sıralama açılış verisini de içerir.
           </p>
         )}
-        <ol className="mt-2 grid sm:grid-cols-2 gap-x-6 border-t-[2px] border-black">
-          {top.map((team, i) => (
-            <li key={team.id} className="border-b-[2px] border-black">
-              <Link
-                href={`/takim/${team.id}`}
-                className="flex min-h-11 items-center justify-between gap-3 py-2 font-mono text-[14px] hover:bg-[#FFEA00]/40"
-              >
-                <span>
-                  {i + 1}. {team.name} taraftar sayısı
-                </span>
-                <span className="tabular-nums font-bold">{n(team.votes)}</span>
+
+        <div className="mt-8 grid gap-10 lg:grid-cols-2 lg:gap-12">
+          <div>
+            <h3 className="font-anton text-[22px] uppercase leading-none">En çok taraftarı olan takımlar</h3>
+            {top[0] && top[0].votes > 0 && (
+              <p className="mt-2 text-[15px] leading-relaxed text-muted">
+                Türkiye&apos;de en çok taraftarı olan takım şu an {top[0].name}: {n(top[0].votes)} doğrulanmış{" "}
+                {fanForm(top[0].name)}. Kaç kişinin hangi takımı tuttuğunu görmek için takımına dokun.
+              </p>
+            )}
+            <ol className="mt-3 border-t-[2px] border-line">
+              {top.map((team, i) => (
+                <li key={team.id} className="border-b-[2px] border-hairline">
+                  <Link
+                    href={`/takim/${team.id}`}
+                    className="flex min-h-11 items-center justify-between gap-3 py-2 text-[15px] hover:bg-volt/40"
+                  >
+                    <span>
+                      <span className="inline-block w-7 font-mono text-[13px] text-muted">{i + 1}.</span>
+                      {team.name} taraftar sayısı
+                    </span>
+                    <span className="font-anton text-[18px] tabular-nums">{n(team.votes)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-4">
+              <Link href="/takimlar" className="font-semibold underline underline-offset-4 hover:bg-volt">
+                Bütün takımların taraftar sayıları →
               </Link>
-            </li>
-          ))}
-        </ol>
-        <p className="font-mono text-[13px] mt-4">
-          <Link href="/takimlar" className="underline font-bold">
-            Bütün takımların taraftar sayıları
-          </Link>{" "}
-        </p>
-        <h3 className="font-anton text-[20px] md:text-[24px] mt-6">İLLERE GÖRE TARAFTAR SAYILARI</h3>
-        <p className="font-mono text-[13px] mt-1">Hangi ilde en çok hangi takım tutuluyor? İlini seç.</p>
-        <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[13px]">
-          {CITIES.map((city) => (
-            <li key={city.slug}>
-              <Link href={`/il/${city.slug}`} className="underline hover:bg-[#FFEA00]/40">
-                {city.name}
-              </Link>
-            </li>
-          ))}
-        </ul>
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-anton text-[22px] uppercase leading-none">İllere göre taraftar sayıları</h3>
+            <p className="mt-2 text-[15px] leading-relaxed text-muted">
+              Hangi ilde en çok hangi takım tutuluyor? İlini seç.
+            </p>
+            <ul className="mt-3 grid grid-cols-2 gap-x-4 border-t-[2px] border-line sm:grid-cols-3 xl:grid-cols-4">
+              {CITIES.map((city) => (
+                <li key={city.slug}>
+                  <Link
+                    href={`/il/${city.slug}`}
+                    className="flex min-h-10 items-center border-b border-hairline text-[14px] hover:bg-volt/40"
+                  >
+                    {city.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
     </section>
   );
