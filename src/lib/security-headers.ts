@@ -15,6 +15,14 @@ export function isProductionNodeEnv(nodeEnv = process.env.NODE_ENV) {
 /** Cloudflare Turnstile (bot check before SMS sends) loads from this origin. */
 export const TURNSTILE_ORIGIN = "https://challenges.cloudflare.com";
 
+/**
+ * Cloudflare Web Analytics: the zone injects its beacon script, which then
+ * reports page views to cloudflareinsights.com. Without these the CSP blocks
+ * it and the dashboard counts nothing.
+ */
+export const CF_ANALYTICS_SCRIPT = "https://static.cloudflareinsights.com";
+export const CF_ANALYTICS_REPORT = "https://cloudflareinsights.com";
+
 /** Supabase Realtime, which pushes live vote changes to the browser. */
 export function realtimeOrigins(url = process.env.NEXT_PUBLIC_SUPABASE_URL) {
   if (!url) return "";
@@ -29,11 +37,11 @@ export function realtimeOrigins(url = process.env.NEXT_PUBLIC_SUPABASE_URL) {
 export function contentSecurityPolicy(production: boolean): string {
   const live = realtimeOrigins();
   const scriptSrc = production
-    ? `script-src 'self' 'unsafe-inline' ${TURNSTILE_ORIGIN}`
-    : `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${TURNSTILE_ORIGIN}`;
+    ? `script-src 'self' 'unsafe-inline' ${TURNSTILE_ORIGIN} ${CF_ANALYTICS_SCRIPT}`
+    : `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${TURNSTILE_ORIGIN} ${CF_ANALYTICS_SCRIPT}`;
   const connectSrc = production
-    ? `connect-src 'self' ${TURNSTILE_ORIGIN}${live}`
-    : `connect-src 'self' ws: wss: ${TURNSTILE_ORIGIN}${live}`;
+    ? `connect-src 'self' ${TURNSTILE_ORIGIN} ${CF_ANALYTICS_REPORT}${live}`
+    : `connect-src 'self' ws: wss: ${TURNSTILE_ORIGIN} ${CF_ANALYTICS_REPORT}${live}`;
   return [
     "default-src 'self'",
     scriptSrc,

@@ -61,3 +61,13 @@ test("CSP lets the browser reach Supabase Realtime for live votes", () => {
   assert.equal(realtimeOrigins(""), "");
   assert.equal(realtimeOrigins("not a url"), "");
 });
+
+test("CSP lets Cloudflare Web Analytics load and report", () => {
+  for (const production of [true, false]) {
+    const csp = contentSecurityPolicy(production);
+    const script = csp.split("; ").find((d) => d.startsWith("script-src"))!;
+    const connect = csp.split("; ").find((d) => d.startsWith("connect-src"))!;
+    assert.ok(script.includes("https://static.cloudflareinsights.com"), script);
+    assert.ok(connect.includes("https://cloudflareinsights.com"), connect);
+  }
+});
