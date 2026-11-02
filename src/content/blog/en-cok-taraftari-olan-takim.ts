@@ -6,7 +6,7 @@ export const post: BlogPost = {
   description:
     "KONDA, NG Araştırma, YouGov ve ANDY-AR anketlerinde Galatasaray, Fenerbahçe, Beşiktaş ve Trabzonspor'un taraftar oranları, kaynaklarıyla.",
   publishedAt: "2026-11-02",
-  status: "draft",
+  status: "published",
   sources: [
     {
       title: "En fazla taraftarı olan kulüp belli oldu (KONDA Hayat Tarzları Araştırması)",

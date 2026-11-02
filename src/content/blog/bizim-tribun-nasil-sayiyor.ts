@@ -6,7 +6,7 @@ export const post: BlogPost = {
   description:
     "Doğrulanmış hesap, tek ve kalıcı oy, il il dağılım: Bizim Tribün'ün taraftar sayımının kuralları ve bir anketten farkı.",
   publishedAt: "2026-11-02",
-  status: "draft",
+  status: "published",
   sources: [],
   body: `
 "Hangi takımın kaç taraftarı var?" sorusunun cevabı genelde bir anketten gelir: birkaç bin kişiye sorulur, sonuç Türkiye nüfusuna oranlanır. Bizim Tribün başka bir yol seçti. Kimseye sormuyoruz; taraftarlar kendileri gelip sayılıyor. Bu yazıda bu sayımın kurallarını anlatıyoruz, çünkü bir sayının değeri ona nasıl ulaşıldığına bağlı.

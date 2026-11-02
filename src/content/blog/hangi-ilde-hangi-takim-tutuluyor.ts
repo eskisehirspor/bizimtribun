@@ -6,7 +6,7 @@ export const post: BlogPost = {
   description:
     "Galatasaray kaç ilde önde, Trabzon neden tek renk, Eskişehir ve Sivas kimi tutuyor? İl il taraftarlık anketleri ve sınırları, kaynaklarıyla.",
   publishedAt: "2026-11-02",
-  status: "draft",
+  status: "published",
   sources: [
     {
       title: "Türkiye taraftarlık raporu açıklandı: Galatasaray 60 ilde birinci (Socios.com Taraftarlık Anketi)",
