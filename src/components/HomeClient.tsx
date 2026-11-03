@@ -231,9 +231,8 @@ export default function HomeClient({
             <h1 className="mt-3 font-anton text-[44px] leading-[1.04] tracking-tight uppercase sm:text-[56px] md:text-[72px] md:leading-[1]">
               Türkiye&apos;nin{" "}
               <span className="bg-[linear-gradient(transparent_58%,var(--color-volt)_58%)] box-decoration-clone px-1">
-                taraftar
-              </span>{" "}
-              sayımı
+                taraftar sayısı
+              </span>
             </h1>
             <p className="mt-4 max-w-[52ch] text-[17px] leading-relaxed md:text-[19px]">
               Her doğrulanmış üye bir takıma bir kez, kalıcı olarak oy verir. 81 il bu oylarla
@@ -297,8 +296,8 @@ export default function HomeClient({
 
         {/* ── Standings + community ── */}
         <div className="grid gap-10 border-t-[3px] border-line py-10 md:py-14 lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-12">
-          <section aria-labelledby="siralama-baslik">
-            <SectionHead id="siralama-baslik" title="Türkiye sıralaması">
+          <section id="siralama" aria-labelledby="siralama-baslik" className="scroll-mt-4">
+            <SectionHead id="siralama-baslik" title="Taraftar sayısı sıralaması">
               {opening > 0
                 ? `${n(verified)} doğrulanmış taraftar + ${n(opening)} açılış verisi. Eşit oyda lig, sonra alfabe sırası.`
                 : `${n(total)} doğrulanmış taraftar. Eşit oyda lig, sonra alfabe sırası.`}

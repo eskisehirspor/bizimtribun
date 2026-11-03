@@ -141,6 +141,12 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
               ))}
             </dl>
           )}
+          <p className="font-mono text-[12px] mt-3">
+            Diğer takımlarla karşılaştır:{" "}
+            <Link href="/#siralama" className="underline underline-offset-4 hover:bg-[#FFEA00]">
+              Türkiye taraftar sayısı sıralaması
+            </Link>
+          </p>
           {summary && summary.votes > 0 && (
             <>
               <p className="font-mono text-[12px] mt-3">
