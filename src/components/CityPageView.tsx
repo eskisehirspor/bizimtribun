@@ -9,9 +9,11 @@ import type { CityTeamRow } from "@/lib/city-rank";
 import type { CityHistoryPoint } from "@/lib/city-stats";
 import BackLink from "@/components/BackLink";
 import CityShare from "@/components/CityShare";
+import FanFacts from "@/components/FanFacts";
+import { NATIONAL_CONTEXT, cityFacts } from "@/content/fan-facts";
 import { btnPrimary, btnSecondary } from "@/components/ui";
 import TeamColors from "@/components/TeamColors";
-import { listTeamCatalog } from "@/lib/team-catalog";
+import { leagueLabels, listTeamCatalog } from "@/lib/team-catalog";
 
 type Props = {
   city: CityRecord;
@@ -67,6 +69,10 @@ export default async function CityPageView({
             .join(" · ");
   const maxHistory = Math.max(1, ...history.map((h) => h.total));
   const forumRows = rows.filter((row) => row.forumHref);
+  const leagues = await leagueLabels();
+  // Catalog order: Süper Lig first, then down the leagues.
+  const localTeams = [...catalog.values()].filter((t) => t.city === city.name && t.isActive);
+  const sheet = cityFacts(city.name);
 
   return (
     <div className="min-h-screen bg-[#F2EFE6] text-black relative">
@@ -165,6 +171,49 @@ export default async function CityPageView({
           <div className="mt-4">
             <CityShare slug={city.slug} headline={headline} summary={summary} />
           </div>
+        </section>
+
+        <section aria-labelledby="il-takimlari" className="mt-6 border-[4px] border-black bg-[#FFFEFA] p-4 md:p-5 shadow-[6px_6px_0_black]">
+          <h2 id="il-takimlari" className="font-anton text-[22px] leading-[1.05]">
+            {`${city.name} takımları`.toLocaleUpperCase("tr")}
+          </h2>
+          {localTeams.length === 0 ? (
+            <p className="font-mono text-[13px] mt-2 max-w-[60ch]">
+              Sayımdaki ligler arasında (Süper Lig&apos;den Bölgesel Amatör Lig&apos;e) {city.name} ilinden bir takım yok.
+              {" "}{city.name} taraftarları en çok hangi takımı tutuyor, yukarıdaki dağılım gösteriyor.
+            </p>
+          ) : (
+            <>
+              <p className="font-mono text-[13px] mt-2 max-w-[60ch]">
+                {city.name} ilinden {localTeams.length} takım sayımda. Her birinin kaç taraftarı olduğu takım sayfasında.
+              </p>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {localTeams.map((team) => (
+                  <li key={team.id}>
+                    <Link
+                      href={`/takim/${team.id}`}
+                      className="flex min-h-11 items-center gap-2 border-[3px] border-black bg-white px-3 py-2 hover:bg-[#FFEA00]/40"
+                    >
+                      <TeamColors team={team} size={12} />
+                      <span className="font-anton text-[16px] leading-tight flex-1">{team.name}</span>
+                      <span className="font-mono text-[11px]">{leagues[team.league] ?? team.league}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          <FanFacts
+            id="il-anketleri"
+            title={sheet.facts.length > 0 ? `${locative} anketler ne diyor?`.toLocaleUpperCase("tr") : "TÜRKİYE GENELİNDE ANKETLER"}
+            intro={
+              sheet.facts.length > 0
+                ? `Bizim Tribün dışındaki il anketlerinden ${city.name} rakamları; her rakamın kaynağı yanında.`
+                : `${city.name} için il bazında yayımlanmış bir anket sonucu bulamadık. Türkiye geneli için bilinen rakamlar:`
+            }
+            facts={sheet.facts.length > 0 ? sheet.facts : NATIONAL_CONTEXT}
+            posts={sheet.posts}
+          />
         </section>
 
         {history.some((h) => h.total > 0) && (

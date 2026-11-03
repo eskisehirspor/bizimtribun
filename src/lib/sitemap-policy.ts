@@ -65,10 +65,11 @@ export function staticSitemapEntries(base: string, now = new Date()): SitemapEnt
       changeFrequency: "yearly" as const,
       priority: 0.3,
     })),
+    // No lastModified, like team pages: a date that moves on every request
+    // while the page rarely changes teaches Google to ignore our dates.
     ...CITIES.map((city) => ({
       url: `${root}/il/${city.slug}`,
-      lastModified: now,
-      changeFrequency: "hourly" as const,
+      changeFrequency: "daily" as const,
       priority: 0.8,
     })),
   ];

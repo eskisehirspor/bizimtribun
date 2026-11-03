@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
+import FanFacts from "@/components/FanFacts";
 import ForumShell from "@/components/ForumShell";
 import JsonLd from "@/components/JsonLd";
 import TeamMark from "@/components/TeamMark";
+import { SURVEY_LEADER_ANSWER, teamFacts } from "@/content/fan-facts";
 import { citySlug } from "@/lib/cities";
 import { teamCounts, teamSummary } from "@/lib/stats";
 import { getCatalogTeam, leagueLabels } from "@/lib/team-catalog";
@@ -45,13 +47,15 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
     null,
   );
   const topProvince = summary?.topProvinces[0];
+  const sheet = teamFacts(team.id);
+  const survey = sheet.facts.find((f) => /anket/i.test(f.label));
   const faq: { q: string; a: string }[] = [
     {
       q: `Türkiye'de kaç ${fan} var?`,
       a:
         summary && summary.votes > 0
           ? `Bizim Tribün sayımında şu an ${n(summary.votes)} doğrulanmış ${fan} var${summary.rank ? `; ${team.name} Türkiye'de ${summary.rank}. sırada` : ""}. Her kişi doğrulanmış hesabıyla yalnızca bir takıma, bir kez oy verebilir.`
-          : `${team.name} için sayım yeni başladı; henüz doğrulanmış ${fan} yok. ${fan} isen ilk oyu sen ver.`,
+          : `${team.name} için sayım yeni başladı; henüz doğrulanmış ${fan} yok.${survey ? ` ${survey.label}: ${survey.value}${survey.note ? ` (${survey.note})` : ""}.` : ""} ${fan} isen ilk oyu sen ver.`,
     },
     {
       q: `${team.name} taraftarları en çok hangi ilde?`,
@@ -61,9 +65,11 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
     },
     {
       q: "Türkiye'de en çok taraftarı olan takım hangisi?",
-      a: leader
-        ? `Bizim Tribün sayımında şu an en çok taraftarı olan takım ${leader.name}: ${n(leader.votes)} doğrulanmış taraftar. Bütün takımların taraftar sayıları Takımlar sayfasında.`
-        : "Sayım yeni başladı; henüz oy veren yok. Bütün takımlar Takımlar sayfasında.",
+      a: `${SURVEY_LEADER_ANSWER} ${
+        leader
+          ? `Bizim Tribün'ün doğrulanmış sayımında şu an ${leader.name} önde (${n(leader.votes)} taraftar); sayım yeni başladığı için sıralama değişebilir.`
+          : "Bizim Tribün'ün doğrulanmış sayımı yeni başladı."
+      } Bütün takımların taraftar sayıları Takımlar sayfasında.`,
     },
   ];
 
@@ -115,6 +121,11 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
         </div>
         <div className="bg-[#FFFEFA] p-5">
           <h2 className="font-anton text-[22px] mb-2">{team.name.toLocaleUpperCase("tr")} KAÇ TARAFTARI VAR?</h2>
+          <p className="font-mono text-[13px] mb-3 max-w-[70ch]">
+            {team.name}, {team.city} takımı ve {league}&apos;de oynuyor. Aşağıda iki ayrı kaynak var: Bizim
+            Tribün&apos;ün doğrulanmış hesaplarla yaptığı canlı sayım ve anketlerden, Passolig&apos;den, statlardan
+            derlenmiş, kaynağı belli rakamlar.
+          </p>
           {summary && summary.votes > 0 && (
             <p className="font-mono text-[13px] mb-3 max-w-[70ch]">
               Bizim Tribün sayımına göre {team.name} için {n(summary.votes)} doğrulanmış taraftar var
@@ -174,6 +185,13 @@ export default async function TeamPage({ params }: { params: Promise<{ teamSlug:
               )}
             </>
           )}
+          <FanFacts
+            id="anket-ve-tribun"
+            title={`${team.name.toLocaleUpperCase("tr")} ANKETLERDE VE TRİBÜNDE`}
+            intro="Bizim Tribün dışındaki kaynaklardan; her rakamın tarihi ve kaynağı yanında."
+            facts={sheet.facts}
+            posts={sheet.posts}
+          />
           <h2 className="font-anton text-[22px] mt-6">SIK SORULANLAR</h2>
           <dl className="mt-2 border-[3px] border-black bg-white divide-y-[2px] divide-black">
             {faq.map((item) => (
